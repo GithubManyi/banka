@@ -46,7 +46,7 @@ def debug_caller():
 ROOT = r"c:\Users\user\banka"
 TMP = os.path.join(ROOT, "tmp_ffmpeg")
 FPS = 25
-W, H = 1904, 934  # match video size
+W, H = 1280, 720  # match video size
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "backend", "templates")
