@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import time
+import signal
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -30,6 +31,33 @@ logging.getLogger('PIL').setLevel(logging.WARNING)
 logging.getLogger('selenium').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('chardet').setLevel(logging.WARNING)
+
+# ===== TIMEOUT PROTECTION =====
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("Rendering timeout")
+
+def safe_render(render_function, timeout=30):
+    """Wrapper to add timeout to any render function"""
+    def wrapper(*args, **kwargs):
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout)
+        try:
+            result = render_function(*args, **kwargs)
+            signal.alarm(0)
+            return result
+        except TimeoutException:
+            print("⏰ RENDER TIMEOUT: Using fallback")
+            signal.alarm(0)
+            # Return the frame file path to continue
+            return args[1] if len(args) > 1 else None
+        except Exception as e:
+            signal.alarm(0)
+            raise e
+    return wrapper
+# ===== END TIMEOUT PROTECTION =====
 
 def debug_caller():
     """Print who's calling the rendering functions"""
@@ -73,22 +101,45 @@ import html2image
 HTI = None
 
 def get_html2image():
-    """Get or create HTML2Image instance"""
+    """Get or create HTML2Image instance - FIXED CHROMIUM PATHS"""
     global HTI
     if HTI is None:
-        # Tell HTML2Image exactly where to find Chromium in Railway
-        HTI = html2image.Html2Image(
-            browser='chromium',
-            browser_executable='/usr/bin/chromium',  # Explicit path to Chromium
-            custom_flags=[
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--headless',
-                '--window-size=1920,1080'
+        try:
+            # Try multiple possible Chromium paths
+            possible_paths = [
+                '/usr/bin/chromium',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/google-chrome',
+                '/usr/bin/chrome',
+                '/app/.apt/usr/bin/chromium-browser'
             ]
-        )
-        print("🚀 Created HTML2Image renderer with system Chromium")
+            
+            chromium_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    chromium_path = path
+                    print(f"✅ Found Chromium at: {path}")
+                    break
+            
+            if chromium_path:
+                HTI = html2image.Html2Image(
+                    browser='chromium',
+                    browser_executable=chromium_path,
+                    custom_flags=[
+                        '--no-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu',
+                        '--headless',
+                        '--window-size=1920,1080'
+                    ]
+                )
+                print("🚀 Created HTML2Image renderer with system Chromium")
+            else:
+                print("❌ No Chromium found, will use PIL fallback")
+                HTI = None
+        except Exception as e:
+            print(f"⚠️ HTML2Image setup failed: {e}")
+            HTI = None
     return HTI
 
 # Update the cleanup function:
@@ -237,6 +288,8 @@ class WhatsAppRenderer:
         if self._render_count % 5 == 0:
             print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
 
+    # WRAP THE RENDER_FRAME METHOD WITH TIMEOUT PROTECTION
+    @safe_render
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
         """
         Optimized frame rendering with HTML2Image fallback to PIL
@@ -253,8 +306,8 @@ class WhatsAppRenderer:
             if os.path.exists(cached_frame):
                 import shutil
                 shutil.copy2(cached_frame, frame_file)
-                # REDUCED LOGGING: Only log every 20th cache hit
-                if self._render_count % 20 == 0:
+                # REDUCED LOGGING: Only log every 50th cache hit (INCREASED FROM 20)
+                if self._render_count % 50 == 0:
                     print(f"⚡ Using cached frame: {cache_key[:8]}...")
                 return f"CACHED: {cached_frame}"
         
@@ -311,8 +364,8 @@ class WhatsAppRenderer:
             generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
             if os.path.exists(generated_file):
                 os.rename(generated_file, frame_file)
-                # REDUCED LOGGING: Only log every 20th frame
-                if self._render_count % 20 == 0:
+                # REDUCED LOGGING: Only log every 50th frame (INCREASED FROM 20)
+                if self._render_count % 50 == 0:
                     print(f"✅ Rendered frame {self._render_count}: {frame_file}")
             
             # Clean up temp HTML file
@@ -400,7 +453,8 @@ class WhatsAppRenderer:
                     draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
             
             img.save(frame_file)
-            if self._render_count % 20 == 0:
+            # REDUCED LOGGING: Only log every 50th PIL frame (INCREASED FROM 20)
+            if self._render_count % 50 == 0:
                 print(f"✅ PIL fallback frame {self._render_count}: {frame_file}")
         
         # Cache non-typing frames only
@@ -459,13 +513,13 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         if is_sender:
             # For sender (Banka) - show typing bar, NOT typing indicator bubble
             # REDUCED LOGGING
-            if render_bubble.frame_count % 10 == 0:
+            if render_bubble.frame_count % 20 == 0:  # INCREASED FROM 10
                 print(f"⌨️ Sender {username} typing - using typing bar instead of bubble")
             return render_typing_bar_frame(username, upcoming_text=message if message else "", duration=1.5)
         else:
             # For receiver - show typing indicator bubble
             # REDUCED LOGGING
-            if render_bubble.frame_count % 10 == 0:
+            if render_bubble.frame_count % 20 == 0:  # INCREASED FROM 10
                 print(f"⌨️ Receiver {username} typing - showing typing bubble")
             original_history = render_bubble.renderer.message_history.copy()
             render_bubble.renderer.add_message(username, None, typing=True)
@@ -537,8 +591,8 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         json.dump(render_bubble.timeline, tf, indent=2)
 
     render_bubble.frame_count += 1
-    # REDUCED LOGGING: Only log every 10th frame
-    if render_bubble.frame_count % 10 == 0:
+    # REDUCED LOGGING: Only log every 20th frame (INCREASED FROM 10)
+    if render_bubble.frame_count % 20 == 0:
         print(f"✅ Regular frame {render_bubble.frame_count}: {frame_file} ({duration}s)")
     return frame_file
 
@@ -563,7 +617,7 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
     # 🔹 FIXED: Don't show typing bubbles for sender
     if is_sender:
         # REDUCED LOGGING
-        if render_bubble.frame_count % 10 == 0:
+        if render_bubble.frame_count % 20 == 0:  # INCREASED FROM 10
             print(f"⌨️ Skipping typing bubble for sender {username} - using typing bar instead")
         return render_typing_bar_frame(username, "", duration=1.5)
 
@@ -604,8 +658,8 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
         json.dump(render_bubble.timeline, tf, indent=2)
 
     render_bubble.frame_count += 1
-    # REDUCED LOGGING: Only log every 10th typing indicator
-    if render_bubble.frame_count % 10 == 0:
+    # REDUCED LOGGING: Only log every 20th typing indicator (INCREASED FROM 10)
+    if render_bubble.frame_count % 20 == 0:
         print(f"⌨️ Typing indicator for {username} (duration: {duration}s)")
     return frame_file
 
@@ -636,8 +690,8 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
 
 def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duration=None, is_character_typing=True):
     # DEBUG: Find who's calling this
-    # REDUCED LOGGING: Only debug every 20th call
-    if render_bubble.frame_count % 20 == 0:
+    # REDUCED LOGGING: Only debug every 50th call (INCREASED FROM 20)
+    if render_bubble.frame_count % 50 == 0:
         debug_caller()
         print(f"🔍 CALLED WITH: '{upcoming_text}', duration={duration}, is_character_typing={is_character_typing}")
     
@@ -659,7 +713,7 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
     # Skip typing bar for non-sender
     if username.strip().lower() != MAIN_USER.lower():
         # REDUCED LOGGING
-        if render_bubble.frame_count % 10 == 0:
+        if render_bubble.frame_count % 20 == 0:  # INCREASED FROM 10
             print(f"⌨️ Non-sender '{username}' - using typing bubble instead of typing bar")
         return render_typing_bubble(username, custom_durations={})
 
@@ -713,11 +767,11 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         # We can't see future, but we can check if this looks like a completion frame
         should_play_sound = False  # No sound in final frames
         # REDUCED LOGGING: Only log final frames occasionally
-        if render_bubble.frame_count % 10 == 0:
+        if render_bubble.frame_count % 20 == 0:  # INCREASED FROM 10
             print(f"🎹 FINAL FRAME DETECTED: '{upcoming_text}' - NO SOUND")
 
-    # REDUCED LOGGING: Only log sound info every 20th frame
-    if render_bubble.frame_count % 20 == 0:
+    # REDUCED LOGGING: Only log sound info every 50th frame (INCREASED FROM 20)
+    if render_bubble.frame_count % 50 == 0:
         print(f"🎹 SIMPLE SOUND: is_typing={is_character_typing} -> sound={should_play_sound}")
         print(f"🎹 TEXT: prev='{prev_text}' current='{current_text}'")
 
@@ -729,13 +783,13 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
     if is_character_typing and not prev_text and current_text:
         render_bubble.current_typing_session = f"session_{render_bubble.frame_count}"
         # REDUCED LOGGING
-        if render_bubble.frame_count % 10 == 0:
+        if render_bubble.frame_count % 20 == 0:  # INCREASED FROM 10
             print(f"🎹 🆕 STARTING NEW TYPING SESSION: {render_bubble.current_typing_session}")
     
     # End session when we stop typing
     if not is_character_typing and render_bubble.current_typing_session:
         # REDUCED LOGGING
-        if render_bubble.frame_count % 10 == 0:
+        if render_bubble.frame_count % 20 == 0:  # INCREASED FROM 10
             print(f"🎹 🛑 ENDING TYPING SESSION: {render_bubble.current_typing_session}")
         render_bubble.current_typing_session = None
 
@@ -754,8 +808,8 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         "typing_session_id": render_bubble.current_typing_session if is_character_typing else None
     }
 
-    # REDUCED LOGGING: Only log every 10th typing frame
-    if render_bubble.frame_count % 10 == 0:
+    # REDUCED LOGGING: Only log every 20th typing frame (INCREASED FROM 10)
+    if render_bubble.frame_count % 20 == 0:
         print(f"🎹 Frame {render_bubble.frame_count}: '{upcoming_text}' - Sound: {should_play_sound}")
 
     render_bubble.timeline.append(entry)
@@ -832,7 +886,7 @@ def generate_beluga_typing_sequence(real_message):
         sequence.append(("", 0.5, False))
     else:
         # REDUCED LOGGING
-        if random.random() < 0.1:  # Only log 10% of the time
+        if random.random() < 0.05:  # REDUCED FROM 0.1 to 0.05
             print("🎲 No fake typing this message")
 
     # Type actual message WITH SOUND (continuous)
@@ -845,7 +899,7 @@ def generate_beluga_typing_sequence(real_message):
         if i >= len(real_message) - 3:
             is_active_typing = False
             # REDUCED LOGGING
-            if random.random() < 0.1:  # Only log 10% of the time
+            if random.random() < 0.05:  # REDUCED FROM 0.1 to 0.05
                 print(f"🎹 LAST 3 CHARS: '{ch}' at position {i} - NO SOUND")
             
         sequence.append((buf + "|", typing_speed_for(ch), is_active_typing))
@@ -862,7 +916,7 @@ def generate_beluga_typing_sequence(real_message):
 def render_typing_sequence(username, real_message):
     # After rendering the typing sequence, add this:
     # REDUCED LOGGING: Only debug timeline occasionally
-    if random.random() < 0.1:
+    if random.random() < 0.05:  # REDUCED FROM 0.1 to 0.05
         debug_timeline_entries()
     
     """
@@ -874,8 +928,8 @@ def render_typing_sequence(username, real_message):
     
     rendered_frames = []
     for i, (text, duration, has_sound) in enumerate(sequence):
-        # REDUCED LOGGING: Only log every 10th typing frame
-        if i % 10 == 0:
+        # REDUCED LOGGING: Only log every 20th typing frame (INCREASED FROM 10)
+        if i % 20 == 0:
             print(f"🎬 Rendering typing frame {i}: '{text}' - duration: {duration}s - sound: {has_sound}")
         
         # Actually render the frame with sound information
@@ -1056,8 +1110,8 @@ if __name__ == "__main__":
                             if msg["is_sender"]:
                                 msg["is_read"] = True
 
-                    # REDUCED LOGGING: Only log every 5th chat line
-                    if render_bubble.frame_count % 5 == 0:
+                    # REDUCED LOGGING: Only log every 10th chat line (INCREASED FROM 5)
+                    if render_bubble.frame_count % 10 == 0:
                         print(f"💬 Chat line: {name}: {message[:80]}")
                     render_bubble(name, message, is_sender=is_sender, is_read=is_read)
 
