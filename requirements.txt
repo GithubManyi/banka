@@ -5,3 +5,11 @@ opencv-python==4.8.1.78
 numpy==1.26.0
 gunicorn
 gradio
+flask
+gradio
+gunicorn
+jinja2
+selenium
+moviepy
+requests
+
