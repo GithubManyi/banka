@@ -82,79 +82,6 @@ def get_html2image():
         print("🚀 Created HTML2Image renderer")
     return HTI
 
-# Replace the entire render_frame method in WhatsAppRenderer class:
-def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
-    """
-    Optimized frame rendering with HTML2Image
-    """
-    start_time = time.time()
-    self._render_count += 1
-    
-    # Check cache first
-    is_typing_frame = show_typing_bar and upcoming_text
-    cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
-    
-    if not is_typing_frame and cache_key in FRAME_CACHE and os.path.exists(FRAME_CACHE[cache_key]):
-        cached_frame = FRAME_CACHE[cache_key]
-        if os.path.exists(cached_frame):
-            import shutil
-            shutil.copy2(cached_frame, frame_file)
-            print(f"⚡ Using cached frame: {cache_key[:8]}...")
-            return f"CACHED: {cached_frame}"
-    
-    template = self.jinja_env.get_template(TEMPLATE_FILE)
-
-    # Filter typing bubbles for sender
-    filtered_messages = []
-    for msg in self.message_history:
-        if msg['is_sender'] and msg['typing']:
-            continue
-        filtered_messages.append(msg)
-
-    rendered_html = template.render(
-        messages=filtered_messages,
-        chat_title=getattr(self, "chat_title", None),
-        chat_avatar=getattr(self, "chat_avatar", None),
-        chat_status=getattr(self, "chat_status", None),
-        show_typing_bar=show_typing_bar,
-        typing_user=typing_user,
-        upcoming_text=upcoming_text
-    )
-
-    # Use HTML2Image for rendering
-    hti = get_html2image()
-    
-    # Save HTML to temporary file
-    temp_html = os.path.join(FRAMES_DIR, f"temp_{render_bubble.frame_count}.html")
-    with open(temp_html, "w", encoding="utf-8") as f:
-        f.write(rendered_html)
-    
-    # Render to image
-    hti.screenshot(
-        html_file=temp_html,
-        save_as=os.path.basename(frame_file),
-        size=(1920, 1080)
-    )
-    
-    # Move the screenshot to the correct location
-    generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
-    if os.path.exists(generated_file):
-        os.rename(generated_file, frame_file)
-    
-    # Clean up temp HTML file
-    if os.path.exists(temp_html):
-        os.remove(temp_html)
-    
-    # Cache non-typing frames only
-    if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
-        FRAME_CACHE[cache_key] = frame_file
-    
-    render_time = time.time() - start_time
-    if render_time > 0.5:
-        print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
-    
-    return rendered_html
-
 # Update the cleanup function:
 def cleanup_resources():
     """Clean up all resources when done"""
@@ -167,18 +94,6 @@ def cleanup_resources():
     FRAME_CACHE.clear()
     gc.collect()
     print("🧹 Cleaned up rendering resources")
-
-def close_persistent_driver():
-    """Close the persistent driver when done"""
-    global PERSISTENT_DRIVER
-    if PERSISTENT_DRIVER:
-        try:
-            PERSISTENT_DRIVER.quit()
-            PERSISTENT_DRIVER = None
-            print("🔴 Closed persistent driver")
-        except Exception as e:
-            print(f"⚠️ Error closing persistent driver: {e}")
-            PERSISTENT_DRIVER = None
 
 # Cache for rendered frames to avoid re-rendering identical states
 FRAME_CACHE = {}
