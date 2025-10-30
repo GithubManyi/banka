@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>WhatsApp 2025 Chat</title>
+<meta name="viewport" content="width=1920, height=1080, initial-scale=1" />
+<style>
+  :root{
+    --app-bg: #0b141a;
+    --panel-bg: #111b21;
+    --chat-bg: #0b141a;
+    --incoming: #202c33;
+    --outgoing: #005c4b;
+    --text: #e9edef;
+    --muted: #8696a0;
+    --blue: #53bdeb;
+    --bubble-radius: 18px;
+    --bubble-font: 34px;
+    --ts-font: 20px;
+    --max-bubble: 70%;
+    --pad-x: 18px;
+    --pad-y: 14px;
+    --tail-offset: 12px;
+    --avatar-total-width: 168px;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+    background: var(--app-bg);
+    color: var(--text);
+  }
+
+  .topbar {
+    height: 130px;
+    background: var(--panel-bg);
+    display: flex;
+    align-items: flex-end;
+    padding: 0 24px 10px;
+    border-bottom: 1px solid #1f2c33;
+    position: relative;
+    z-index: 10;
+  }
+  .topbar .avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 24px;
+    flex: 0 0 100px;
+    background: #2a3942;
+  }
+  .topbar .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .topbar .meta { display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 5px; }
+  .topbar .name { font-size: 36px; font-weight: 600; }
+  .topbar .status { align-items: flex-end; font-size: 16px; color: var(--muted); margin-top: 4px; }
+
+  .app-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--chat-bg);
+    position: relative;
+    height: calc(100% - 130px);
+    /* NEW: Add padding at bottom to reserve space for typing bar */
+    padding-bottom: 0;
+    transition: padding-bottom 0.3s ease-out;
+  }
+  
+  
+  /* MORE AGGRESSIVE: Reserve more space when typing is active */
+  .chat-wrap.typing-active {
+    padding-bottom: 100px; /* Increased from 80px to create more buffer */
+  }
+
+  .chat-container {
+    width: 90%;
+    max-width: 1800px;
+    margin: 0 auto;
+    /*padding: 32px 20px 150px; /* 150px bottom padding for typing bar space */
+    padding: 32px 20px 30px; /* Reduced bottom padding since typing bar handles it */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex: 1;
+    scrollbar-width: thin;
+    scrollbar-color: #233138 transparent;
+  }
+
+  /* EVEN MORE AGGRESSIVE: Add extra margin to last message when typing */
+  .chat-wrap.typing-active .message-group:last-child {
+    margin-bottom: 60px !important; /* Force extra space after last message */
+  }
+
+  .chat-container::-webkit-scrollbar { width: 10px; }
+  .chat-container::-webkit-scrollbar-thumb { background: #233138; border-radius: 8px; }
+
+  /* Message group container */
+  .message-group {
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .message {
+    display: flex;
+    align-items: flex-start;
+  }
+  .receiver { justify-content: flex-start; }
+  .sender { justify-content: flex-end; }
+
+  /* First message in group - has avatar and username */
+  .message.first-in-group {
+    position: relative;
+  }
+
+  /* Grouped messages - no avatar, no username, no tail */
+  .message.grouped { 
+    margin: 1px 0;
+  }
+  
+  /* Perfect alignment for grouped messages */
+  .receiver.grouped {
+    margin-left: var(--avatar-total-width);
+  }
+  
+  .sender.grouped {
+    margin-right: var(--avatar-total-width);
+  }
+
+  .message.grouped .msg-avatar { 
+    display: none !important; 
+  }
+  
+  .message.grouped .username { 
+    display: none !important; 
+  }
+
+  .msg-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    margin: 0 24px;
+    background: #2a3942;
+  }
+  .msg-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .bubble {
+    position: relative;
+    max-width: var(--max-bubble);
+    padding: var(--pad-y) var(--pad-x);
+    border-radius: var(--bubble-radius);
+    font-size: var(--bubble-font);
+    line-height: 1.35;
+    word-wrap: break-word;
+    background: inherit;
+  }
+
+  /* First message in group - show tail and special corner */
+  .message.first-in-group.receiver .bubble { 
+    background: var(--incoming); 
+    border-top-left-radius: 4px; 
+  }
+  
+  .message.first-in-group.sender .bubble { 
+    background: var(--outgoing); 
+    border-top-right-radius: 4px; 
+  }
+
+  /* Grouped messages - full rounded corners */
+  .message.grouped.receiver .bubble {
+    background: var(--incoming);
+    border-radius: var(--bubble-radius);
+  }
+  
+  .message.grouped.sender .bubble {
+    background: var(--outgoing);
+    border-radius: var(--bubble-radius);
+  }
+
+ /* Tails perfectly attached to bubbles */
+.message.first-in-group.receiver .bubble::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -10px; /* closer contact */
+  width: 14px;
+  height: 22px;
+  background: var(--incoming);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  border-top-left-radius: 2px; /* smooth join */
+}
+
+.message.first-in-group.sender .bubble::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -10px; /* closer contact */
+  width: 14px;
+  height: 22px;
+  background: var(--outgoing);
+  clip-path: polygon(100% 0, 0 0, 0 100%);
+  border-top-right-radius: 2px; /* smooth join */
+}
+
+
+  /* No tail for grouped messages */
+  .message.grouped .bubble::before {
+    display: none !important;
+  }
+
+  .message-header {
+    margin-bottom: 6px;
+  }
+
+  .username { 
+    font-size: 22px; 
+    font-weight: 700; 
+    margin: 0;
+  }
+
+  .message-content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .text { 
+    white-space: pre-wrap; 
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: roboto, "Helvetica Neue", Arial, sans-serif;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .meme-container {
+    margin-bottom: 0;
+  }
+
+  .meme {
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 100%;
+    max-height: 400px;
+    display: block;
+  }
+
+  .meme img, 
+  .meme video {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    object-fit: contain;
+    max-width: 500px;
+  }
+
+
+  
+  .timestamp {
+    font-size: var(--ts-font);
+    color: rgba(255,255,255,0.6);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px; /* small spacing before ticks */
+    vertical-align: middle;
+  }
+
+  /* Merge ticks inline with timestamp — real WhatsApp style */
+  .ticks {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    transform: scale(0.85);
+    position: relative;
+    top: -1px; /* slight optical alignment adjustment */
+    margin-left: 2px; /* much tighter than before */
+  }
+  
+  .tick svg path { 
+    stroke: #34B7F1; 
+    stroke-width: 2.5; 
+  }
+
+  .tick svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .tick.read svg path { 
+    stroke: var(--blue); 
+  }
+
+  .message-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 6px;
+  }
+
+  .typing {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 12px 16px;
+    background: #202c33;
+    border-radius: 18px;
+    width: fit-content;
+  }
+
+  .typing .dot {
+    width: 8px;
+    height: 8px;
+    background: #8696a0;
+    border-radius: 50%;
+    animation: blink 1.4s infinite both;
+  }
+
+  /* ===== Typing Bar (Conditional - Only shown during typing) ===== */
+  .typing-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: var(--panel-bg);
+    border-top: 1px solid #1f2c33;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 40px;
+    box-sizing: border-box;
+    z-index: 100;
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.4);
+    backdrop-filter: blur(8px);
+    /* NEW: Start hidden and slide up */
+    transform: translateY(100%);
+    opacity: 0;
+    transition: all 0.3s ease-out;
+    
+  }
+  
+  .whatsapp-bar {
+    width: 94%;
+    display: flex;
+    align-items: center;
+    background: #202c33;
+    border-radius: 48px;
+    padding: 10px 18px;
+    box-sizing: border-box;
+    height: 72px;
+  }
+
+
+  .whatsapp-bar .icon-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 36px;
+    cursor: pointer;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+  }
+  .whatsapp-bar .icon-btn:hover {
+    color: var(--blue);
+  }
+  .whatsapp-bar .icon-btn.emoji:hover {
+   color: #f7d24c;
+ }
+
+  .whatsapp-bar .input-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    font-size: 30px;
+    padding: 0 16px;
+    color: var(--text);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .placeholder {
+    color: var(--muted);
+    margin-right: 8px;
+  }
+  .placeholder, .typed-text {
+    font-size: 30px;
+    color: var(--muted);
+    display: inline-block;
+    margin-left: 6px;
+    line-height: 1.4;
+  }
+
+  .typed-text {
+    color: var(--text);
+  }
+
+
+
+  .cursor {
+    color: #00a884;
+    animation: blink 1s steps(1) infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* NEW: Active state for typing bar */
+  .typing-bar.active {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .input-wrap input {
+    flex: 1;
+    height: 50px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 30px;
+    padding: 0 16px;
+  }
+
+  .input-wrap input::placeholder {
+    color: var(--muted);
+    font-size: 30px;
+  }
+
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 36px;
+    cursor: pointer;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-btn:hover {
+    color: var(--blue);
+  }
+
+  .typing .dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing .dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1); }
+  }
+
+  .cursor {
+  color: #00a884;
+  animation: blink 1s steps(1) infinite;
+}
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="topbar">
+    <div class="avatar">
+      {% if chat_avatar %}
+       <img src="{{ chat_avatar }}" onerror="this.style.display='none'">
+      {% else %}
+       <img src="static/images/contact.png" onerror="this.style.display='none'">
+      {% endif %}
+    </div>
+    <div class="meta">
+      <div class="name">{{ chat_title or "Default Group Title" }}</div>
+      <div class="status">{{ chat_status or "No members yet" }}</div>
+    </div>
+  </div>
+
+  <div class="chat-wrap">
+    <div class="chat-container" id="chat">
+      {% set current_group = [] %}
+      
+      {% for msg in messages %}
+        {% set prev = messages[loop.index0 - 1] if not loop.first else None %}
+        
+        {# IMPROVED GROUPING LOGIC - CASE INSENSITIVE AND MORE ROBUST #}
+        {% set is_grouped = false %}
+        {% set is_first_in_group = true %}
+        
+        {% if prev %}
+          {# Group if: Same sender (case insensitive) AND same direction #}
+          {% set prev_username_lower = prev.username | lower %}
+          {% set curr_username_lower = msg.username | lower %}
+          
+          {% if prev_username_lower == curr_username_lower and prev.is_sender == msg.is_sender %}
+            {# Ensure both messages are actual messages (not system messages or other types) #}
+            {# Typing indicators DON'T break groups #}
+            {# Time gaps DON'T break groups #}
+            {# Different topics DON'T break groups #}
+            {% set is_grouped = true %}
+            {% set is_first_in_group = false %}
+          {% endif %}
+        {% endif %}
+        
+        {# Start new group if this is the first message in group #}
+        {% if is_first_in_group %}
+          {% if current_group %}
+            </div> <!-- Close previous group -->
+          {% endif %}
+          <div class="message-group"> <!-- Start new group -->
+        {% endif %}
+
+        <div class="message {% if msg.is_sender %}sender{% else %}receiver{% endif %} {% if is_grouped %}grouped{% endif %} {% if is_first_in_group %}first-in-group{% endif %}">
+          {% if msg.is_sender %}
+            <div class="bubble">
+              <div class="message-header">
+                {% if is_first_in_group %}
+                  <span class="username" style="color: {{ msg.color }}">{{ msg.username }}</span>
+                {% endif %}
+              </div>
+              <div class="message-content">
+                {% if msg.typing %}
+                  {# REMOVED: No typing indicator for sender (right side) #}
+                  {# Only show typing bar at bottom for sender typing #}
+                {% else %}
+                  {% if msg.meme %}
+                    <div class="meme-container">
+                      {% if msg.mime and msg.mime.startswith('image') %}
+                        <img src="data:{{ msg.mime }};base64,{{ msg.meme }}" class="meme">
+                      {% elif msg.mime and msg.mime.startswith('video') %}
+                        <video src="data:{{ msg.mime }};base64,{{ msg.meme }}" class="meme" autoplay loop muted playsinline></video>
+                      {% else %}
+                        <img src="data:image/jpeg;base64,{{ msg.meme }}" class="meme">
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                  {% if msg.text %}
+                    <div class="text">{{ msg.text }}</div>
+                  {% endif %}
+                {% endif %}
+              </div>
+              <div class="message-footer">
+                <span class="timestamp">{{ msg.timestamp }}</span>
+                {% if msg.is_sender and not msg.typing %}
+                  <span class="ticks">
+                    <span class="tick {% if msg.is_read %}read{% else %}delivered{% endif %}">
+                      <svg width="16" height="16" viewBox="0 0 24 24">
+                        <path d="M1.5 13l5 5L22 4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                    <span class="tick {% if msg.is_read %}read{% else %}delivered{% endif %}" style="margin-left:-10px;">
+                      <svg width="16" height="16" viewBox="0 0 24 24">
+                        <path d="M1.5 13l5 5L22 4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+            {% if is_first_in_group %}
+              <div class="msg-avatar">
+                <img src="static/images/{{ msg.avatar }}" alt="">
+              </div>
+            {% endif %}
+          {% else %}
+            {% if is_first_in_group %}
+              <div class="msg-avatar">
+                <img src="static/images/{{ msg.avatar }}" alt="">
+              </div>
+            {% endif %}
+            <div class="bubble">
+              <div class="message-header">
+                {% if is_first_in_group %}
+                  <span class="username" style="color: {{ msg.color }}">{{ msg.username }}</span>
+                {% endif %}
+              </div>
+              <div class="message-content">
+                {% if msg.typing %}
+                  {# SHOW typing indicator only for receiver (left side) #}
+                  <div class="typing">
+                    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                  </div>
+                {% else %}
+                  {% if msg.meme %}
+                    <div class="meme-container">
+                      {% if msg.mime and msg.mime.startswith('image') %}
+                        <img src="data:{{ msg.mime }};base64,{{ msg.meme }}" class="meme">
+                      {% elif msg.mime and msg.mime.startswith('video') %}
+                        <video src="data:{{ msg.mime }};base64,{{ msg.meme }}" class="meme" autoplay loop muted playsinline></video>
+                      {% else %}
+                        <img src="data:image/jpeg;base64,{{ msg.meme }}" class="meme">
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                  {% if msg.text %}
+                    <div class="text">{{ msg.text }}</div>
+                  {% endif %}
+                {% endif %}
+              </div>
+              <div class="message-footer">
+                <span class="timestamp">{{ msg.timestamp }}</span>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if loop.last %}
+          </div> <!-- Close last group -->
+        {% endif %}
+        
+        {% set _ = current_group.append(msg) %}
+      {% endfor %}
+    </div> 
+  </div>
+  
+  <!-- ===== CONDITIONAL Typing Bar ===== -->
+{% if show_typing_bar and typing_user %}
+<div class="typing-bar active">
+  <div class="input-wrap whatsapp-bar">
+    <button class="icon-btn emoji">
+      😊
+    </button>
+    <div class="input-area">
+      {% if upcoming_text and upcoming_text.strip() %}
+        <span class="typed-text">{{ upcoming_text }}</span><span class="cursor">|</span>
+      {% else %}
+        <span class="placeholder">Message</span>
+      {% endif %}
+    </div>
+    <button class="icon-btn attach">📎</button>
+    <button class="icon-btn camera">📷</button>
+    {% if upcoming_text %}
+      <button class="icon-btn send">📩</button>
+    {% else %}
+      <button class="icon-btn mic">🎤</button>
+    {% endif %}
+
+  </div>
+</div>
+{% endif %}
+
+
+</div>
+
+<script>
+function scrollToBottom() {
+  const chat = document.getElementById("chat");
+  if (!chat) return;
+  requestAnimationFrame(() => {
+    chat.scrollTop = chat.scrollHeight - chat.clientHeight;
+  });
+}
+
+// IMPROVED: Calculate exact scroll position to avoid overlap
+function handleTypingBar() {
+  const chatWrap = document.querySelector('.chat-wrap');
+  const typingBar = document.querySelector('.typing-bar');
+  const chat = document.getElementById("chat");
+  
+  if (typingBar && chat) {
+    // Add active class to both typing bar and chat wrap
+    chatWrap.classList.add('typing-active');
+    typingBar.classList.add('active');
+    
+    // CRITICAL FIX: Calculate exact scroll position needed
+    setTimeout(() => {
+      // Get the exact height of the typing bar
+      const typingBarHeight = typingBar.offsetHeight;
+      
+      // Calculate the scroll position that shows last message + gap + typing bar
+      const targetScrollTop = chat.scrollHeight - chat.clientHeight + typingBarHeight + 20; // +20px for extra gap
+      
+      // Scroll to this precise position
+      chat.scrollTop = targetScrollTop;
+      
+      // Double check after everything renders
+      setTimeout(() => {
+        const finalScrollTop = chat.scrollHeight - chat.clientHeight + typingBarHeight + 20;
+        chat.scrollTop = finalScrollTop;
+      }, 100);
+      
+    }, 200); // Longer delay to ensure CSS is fully applied
+  } else {
+    // Remove active class when no typing bar
+    chatWrap.classList.remove('typing-active');
+    // Scroll to actual bottom when typing ends
+    setTimeout(scrollToBottom, 100);
+  }
+}
+
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    handleTypingBar();
+    scrollToBottom();
+  }, 100);
+});
+
+document.querySelectorAll("img").forEach(img => {
+  if (!img.complete) {
+    img.addEventListener("load", () => {
+      handleTypingBar();
+      scrollToBottom();
+    });
+  }
+});
+
+document.querySelectorAll("video").forEach(video => {
+  video.addEventListener("loadeddata", () => {
+    handleTypingBar();
+    scrollToBottom();
+  });
+});
+
+// Call this whenever typing bar state changes
+handleTypingBar();
+
+</script>
+
+</body>
+</html>

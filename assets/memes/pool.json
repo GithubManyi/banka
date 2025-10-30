@@ -1,0 +1,11 @@
+[
+  {"file": "assets/memes/cat.png",       "max_seconds": 2.5, "weight": 1},
+  {"file": "assets/memes/shocked.jpg",   "max_seconds": 2.0, "weight": 1},
+  {"file": "assets/memes/facepalm.webp", "max_seconds": 2.5, "weight": 1},
+  {"file": "assets/memes/dance.gif",     "max_seconds": 2.5, "weight": 1},
+  {"file": "assets/memes/spin.mp4",      "max_seconds": 2.5, "weight": 1},
+  {"file": "assets/memes/cat.png",       "max_seconds": 2.5, "weight": 1},
+  {"file": "assets/memes/trollface.jpg", "max_seconds": 3.0, "weight": 1},
+  {"file": "assets/memes/funnydog.gif",  "max_seconds": 2.8, "weight": 1},
+  {"file": "assets/memes/cringe.mp4",    "max_seconds": 4.0, "weight": 1}
+]

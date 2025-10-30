@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.venv/
+.env
+.env.*
+
+# Editor/IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and runtime
+*.log
+model_log.txt
+
+# Build/output artifacts
+output_optimized.mp4
+frames/
+tmp_ffmpeg/
+static/audio/
+assets/memes/auto/
+assets/memes/*.mp4
+*.mp4
+*.mov
+
+# Generated html previews
+rendered_chat.html
