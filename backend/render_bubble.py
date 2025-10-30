@@ -60,27 +60,43 @@ PERSISTENT_DRIVER = None
 DRIVER_LAST_USED = 0
 DRIVER_TIMEOUT = 30  # Close driver after 30 seconds of inactivity
 
-# Remove all Selenium imports and add:
-import html2image
-
-# Global HTML2Image instance
-HTI = None
-
-def get_html2image():
-    """Get or create HTML2Image instance"""
-    global HTI
-    if HTI is None:
-        HTI = html2image.Html2Image(
-            browser='chromium',
-            custom_flags=[
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--headless'
-            ]
-        )
-        print("🚀 Created HTML2Image renderer")
-    return HTI
+def get_persistent_driver():
+    """Get or create a persistent Chrome driver for faster rendering"""
+    global PERSISTENT_DRIVER, DRIVER_LAST_USED
+    
+    current_time = time.time()
+    
+    # Close driver if it's been inactive for too long
+    if (PERSISTENT_DRIVER and 
+        current_time - DRIVER_LAST_USED > DRIVER_TIMEOUT):
+        try:
+            PERSISTENT_DRIVER.quit()
+            PERSISTENT_DRIVER = None
+            print("🔄 Closed inactive persistent driver")
+        except:
+            PERSISTENT_DRIVER = None
+    
+    # Create new driver if needed
+    if PERSISTENT_DRIVER is None:
+        chrome_options = Options()
+        
+        # ESSENTIAL FOR RAILWAY
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        
+        # Let Selenium auto-manage ChromeDriver
+        try:
+            PERSISTENT_DRIVER = webdriver.Chrome(options=chrome_options)
+            print("🚀 Created Chrome driver with auto ChromeDriver")
+        except Exception as e:
+            print(f"❌ Chrome driver creation failed: {e}")
+            raise
+    
+    DRIVER_LAST_USED = current_time
+    return PERSISTENT_DRIVER
 
 # Replace the entire render_frame method in WhatsAppRenderer class:
 def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
