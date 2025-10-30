@@ -7,5 +7,6 @@ jinja2
 selenium
 requests
 pillow==10.1.0
-pilmoji==2.3.0
-numpy==1.26.0
+pilmoji>=2.0.0,<2.1.0
+numpy>=1.26.0,<2.0.0
+
