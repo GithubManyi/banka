@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# Install system dependencies including ffmpeg and Chromium for Selenium
+# Install system dependencies including ffmpeg
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     chromium \
@@ -28,8 +28,15 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p frames tmp_ffmpeg static/assets
 
+# Set Python path
+ENV PYTHONPATH=/app
+
 # Expose port
 EXPOSE 7860
 
-# Start Python application (NOT npm start)
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:7860')" || exit 1
+
+# Start Python application
 CMD ["python", "web_ui.py"]
