@@ -1,14 +1,9 @@
-# -------------------------------
-# Base image
-# -------------------------------
 FROM python:3.10-slim
 
-# -------------------------------
-# Install system dependencies
-# -------------------------------
+# Install system dependencies including ffmpeg and Chromium for Selenium
 RUN apt-get update && apt-get install -y \
-    ffmpeg \                       # Video processing
-    chromium \                     # For headless browser / Selenium
+    ffmpeg \
+    chromium \
     chromium-driver \
     libnss3 \
     libatk-bridge2.0-0 \
@@ -19,52 +14,22 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     libgbm1 \
     libxss1 \
-    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# -------------------------------
-# Sanity check for FFmpeg
-# -------------------------------
-RUN ffmpeg -version   # Railway build logs will show this, ensures ffmpeg installed
-
-# -------------------------------
-# Set working directory
-# -------------------------------
 WORKDIR /app
 
-# -------------------------------
-# Install Python dependencies
-# -------------------------------
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# -------------------------------
 # Copy application code
-# -------------------------------
 COPY . .
 
-# -------------------------------
 # Create necessary directories
-# -------------------------------
 RUN mkdir -p frames tmp_ffmpeg static/assets
 
-# -------------------------------
-# Set Python path
-# -------------------------------
-ENV PYTHONPATH=/app
-
-# -------------------------------
-# Expose port for your web app
-# -------------------------------
+# Expose port
 EXPOSE 7860
 
-# -------------------------------
-# Health check
-# -------------------------------
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:7860')" || exit 1
-
-# -------------------------------
-# Start Python application
-# -------------------------------
+# Start Python application (NOT npm start)
 CMD ["python", "web_ui.py"]
