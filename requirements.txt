@@ -15,5 +15,4 @@ groq
 psutil
 webdriver-manager
 ffmpeg-python
-
-
+html2image
