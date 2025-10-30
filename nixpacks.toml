@@ -9,6 +9,7 @@ aptPkgs = [
 [phases.build]
 nixPkgs = [
     "chromium"
+    "ffmpeg"
 ]
 
 [start]
