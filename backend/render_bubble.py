@@ -99,6 +99,7 @@ def cleanup_resources():
 FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
 
+
 def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     """Generate a cache key for frame rendering"""
     key_data = {
