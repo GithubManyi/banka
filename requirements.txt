@@ -13,4 +13,7 @@ python-dotenv
 openai
 groq
 psutil
+webdriver-manager
+ffmpeg-python
+
 
