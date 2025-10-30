@@ -23,6 +23,11 @@ import traceback
 # Add performance monitoring
 import psutil
 import gc
+import logging
+# Reduce logging verbosity for HTML2Image and other noisy libraries
+logging.getLogger('html2image').setLevel(logging.WARNING)
+logging.getLogger('PIL').setLevel(logging.WARNING)
+logging.getLogger('selenium').setLevel(logging.WARNING)
 
 def debug_caller():
     """Print who's calling the rendering functions"""
