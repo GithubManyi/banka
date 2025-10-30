@@ -1,99 +1,151 @@
 import subprocess
 import sys
 import os
-
-print("=" * 50)
-print("🔍 SYSTEM DEPENDENCY CHECK")
-print("=" * 50)
-
-# Check if we're in a container
-print(f"📁 Current directory: {os.getcwd()}")
-print(f"🐍 Python path: {sys.executable}")
-
-# Check ffmpeg installation
-print("\n🔍 Checking FFmpeg...")
-try:
-    # Method 1: Check which
-    result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
-    if result.returncode == 0:
-        print(f"✅ FFmpeg found at: {result.stdout.strip()}")
-    else:
-        print("❌ FFmpeg not found via 'which'")
-    
-    # Method 2: Direct check
-    result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True)
-    if result.returncode == 0:
-        version_line = result.stdout.split('\n')[0] if result.stdout else "Unknown"
-        print(f"✅ FFmpeg version: {version_line}")
-    else:
-        print("❌ FFmpeg command failed")
-        print(f"Stderr: {result.stderr}")
-        
-except Exception as e:
-    print(f"❌ Error checking FFmpeg: {e}")
-
-# List installed packages
-print("\n🔍 Checking installed packages...")
-try:
-    result = subprocess.run(['dpkg', '-l', '|', 'grep', 'ffmpeg'], 
-                          shell=True, capture_output=True, text=True)
-    print(f"FFmpeg packages: {result.stdout if result.stdout else 'None found'}")
-except Exception as e:
-    print(f"Error checking packages: {e}")
-
-print("=" * 50)
-print("🚀 Starting application...")
-print("=" * 50)
-
-# Continue with your normal imports...
-# Add this to your main.py or web_ui.py startup code
-import subprocess
-import sys
-import os
 import traceback
 
-# Add debug logging immediately
 print("🚀 Application starting...")
 print(f"📁 Current directory: {os.getcwd()}")
 print(f"🐍 Python version: {sys.version}")
-print(f"📦 Python path: {sys.path}")
 
-# ⚠️ SKIP FFMPEG INSTALLATION - COMMENT THIS OUT
-# if not install_ffmpeg():
-#     print("⚠️ ffmpeg not available - video creation will fail")
-
-# Just check if ffmpeg exists but don't install
+# SIMPLE FFMPEG CHECK ONLY - NO INSTALLATION
 try:
-    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
+    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
     if result.returncode == 0:
         print("✅ ffmpeg is available")
     else:
-        print("⚠️ ffmpeg not found - video rendering will fail")
-except:
-    print("⚠️ Could not check ffmpeg - video rendering will fail")
+        print("❌ ffmpeg command failed")
+except Exception as e:
+    print(f"❌ ffmpeg check failed: {e}")
 
-# NOW import the rest of your modules...
+# NOW import the rest of your modules - WITHOUT try/except that hides errors
+print("📦 Importing dependencies...")
 
-# NOW import the rest of your modules
-
+try:
     import gradio as gr
+    print("✅ Gradio imported")
+except ImportError as e:
+    print(f"❌ Failed to import gradio: {e}")
+    sys.exit(1)
+
+try:
     import asyncio
     import json
     import shutil
     import pandas as pd
-    from backend.generate_script import generate_script_with_groq
-    from backend.generate_video import build_video_from_timeline
-    from backend.avatar_handler import save_uploaded_avatar
-    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame
     import time
     import threading
-    from groq import Groq
-    from backend.render_bubble import generate_beluga_typing_sequence
     import math
     import random
     import psutil
-    from backend.render_bubble import reset_typing_sessions
-    print("✅ All imports successful")
+    print("✅ Standard libraries imported")
+except ImportError as e:
+    print(f"❌ Failed to import standard libraries: {e}")
+    sys.exit(1)
+
+# Import your custom modules with better error handling
+try:
+    from backend.generate_script import generate_script_with_groq
+    print("✅ Backend modules imported")
+except ImportError as e:
+    print(f"❌ Failed to import backend modules: {e}")
+    print("💡 Make sure your backend directory exists and has the required files")
+    # Continue anyway for now
+
+try:
+    from backend.generate_video import build_video_from_timeline
+except ImportError as e:
+    print(f"⚠️ Could not import build_video_from_timeline: {e}")
+
+try:
+    from backend.avatar_handler import save_uploaded_avatar
+except ImportError as e:
+    print(f"⚠️ Could not import avatar_handler: {e}")
+
+try:
+    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
+    print("✅ Render bubble modules imported")
+    
+    # Initialize renderer state (fresh each session)
+    render_bubble.frame_count = 0
+    render_bubble.timeline = []
+    render_bubble.renderer = WhatsAppRenderer()
+    print("✅ Renderer initialized")
+    
+except ImportError as e:
+    print(f"❌ Failed to import render_bubble modules: {e}")
+    # Create dummy functions to prevent crashes
+    class WhatsAppRenderer:
+        def __init__(self, *args, **kwargs):
+            pass
+    def render_bubble(*args, **kwargs):
+        return "/app/frames/frame_0000.png"
+    def render_typing_bubble(*args, **kwargs):
+        return "/app/frames/frame_0000.png"
+    def render_typing_bar_frame(*args, **kwargs):
+        return "/app/frames/frame_0000.png"
+    def generate_beluga_typing_sequence(*args, **kwargs):
+        return []
+    def reset_typing_sessions():
+        pass
+    
+    # Set up the global variables your code expects
+    render_bubble.frame_count = 0
+    render_bubble.timeline = []
+    render_bubble.renderer = WhatsAppRenderer()
+
+try:
+    from groq import Groq
+    # Groq client (assuming API key is set in environment)
+    groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    print("✅ Groq client initialized")
+except ImportError as e:
+    print(f"⚠️ Groq not available: {e}")
+    groq_client = None
+except Exception as e:
+    print(f"⚠️ Groq client initialization failed: {e}")
+    groq_client = None
+
+print("✅ All imports completed successfully")
+
+# Rest of your configuration...
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_FILE = os.path.join(PROJECT_ROOT, "script.txt")
+BG_TIMELINE_FILE = os.path.join(PROJECT_ROOT, "frames", "bg_timeline.json")
+
+# Keep track of the last generated script
+if os.path.exists(SCRIPT_FILE):
+    with open(SCRIPT_FILE, "r", encoding="utf-8") as f:
+        latest_generated_script = f.read().strip()
+else:
+    latest_generated_script = ""
+
+# Default audio
+DEFAULT_BG = os.path.join(PROJECT_ROOT, "static", "audio", "default_bg.mp3")
+DEFAULT_SEND = os.path.join(PROJECT_ROOT, "static", "audio", "send.mp3")
+DEFAULT_RECV = os.path.join(PROJECT_ROOT, "static", "audio", "recv.mp3")
+DEFAULT_TYPING = None
+
+# Collect available audio files
+AUDIO_DIR = os.path.join(PROJECT_ROOT, "static", "audio")
+if os.path.exists(AUDIO_DIR):
+    AUDIO_FILES = [f for f in os.listdir(AUDIO_DIR) if f.lower().endswith(".mp3")]
+else:
+    AUDIO_FILES = []
+
+# Global flag to control auto-refresh thread
+auto_refresh_running = False
+auto_refresh_thread = None
+
+# Flag to track if video rendering is in progress
+rendering_in_progress = False
+
+# Prevent Gradio timeouts
+os.environ["GRADIO_QUEUE"] = "True"
+
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+print("✅ Configuration loaded successfully")
 
 def debug_performance():
     """Debug function to identify performance bottlenecks"""
