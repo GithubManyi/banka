@@ -20,7 +20,6 @@ import random
 # DEBUG: Track who's calling render_typing_bar_frame
 import traceback
 
-
 # Add performance monitoring
 import psutil
 import gc
@@ -91,14 +90,22 @@ def cleanup_resources():
     FRAME_CACHE.clear()
     gc.collect()
     print("🧹 Cleaned up rendering resources")
-    FRAME_CACHE.clear()
-    gc.collect()
-    print("🧹 Cleaned up rendering resources")
+
+def close_persistent_driver():
+    """Close the persistent driver when done"""
+    global PERSISTENT_DRIVER
+    if PERSISTENT_DRIVER:
+        try:
+            PERSISTENT_DRIVER.quit()
+            PERSISTENT_DRIVER = None
+            print("🔴 Closed persistent driver")
+        except Exception as e:
+            print(f"⚠️ Error closing persistent driver: {e}")
+            PERSISTENT_DRIVER = None
 
 # Cache for rendered frames to avoid re-rendering identical states
 FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
-
 
 def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     """Generate a cache key for frame rendering"""
@@ -218,17 +225,19 @@ class WhatsAppRenderer:
         print(f"✅ Added combined message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
-    """
+        """
         Optimized frame rendering with HTML2Image
         """
         start_time = time.time()
         self._render_count += 1
         
-        # Check cache first
+        # Check cache first (except for typing frames to maintain character-by-character animation)
         is_typing_frame = show_typing_bar and upcoming_text
         cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
         
+        # Don't cache typing frames to maintain the exact character-by-character animation
         if not is_typing_frame and cache_key in FRAME_CACHE and os.path.exists(FRAME_CACHE[cache_key]):
+            # Copy cached frame instead of re-rendering (for non-typing frames only)
             cached_frame = FRAME_CACHE[cache_key]
             if os.path.exists(cached_frame):
                 import shutil
@@ -237,14 +246,14 @@ class WhatsAppRenderer:
                 return f"CACHED: {cached_frame}"
         
         template = self.jinja_env.get_template(TEMPLATE_FILE)
-        
+
         # Filter typing bubbles for sender
         filtered_messages = []
         for msg in self.message_history:
             if msg['is_sender'] and msg['typing']:
                 continue
             filtered_messages.append(msg)
-        
+
         rendered_html = template.render(
             messages=filtered_messages,
             chat_title=getattr(self, "chat_title", None),
@@ -254,61 +263,43 @@ class WhatsAppRenderer:
             typing_user=typing_user,
             upcoming_text=upcoming_text
         )
+
+        with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
+            f.write(rendered_html)
+
+        # Use HTML2Image for rendering
+        hti = get_html2image()
         
         # Save HTML to temporary file
         temp_html = os.path.join(FRAMES_DIR, f"temp_{render_bubble.frame_count}.html")
         with open(temp_html, "w", encoding="utf-8") as f:
             f.write(rendered_html)
         
-        # Use html2image for rendering
-        try:
-            import html2image
-            hti = html2image.Html2Image(
-                browser='chromium',
-                custom_flags=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--headless'
-                ]
-            )
-            
-            # Render to image
-            hti.screenshot(
-                html_file=temp_html,
-                save_as=os.path.basename(frame_file),
-                size=(1920, 1080)
-            )
-            
-            # Move the screenshot to the correct location
-            generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
-            if os.path.exists(generated_file):
-                os.rename(generated_file, frame_file)
-                print(f"✅ Frame rendered with HTML2Image: {frame_file}")
-            
-        except Exception as e:
-            print(f"❌ HTML2Image failed: {e}")
-            # Fallback: create a simple colored frame
-            from PIL import Image, ImageDraw
-            img = Image.new('RGB', (1920, 1080), color=(53, 53, 53))
-            draw = ImageDraw.Draw(img)
-            draw.text((100, 100), f"Rendering failed: {e}", fill=(255, 255, 255))
-            img.save(frame_file)
-            print(f"⚠️ Created fallback frame due to rendering error")
+        # Render to image
+        hti.screenshot(
+            html_file=temp_html,
+            save_as=os.path.basename(frame_file),
+            size=(1920, 1080)
+        )
+        
+        # Move the screenshot to the correct location
+        generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
+        if os.path.exists(generated_file):
+            os.rename(generated_file, frame_file)
         
         # Clean up temp HTML file
         if os.path.exists(temp_html):
             os.remove(temp_html)
-    
-    # Cache non-typing frames only
-    if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
-        FRAME_CACHE[cache_key] = frame_file
-    
-    render_time = time.time() - start_time
-    if render_time > 0.5:
-        print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
-    
-    return rendered_html
+        
+        # Cache non-typing frames only (to maintain exact typing animation)
+        if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
+            FRAME_CACHE[cache_key] = frame_file
+        
+        render_time = time.time() - start_time
+        if render_time > 0.5:  # Only log slow renders
+            print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
+        
+        return rendered_html
 
 # ---------- BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
