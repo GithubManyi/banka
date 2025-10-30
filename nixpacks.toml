@@ -2,18 +2,14 @@
 aptPkgs = [
     "ffmpeg", 
     "chromium", 
-    "chromium-chromedriver",  # Changed from chromium-driver
-    "xvfb",
-    "wget",
-    "curl"
+    "chromium-chromedriver",
+    "xvfb"
 ]
 
 [phases.build]
 nixPkgs = [
-    "chromium", 
-    "chromium-chromedriver"
+    "chromium"
 ]
 
 [start]
 command = "python -m uvicorn web_ui:app --host 0.0.0.0 --port $PORT"
-
