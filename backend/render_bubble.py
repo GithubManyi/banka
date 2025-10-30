@@ -104,12 +104,37 @@ def get_persistent_driver():
         # Use system Chromium in Railway
         chrome_options.binary_location = "/usr/bin/chromium"
         
-        # Use system chromedriver
+        # Try different ChromeDriver paths for Railway
         from selenium.webdriver.chrome.service import Service
-        service = Service(executable_path="/usr/bin/chromedriver")
+        import os
         
-        PERSISTENT_DRIVER = webdriver.Chrome(service=service, options=chrome_options)
-        print("🚀 Created persistent Chrome driver for Railway")
+        # Possible ChromeDriver locations in Railway
+        possible_paths = [
+            "/usr/bin/chromedriver",  # Default location
+            "/usr/lib/chromium/chromedriver",  # Alternative location
+            "/usr/local/bin/chromedriver"  # Another possible location
+        ]
+        
+        chromedriver_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                chromedriver_path = path
+                print(f"✅ Found ChromeDriver at: {path}")
+                break
+        
+        if chromedriver_path:
+            service = Service(executable_path=chromedriver_path)
+            PERSISTENT_DRIVER = webdriver.Chrome(service=service, options=chrome_options)
+            print("🚀 Created persistent Chrome driver for Railway")
+        else:
+            # Fallback: let Selenium auto-download ChromeDriver
+            print("⚠️ ChromeDriver not found in system paths, using WebDriver Manager")
+            from webdriver_manager.chrome import ChromeDriverManager
+            from webdriver_manager.core.os_manager import ChromeType
+            
+            service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+            PERSISTENT_DRIVER = webdriver.Chrome(service=service, options=chrome_options)
+            print("🚀 Created Chrome driver with WebDriver Manager")
     
     DRIVER_LAST_USED = current_time
     return PERSISTENT_DRIVER
