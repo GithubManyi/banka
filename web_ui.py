@@ -1,3 +1,32 @@
+# Add this to your main.py or web_ui.py startup code
+import subprocess
+import sys
+
+def install_ffmpeg():
+    """Install ffmpeg if not available"""
+    try:
+        # Check if ffmpeg exists
+        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ ffmpeg is available")
+            return True
+    except:
+        pass
+    
+    print("📦 Installing ffmpeg...")
+    try:
+        subprocess.run(["apt-get", "update"], check=True, capture_output=True)
+        subprocess.run(["apt-get", "install", "-y", "ffmpeg"], check=True, capture_output=True)
+        print("✅ ffmpeg installed successfully")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install ffmpeg: {e}")
+        return False
+
+# Call this at application startup
+if not install_ffmpeg():
+    print("⚠️ ffmpeg not available - video creation will fail")
+
 import os
 import gradio as gr
 import asyncio
