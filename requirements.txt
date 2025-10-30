@@ -1,6 +1,5 @@
 
 moviepy==1.0.3
-pilmoji==2.3.0
 opencv-python==4.8.1.78
 numpy==1.26.0
 gunicorn
@@ -13,4 +12,5 @@ selenium
 moviepy
 requests
 pillow>=10.0.0,<10.4.0
+pilmoji>=2.0.0,<2.1.0
 
