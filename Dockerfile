@@ -1,5 +1,9 @@
 FROM python:3.10-slim
 
+# Set environment variables to disable D-Bus and suppress errors
+ENV DBUS_SESSION_BUS_ADDRESS=""
+ENV DBUS_SYSTEM_BUS_ADDRESS=""
+
 # Install system dependencies including ffmpeg and Chromium for Selenium
 RUN apt-get update && apt-get install -y \
     ffmpeg \
