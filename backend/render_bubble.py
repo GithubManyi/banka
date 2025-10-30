@@ -2,7 +2,6 @@ import os
 import json
 import sys
 import time
-import threading
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -31,53 +30,6 @@ logging.getLogger('PIL').setLevel(logging.WARNING)
 logging.getLogger('selenium').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('chardet').setLevel(logging.WARNING)
-
-# ===== THREAD-SAFE TIMEOUT PROTECTION =====
-class TimeoutException(Exception):
-    pass
-
-def timeout_wrapper(func, timeout=30):
-    """Thread-safe timeout wrapper"""
-    def wrapper(*args, **kwargs):
-        result = [None]
-        exception = [None]
-        
-        def target():
-            try:
-                result[0] = func(*args, **kwargs)
-            except Exception as e:
-                exception[0] = e
-        
-        thread = threading.Thread(target=target)
-        thread.daemon = True
-        thread.start()
-        thread.join(timeout)
-        
-        if thread.is_alive():
-            print("⏰ RENDER TIMEOUT: Using fallback")
-            # Return the frame file path to continue
-            return args[1] if len(args) > 1 else None
-        
-        if exception[0]:
-            raise exception[0]
-            
-        return result[0]
-    return wrapper
-
-# Apply timeout wrapper to render_frame method
-def apply_timeout_to_render_frame():
-    """Apply timeout wrapper to the render_frame method"""
-    original_render_frame = WhatsAppRenderer.render_frame
-    
-    def render_frame_with_timeout(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
-        return timeout_wrapper(original_render_frame, timeout=30)(self, frame_file, show_typing_bar, typing_user, upcoming_text, driver, short_wait)
-    
-    WhatsAppRenderer.render_frame = render_frame_with_timeout
-
-# Apply the timeout wrapper
-apply_timeout_to_render_frame()
-# ===== END TIMEOUT PROTECTION =====
-# ===== END TIMEOUT PROTECTION =====
 
 def debug_caller():
     """Print who's calling the rendering functions"""
@@ -308,8 +260,7 @@ class WhatsAppRenderer:
         if self._render_count % 5 == 0:
             print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
 
-    # WRAP THE RENDER_FRAME METHOD WITH TIMEOUT PROTECTION
-    @safe_render
+    # REMOVED THE @safe_render DECORATOR - NO TIMEOUT PROTECTION
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
         """
         Optimized frame rendering with HTML2Image fallback to PIL
