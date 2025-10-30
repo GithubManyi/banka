@@ -69,16 +69,19 @@ def get_html2image():
     """Get or create HTML2Image instance"""
     global HTI
     if HTI is None:
+        # Tell HTML2Image exactly where to find Chromium in Railway
         HTI = html2image.Html2Image(
             browser='chromium',
+            browser_executable='/usr/bin/chromium',  # Explicit path to Chromium
             custom_flags=[
                 '--no-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
-                '--headless'
+                '--headless',
+                '--window-size=1920,1080'
             ]
         )
-        print("🚀 Created HTML2Image renderer")
+        print("🚀 Created HTML2Image renderer with system Chromium")
     return HTI
 
 # Update the cleanup function:
@@ -224,20 +227,18 @@ class WhatsAppRenderer:
         self.message_history.append(message_entry)
         print(f"✅ Added combined message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
 
-    def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
+   def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
         """
-        Optimized frame rendering with HTML2Image
+        Optimized frame rendering with HTML2Image fallback to PIL
         """
         start_time = time.time()
         self._render_count += 1
         
-        # Check cache first (except for typing frames to maintain character-by-character animation)
+        # Check cache first
         is_typing_frame = show_typing_bar and upcoming_text
         cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
         
-        # Don't cache typing frames to maintain the exact character-by-character animation
         if not is_typing_frame and cache_key in FRAME_CACHE and os.path.exists(FRAME_CACHE[cache_key]):
-            # Copy cached frame instead of re-rendering (for non-typing frames only)
             cached_frame = FRAME_CACHE[cache_key]
             if os.path.exists(cached_frame):
                 import shutil
@@ -246,14 +247,14 @@ class WhatsAppRenderer:
                 return f"CACHED: {cached_frame}"
         
         template = self.jinja_env.get_template(TEMPLATE_FILE)
-
+    
         # Filter typing bubbles for sender
         filtered_messages = []
         for msg in self.message_history:
             if msg['is_sender'] and msg['typing']:
                 continue
             filtered_messages.append(msg)
-
+    
         rendered_html = template.render(
             messages=filtered_messages,
             chat_title=getattr(self, "chat_title", None),
@@ -263,43 +264,137 @@ class WhatsAppRenderer:
             typing_user=typing_user,
             upcoming_text=upcoming_text
         )
-
+    
         with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
             f.write(rendered_html)
-
-        # Use HTML2Image for rendering
-        hti = get_html2image()
+    
+        # Try HTML2Image first, fallback to PIL if it fails
+        try:
+            # Try HTML2Image with explicit Chromium path
+            hti = html2image.Html2Image(
+                browser='chromium',
+                browser_executable='/usr/bin/chromium',
+                custom_flags=[
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--headless',
+                    '--window-size=1920,1080'
+                ]
+            )
+            
+            # Save HTML to temporary file
+            temp_html = os.path.join(FRAMES_DIR, f"temp_{render_bubble.frame_count}.html")
+            with open(temp_html, "w", encoding="utf-8") as f:
+                f.write(rendered_html)
+            
+            # Render to image
+            hti.screenshot(
+                html_file=temp_html,
+                save_as=os.path.basename(frame_file),
+                size=(1920, 1080)
+            )
+            
+            # Move the screenshot to the correct location
+            generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
+            if os.path.exists(generated_file):
+                os.rename(generated_file, frame_file)
+                print(f"✅ Frame rendered with HTML2Image: {frame_file}")
+            
+            # Clean up temp HTML file
+            if os.path.exists(temp_html):
+                os.remove(temp_html)
+                
+        except Exception as e:
+            print(f"❌ HTML2Image failed: {e}")
+            print("🔄 Falling back to PIL rendering...")
+            
+            # PIL FALLBACK - Create a visual chat frame
+            from PIL import Image, ImageDraw, ImageFont
+            
+            # Create background
+            img = Image.new('RGB', (1920, 1080), color=(53, 53, 53))
+            draw = ImageDraw.Draw(img)
+            
+            try:
+                # Try to use a font (fallback to default if not available)
+                try:
+                    font_large = ImageFont.truetype("Arial", 24)
+                    font_medium = ImageFont.truetype("Arial", 18)
+                    font_small = ImageFont.truetype("Arial", 14)
+                except:
+                    font_large = ImageFont.load_default()
+                    font_medium = ImageFont.load_default()
+                    font_small = ImageFont.load_default()
+                
+                y_pos = 50
+                
+                # Chat header
+                draw.text((100, y_pos), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
+                y_pos += 40
+                draw.text((100, y_pos), f"👥 {self.chat_status}", fill=(200, 200, 200), font=font_medium)
+                y_pos += 60
+                
+                # Show typing indicator if active
+                if show_typing_bar and typing_user:
+                    draw.text((100, y_pos), f"⌨️ {typing_user} is typing: {upcoming_text}", fill=(100, 255, 100), font=font_medium)
+                    y_pos += 40
+                
+                # Draw message bubbles
+                for msg in filtered_messages[-8:]:  # Show last 8 messages
+                    # Message bubble
+                    bubble_x = 100 if not msg['is_sender'] else 1000
+                    bubble_color = (30, 120, 200) if not msg['is_sender'] else (50, 150, 50)
+                    
+                    # Username and timestamp
+                    user_text = f"{msg['username']} • {msg['timestamp']}"
+                    draw.text((bubble_x, y_pos), user_text, fill=msg['color'], font=font_small)
+                    y_pos += 25
+                    
+                    # Message text
+                    message_lines = []
+                    current_line = ""
+                    for word in msg['text'].split():
+                        test_line = current_line + word + " "
+                        if len(test_line) > 50:  # Wrap at 50 chars
+                            message_lines.append(current_line)
+                            current_line = word + " "
+                        else:
+                            current_line = test_line
+                    if current_line:
+                        message_lines.append(current_line)
+                    
+                    for line in message_lines:
+                        draw.text((bubble_x, y_pos), line, fill=(255, 255, 255), font=font_medium)
+                        y_pos += 25
+                    
+                    # Typing indicator for receiver bubbles
+                    if msg.get('typing'):
+                        draw.text((bubble_x, y_pos), "⏳ typing...", fill=(200, 200, 100), font=font_small)
+                        y_pos += 20
+                    
+                    y_pos += 15  # Space between messages
+                
+            except Exception as pil_error:
+                print(f"⚠️ Advanced PIL rendering failed: {pil_error}")
+                # Ultra simple fallback
+                draw.text((100, 100), f"Chat Frame - {len(filtered_messages)} messages", fill=(255, 255, 255))
+                if show_typing_bar and typing_user:
+                    draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
+            
+            img.save(frame_file)
+            print(f"✅ Created PIL fallback frame: {frame_file}")
         
-        # Save HTML to temporary file
-        temp_html = os.path.join(FRAMES_DIR, f"temp_{render_bubble.frame_count}.html")
-        with open(temp_html, "w", encoding="utf-8") as f:
-            f.write(rendered_html)
-        
-        # Render to image
-        hti.screenshot(
-            html_file=temp_html,
-            save_as=os.path.basename(frame_file),
-            size=(1920, 1080)
-        )
-        
-        # Move the screenshot to the correct location
-        generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
-        if os.path.exists(generated_file):
-            os.rename(generated_file, frame_file)
-        
-        # Clean up temp HTML file
-        if os.path.exists(temp_html):
-            os.remove(temp_html)
-        
-        # Cache non-typing frames only (to maintain exact typing animation)
+        # Cache non-typing frames only
         if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
             FRAME_CACHE[cache_key] = frame_file
         
         render_time = time.time() - start_time
-        if render_time > 0.5:  # Only log slow renders
+        if render_time > 0.5:
             print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
         
         return rendered_html
+    
 
 # ---------- BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
