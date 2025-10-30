@@ -1,4 +1,51 @@
+import subprocess
+import sys
+import os
 
+print("=" * 50)
+print("🔍 SYSTEM DEPENDENCY CHECK")
+print("=" * 50)
+
+# Check if we're in a container
+print(f"📁 Current directory: {os.getcwd()}")
+print(f"🐍 Python path: {sys.executable}")
+
+# Check ffmpeg installation
+print("\n🔍 Checking FFmpeg...")
+try:
+    # Method 1: Check which
+    result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
+    if result.returncode == 0:
+        print(f"✅ FFmpeg found at: {result.stdout.strip()}")
+    else:
+        print("❌ FFmpeg not found via 'which'")
+    
+    # Method 2: Direct check
+    result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True)
+    if result.returncode == 0:
+        version_line = result.stdout.split('\n')[0] if result.stdout else "Unknown"
+        print(f"✅ FFmpeg version: {version_line}")
+    else:
+        print("❌ FFmpeg command failed")
+        print(f"Stderr: {result.stderr}")
+        
+except Exception as e:
+    print(f"❌ Error checking FFmpeg: {e}")
+
+# List installed packages
+print("\n🔍 Checking installed packages...")
+try:
+    result = subprocess.run(['dpkg', '-l', '|', 'grep', 'ffmpeg'], 
+                          shell=True, capture_output=True, text=True)
+    print(f"FFmpeg packages: {result.stdout if result.stdout else 'None found'}")
+except Exception as e:
+    print(f"Error checking packages: {e}")
+
+print("=" * 50)
+print("🚀 Starting application...")
+print("=" * 50)
+
+# Continue with your normal imports...
 # Add this to your main.py or web_ui.py startup code
 import subprocess
 import sys
