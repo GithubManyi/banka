@@ -1,6 +1,10 @@
 [phases.setup]
 aptPkgs = [
-    "ffmpeg", 
+    "ffmpeg",
+    "libsm6", 
+    "libxext6",
+    "libxrender-dev",
+    "libglib2.0-0",
     "chromium", 
     "chromium-chromedriver",
     "xvfb"
@@ -8,7 +12,7 @@ aptPkgs = [
 
 [phases.build]
 nixPkgs = [
-    "chromium"
+    "chromium",
     "ffmpeg"
 ]
 
