@@ -28,6 +28,8 @@ import logging
 logging.getLogger('html2image').setLevel(logging.WARNING)
 logging.getLogger('PIL').setLevel(logging.WARNING)
 logging.getLogger('selenium').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('chardet').setLevel(logging.WARNING)
 
 def debug_caller():
     """Print who's calling the rendering functions"""
@@ -206,7 +208,9 @@ class WhatsAppRenderer:
             try:
                 meme_data = encode_meme(meme_path)
                 size_kb = os.path.getsize(meme_path) // 1024
-                print(f"✅ add_message: meme encoded {meme_path} size={size_kb}KB mime={meme_data['mime']}")
+                # REDUCED LOGGING: Only log every 10th meme
+                if self._render_count % 10 == 0:
+                    print(f"✅ add_message: meme encoded {meme_path} size={size_kb}KB mime={meme_data['mime']}")
             except Exception as e:
                 print(f"⚠️ add_message: failed to encode meme {meme_path}: {e}")
 
@@ -229,7 +233,9 @@ class WhatsAppRenderer:
             message_entry["mime"] = meme_data["mime"]
     
         self.message_history.append(message_entry)
-        print(f"✅ Added combined message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
+        # REDUCED LOGGING: Only log every 5th message
+        if self._render_count % 5 == 0:
+            print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
         """
@@ -247,7 +253,9 @@ class WhatsAppRenderer:
             if os.path.exists(cached_frame):
                 import shutil
                 shutil.copy2(cached_frame, frame_file)
-                print(f"⚡ Using cached frame: {cache_key[:8]}...")
+                # REDUCED LOGGING: Only log every 20th cache hit
+                if self._render_count % 20 == 0:
+                    print(f"⚡ Using cached frame: {cache_key[:8]}...")
                 return f"CACHED: {cached_frame}"
         
         template = self.jinja_env.get_template(TEMPLATE_FILE)
@@ -303,7 +311,8 @@ class WhatsAppRenderer:
             generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
             if os.path.exists(generated_file):
                 os.rename(generated_file, frame_file)
-                if self._render_count % 10 == 0:  # Only log every 10th frame
+                # REDUCED LOGGING: Only log every 20th frame
+                if self._render_count % 20 == 0:
                     print(f"✅ Rendered frame {self._render_count}: {frame_file}")
             
             # Clean up temp HTML file
@@ -311,8 +320,10 @@ class WhatsAppRenderer:
                 os.remove(temp_html)
                 
         except Exception as e:
-            print(f"❌ HTML2Image failed: {e}")
-            print("🔄 Falling back to PIL rendering...")
+            # REDUCED LOGGING: Only log HTML2Image failures, not every fallback
+            if self._render_count % 10 == 0:
+                print(f"❌ HTML2Image failed: {e}")
+                print("🔄 Falling back to PIL rendering...")
             
             # PIL FALLBACK - Create a visual chat frame
             from PIL import Image, ImageDraw, ImageFont
@@ -381,14 +392,15 @@ class WhatsAppRenderer:
                     y_pos += 15  # Space between messages
                 
             except Exception as pil_error:
-                print(f"⚠️ Advanced PIL rendering failed: {pil_error}")
+                if self._render_count % 10 == 0:
+                    print(f"⚠️ Advanced PIL rendering failed: {pil_error}")
                 # Ultra simple fallback
                 draw.text((100, 100), f"Chat Frame - {len(filtered_messages)} messages", fill=(255, 255, 255))
                 if show_typing_bar and typing_user:
                     draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
             
             img.save(frame_file)
-            if self._render_count % 10 == 0:
+            if self._render_count % 20 == 0:
                 print(f"✅ PIL fallback frame {self._render_count}: {frame_file}")
         
         # Cache non-typing frames only
@@ -396,7 +408,8 @@ class WhatsAppRenderer:
             FRAME_CACHE[cache_key] = frame_file
         
         render_time = time.time() - start_time
-        if render_time > 0.5:
+        # REDUCED LOGGING: Only log slow renders
+        if render_time > 1.0:
             print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
         
         return rendered_html
@@ -445,11 +458,15 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
     if typing:
         if is_sender:
             # For sender (Banka) - show typing bar, NOT typing indicator bubble
-            print(f"⌨️ Sender {username} typing - using typing bar instead of bubble")
+            # REDUCED LOGGING
+            if render_bubble.frame_count % 10 == 0:
+                print(f"⌨️ Sender {username} typing - using typing bar instead of bubble")
             return render_typing_bar_frame(username, upcoming_text=message if message else "", duration=1.5)
         else:
             # For receiver - show typing indicator bubble
-            print(f"⌨️ Receiver {username} typing - showing typing bubble")
+            # REDUCED LOGGING
+            if render_bubble.frame_count % 10 == 0:
+                print(f"⌨️ Receiver {username} typing - showing typing bubble")
             original_history = render_bubble.renderer.message_history.copy()
             render_bubble.renderer.add_message(username, None, typing=True)
             frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
@@ -511,6 +528,7 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
                 entry["meme_b64"] = meme_info.get("meme")
                 entry["mime"] = meme_info.get("mime")
         except Exception as e:
+            # REDUCED LOGGING: Only log errors
             print(f"⚠️ render_bubble: failed to encode meme {meme_path}: {e}")
 
     # append timeline and persist
@@ -519,6 +537,9 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         json.dump(render_bubble.timeline, tf, indent=2)
 
     render_bubble.frame_count += 1
+    # REDUCED LOGGING: Only log every 10th frame
+    if render_bubble.frame_count % 10 == 0:
+        print(f"✅ Regular frame {render_bubble.frame_count}: {frame_file} ({duration}s)")
     return frame_file
 
 def render_meme(username, meme_path):
@@ -541,7 +562,9 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
 
     # 🔹 FIXED: Don't show typing bubbles for sender
     if is_sender:
-        print(f"⌨️ Skipping typing bubble for sender {username} - using typing bar instead")
+        # REDUCED LOGGING
+        if render_bubble.frame_count % 10 == 0:
+            print(f"⌨️ Skipping typing bubble for sender {username} - using typing bar instead")
         return render_typing_bar_frame(username, "", duration=1.5)
 
     # Use the MAIN renderer, but temporarily add typing message
@@ -581,7 +604,9 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
         json.dump(render_bubble.timeline, tf, indent=2)
 
     render_bubble.frame_count += 1
-    print(f"⌨️ Typing indicator for {username} (duration: {duration}s, {'custom' if typing_key in custom_durations else 'default'})")
+    # REDUCED LOGGING: Only log every 10th typing indicator
+    if render_bubble.frame_count % 10 == 0:
+        print(f"⌨️ Typing indicator for {username} (duration: {duration}s)")
     return frame_file
 
 # ---------- VIDEO HELPERS ---------- #
@@ -611,8 +636,10 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
 
 def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duration=None, is_character_typing=True):
     # DEBUG: Find who's calling this
-    debug_caller()
-    print(f"🔍 CALLED WITH: '{upcoming_text}', duration={duration}, is_character_typing={is_character_typing}")
+    # REDUCED LOGGING: Only debug every 20th call
+    if render_bubble.frame_count % 20 == 0:
+        debug_caller()
+        print(f"🔍 CALLED WITH: '{upcoming_text}', duration={duration}, is_character_typing={is_character_typing}")
     
     """
     SIMPLIFIED: Render typing bar frames with CONTINUOUS sound logic.
@@ -631,7 +658,9 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
 
     # Skip typing bar for non-sender
     if username.strip().lower() != MAIN_USER.lower():
-        print(f"⌨️ Non-sender '{username}' - using typing bubble instead of typing bar")
+        # REDUCED LOGGING
+        if render_bubble.frame_count % 10 == 0:
+            print(f"⌨️ Non-sender '{username}' - using typing bubble instead of typing bar")
         return render_typing_bubble(username, custom_durations={})
 
     # Save current history
@@ -683,10 +712,14 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         future_has_typing = False
         # We can't see future, but we can check if this looks like a completion frame
         should_play_sound = False  # No sound in final frames
-        print(f"🎹 FINAL FRAME DETECTED: '{upcoming_text}' - NO SOUND")
+        # REDUCED LOGGING: Only log final frames occasionally
+        if render_bubble.frame_count % 10 == 0:
+            print(f"🎹 FINAL FRAME DETECTED: '{upcoming_text}' - NO SOUND")
 
-    print(f"🎹 SIMPLE SOUND: is_typing={is_character_typing} -> sound={should_play_sound}")
-    print(f"🎹 TEXT: prev='{prev_text}' current='{current_text}'")
+    # REDUCED LOGGING: Only log sound info every 20th frame
+    if render_bubble.frame_count % 20 == 0:
+        print(f"🎹 SIMPLE SOUND: is_typing={is_character_typing} -> sound={should_play_sound}")
+        print(f"🎹 TEXT: prev='{prev_text}' current='{current_text}'")
 
     # Generate session ID for continuous sound grouping
     if not hasattr(render_bubble, 'current_typing_session'):
@@ -695,11 +728,15 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
     # Start new session when we begin typing after not typing
     if is_character_typing and not prev_text and current_text:
         render_bubble.current_typing_session = f"session_{render_bubble.frame_count}"
-        print(f"🎹 🆕 STARTING NEW TYPING SESSION: {render_bubble.current_typing_session}")
+        # REDUCED LOGGING
+        if render_bubble.frame_count % 10 == 0:
+            print(f"🎹 🆕 STARTING NEW TYPING SESSION: {render_bubble.current_typing_session}")
     
     # End session when we stop typing
     if not is_character_typing and render_bubble.current_typing_session:
-        print(f"🎹 🛑 ENDING TYPING SESSION: {render_bubble.current_typing_session}")
+        # REDUCED LOGGING
+        if render_bubble.frame_count % 10 == 0:
+            print(f"🎹 🛑 ENDING TYPING SESSION: {render_bubble.current_typing_session}")
         render_bubble.current_typing_session = None
 
     # SIMPLE timeline entry
@@ -717,7 +754,9 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         "typing_session_id": render_bubble.current_typing_session if is_character_typing else None
     }
 
-    print(f"🎹 Frame {render_bubble.frame_count}: '{upcoming_text}' - Sound: {should_play_sound} - Session: {render_bubble.current_typing_session}")
+    # REDUCED LOGGING: Only log every 10th typing frame
+    if render_bubble.frame_count % 10 == 0:
+        print(f"🎹 Frame {render_bubble.frame_count}: '{upcoming_text}' - Sound: {should_play_sound}")
 
     render_bubble.timeline.append(entry)
 
@@ -792,7 +831,9 @@ def generate_beluga_typing_sequence(real_message):
         # Pause - NO SOUND
         sequence.append(("", 0.5, False))
     else:
-        print("🎲 No fake typing this message")
+        # REDUCED LOGGING
+        if random.random() < 0.1:  # Only log 10% of the time
+            print("🎲 No fake typing this message")
 
     # Type actual message WITH SOUND (continuous)
     buf = ""
@@ -803,7 +844,9 @@ def generate_beluga_typing_sequence(real_message):
         # Last 3 characters should have no sound
         if i >= len(real_message) - 3:
             is_active_typing = False
-            print(f"🎹 LAST 3 CHARS: '{ch}' at position {i} - NO SOUND")
+            # REDUCED LOGGING
+            if random.random() < 0.1:  # Only log 10% of the time
+                print(f"🎹 LAST 3 CHARS: '{ch}' at position {i} - NO SOUND")
             
         sequence.append((buf + "|", typing_speed_for(ch), is_active_typing))
 
@@ -811,23 +854,29 @@ def generate_beluga_typing_sequence(real_message):
     blink_frame(real_message, blinks=2)
     sequence.append((real_message, 0.8, False))
 
-    print(f"⌨️ Generated {len(sequence)} typing frames for '{real_message}'")
+    # REDUCED LOGGING
+    print(f"⌨️ Generated {len(sequence)} typing frames for '{real_message[:50]}...'")
     
     return sequence
 
 def render_typing_sequence(username, real_message):
     # After rendering the typing sequence, add this:
-    debug_timeline_entries()
+    # REDUCED LOGGING: Only debug timeline occasionally
+    if random.random() < 0.1:
+        debug_timeline_entries()
+    
     """
     FIXED: Actually renders the typing sequence frames with sound
     """
-    print(f"🎬 Starting typing sequence for '{username}': '{real_message}'")
+    print(f"🎬 Starting typing sequence for '{username}': '{real_message[:50]}...'")
     
     sequence = generate_beluga_typing_sequence(real_message)
     
     rendered_frames = []
     for i, (text, duration, has_sound) in enumerate(sequence):
-        print(f"🎬 Rendering typing frame {i}: '{text}' - duration: {duration}s - sound: {has_sound}")
+        # REDUCED LOGGING: Only log every 10th typing frame
+        if i % 10 == 0:
+            print(f"🎬 Rendering typing frame {i}: '{text}' - duration: {duration}s - sound: {has_sound}")
         
         # Actually render the frame with sound information
         frame_path = render_typing_bar_frame(
@@ -972,8 +1021,6 @@ if __name__ == "__main__":
                     # Now render the final message bubble
                     print(f"🎬 Rendering final message after typing...")
                 
-                # Rest of your existing code continues here...
-
                 # Check if this message contains a meme reference
                 if "[MEME]" in message:
                     # COMBINE: Send text + meme in the SAME bubble
@@ -1009,7 +1056,9 @@ if __name__ == "__main__":
                             if msg["is_sender"]:
                                 msg["is_read"] = True
 
-                    print(f"💬 Chat line: {name}: {message[:80]}")
+                    # REDUCED LOGGING: Only log every 5th chat line
+                    if render_bubble.frame_count % 5 == 0:
+                        print(f"💬 Chat line: {name}: {message[:80]}")
                     render_bubble(name, message, is_sender=is_sender, is_read=is_read)
 
         print(f"✅ Rendered {render_bubble.frame_count} frames from {script_file}")
