@@ -174,14 +174,12 @@ def debug_timeline_entries():
         typing_entries = [e for e in render_bubble.timeline if e.get('typing_bar')]
         print(f"🔍 Found {len(typing_entries)} typing bar entries in timeline")
         
-        
         for i, entry in enumerate(typing_entries[-10:]):  # Show last 10 entries
             print(f"🔍 Entry {i}: text='{entry.get('upcoming_text')}' sound={entry.get('sound')} duration={entry.get('duration')}")
         
         # Check if any have sound=True
         sound_entries = [e for e in typing_entries if e.get('sound')]
         print(f"🔍 Entries with sound=True: {len(sound_entries)}")
-
 
 # ---------- RENDERER ---------- #
 class WhatsAppRenderer:
@@ -538,7 +536,6 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
         render_bubble.frame_count = 0
         render_bubble.timeline = []
     
-
     if is_sender is None:
         is_sender = (username.strip().lower() == MAIN_USER.lower())
 
@@ -844,7 +841,6 @@ def render_typing_sequence(username, real_message):
     print(f"🎬 Completed typing sequence: {len(rendered_frames)} frames rendered")
     return rendered_frames
 
-
 # ---------- CLEANUP ---------- #
 def cleanup_resources():
     """Clean up all resources when done"""
@@ -860,7 +856,6 @@ def reset_typing_sessions():
         render_bubble.typing_session_start = 0
         print("🔄 Reset typing session tracking")
 
-
 # ---------- MAIN SCRIPT ---------- #
 if __name__ == "__main__":
     try:
@@ -872,7 +867,7 @@ if __name__ == "__main__":
         render_bubble.frame_count = 0
         render_bubble.timeline = []
         render_bubble.renderer = WhatsAppRenderer()
-         # ✅ ADD THESE for session tracking:
+        # ✅ ADD THESE for session tracking:
         render_bubble.typing_session_active = False
         render_bubble.typing_session_start = 0
         print("🔄 Initialized typing session tracking for main script")
