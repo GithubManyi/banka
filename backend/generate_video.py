@@ -824,11 +824,12 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
         print(f"🎬 Concat file has {len(concat_content.splitlines())} lines")
     else:
         print("❌ Concat file not created!")
-
+        
     _run(
         f'ffmpeg -y -f concat -safe 0 -i "{concat_txt}" '
-        f'-vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -r {FPS} -pix_fmt yuv420p '
-        f'-c:v libx264 -preset veryfast -crf 18 -movflags +faststart "{temp_video}"'
+        f'-vf "scale=1280:720" -r {FPS} -pix_fmt yuv420p '  # ⬅️ Reduced resolution
+        f'-c:v libx264 -preset ultrafast -crf 23 '          # ⬅️ Faster preset, higher CRF
+        f'-threads 2 -movflags +faststart "{temp_video}"'   # ⬅️ Limited threads
     )
 
     # Check if temp video was created and get its actual duration
