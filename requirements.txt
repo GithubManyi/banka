@@ -12,4 +12,5 @@ numpy>=1.26.0,<2.0.0
 python-dotenv
 openai
 groq
+psutil
 
