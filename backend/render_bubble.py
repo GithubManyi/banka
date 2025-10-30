@@ -46,7 +46,7 @@ def debug_caller():
 ROOT = r"c:\Users\user\banka"
 TMP = os.path.join(ROOT, "tmp_ffmpeg")
 FPS = 25
-W, H = 1280, 720  # match video size
+W, H = 1904, 934  # match video size
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "backend", "templates")
@@ -306,7 +306,7 @@ class WhatsAppRenderer:
     
         # Try HTML2Image first, fallback to PIL if it fails
         try:
-            # Try HTML2Image with SMALLER resolution to save memory
+            # Try HTML2Image with explicit Chromium path
             hti = html2image.Html2Image(
                 browser='chromium',
                 browser_executable='/usr/bin/chromium',
@@ -315,7 +315,7 @@ class WhatsAppRenderer:
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
                     '--headless',
-                    '--window-size=1280,720'  # REDUCED FROM 1920x1080 TO 1280x720
+                    '--window-size=1920,1080'
                 ]
             )
             
@@ -324,11 +324,11 @@ class WhatsAppRenderer:
             with open(temp_html, "w", encoding="utf-8") as f:
                 f.write(rendered_html)
             
-            # Render to image with SMALLER size
+            # Render to image
             hti.screenshot(
                 html_file=temp_html,
                 save_as=os.path.basename(frame_file),
-                size=(1280, 720)  # REDUCED FROM 1920x1080 TO 1280x720
+                size=(1920, 1080)
             )
             
             # Move the screenshot to the correct location
@@ -337,7 +337,7 @@ class WhatsAppRenderer:
                 os.rename(generated_file, frame_file)
                 # REDUCED LOGGING: Only log every 50th frame (INCREASED FROM 20)
                 if self._render_count % 50 == 0:
-                    print(f"✅ Rendered frame {self._render_count}: {frame_file} (1280x720)")
+                    print(f"✅ Rendered frame {self._render_count}: {frame_file}")
             
             # Clean up temp HTML file
             if os.path.exists(temp_html):
@@ -349,55 +349,54 @@ class WhatsAppRenderer:
                 print(f"❌ HTML2Image failed: {e}")
                 print("🔄 Falling back to PIL rendering...")
             
-            # PIL FALLBACK - Create a visual chat frame with SMALLER SIZE
+            # PIL FALLBACK - Create a visual chat frame
             from PIL import Image, ImageDraw, ImageFont
             
-            # Create background with REDUCED SIZE
-            img = Image.new('RGB', (1280, 720), color=(53, 53, 53))  # REDUCED FROM 1920x1080
+            # Create background
+            img = Image.new('RGB', (1920, 1080), color=(53, 53, 53))
             draw = ImageDraw.Draw(img)
             
             try:
                 # Try to use a font (fallback to default if not available)
                 try:
-                    # Slightly smaller fonts for reduced resolution
-                    font_large = ImageFont.truetype("Arial", 20)  # Reduced from 24
-                    font_medium = ImageFont.truetype("Arial", 16)  # Reduced from 18
-                    font_small = ImageFont.truetype("Arial", 12)   # Reduced from 14
+                    font_large = ImageFont.truetype("Arial", 24)
+                    font_medium = ImageFont.truetype("Arial", 18)
+                    font_small = ImageFont.truetype("Arial", 14)
                 except:
                     font_large = ImageFont.load_default()
                     font_medium = ImageFont.load_default()
                     font_small = ImageFont.load_default()
                 
-                y_pos = 40  # Adjusted for smaller height
+                y_pos = 50
                 
                 # Chat header
-                draw.text((80, y_pos), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
-                y_pos += 35
-                draw.text((80, y_pos), f"👥 {self.chat_status}", fill=(200, 200, 200), font=font_medium)
-                y_pos += 50
+                draw.text((100, y_pos), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
+                y_pos += 40
+                draw.text((100, y_pos), f"👥 {self.chat_status}", fill=(200, 200, 200), font=font_medium)
+                y_pos += 60
                 
                 # Show typing indicator if active
                 if show_typing_bar and typing_user:
-                    draw.text((80, y_pos), f"⌨️ {typing_user} is typing: {upcoming_text}", fill=(100, 255, 100), font=font_medium)
-                    y_pos += 35
+                    draw.text((100, y_pos), f"⌨️ {typing_user} is typing: {upcoming_text}", fill=(100, 255, 100), font=font_medium)
+                    y_pos += 40
                 
                 # Draw message bubbles
                 for msg in filtered_messages[-8:]:  # Show last 8 messages
-                    # Message bubble - adjusted positions for smaller width
-                    bubble_x = 80 if not msg['is_sender'] else 700  # Adjusted from 1000
+                    # Message bubble
+                    bubble_x = 100 if not msg['is_sender'] else 1000
                     bubble_color = (30, 120, 200) if not msg['is_sender'] else (50, 150, 50)
                     
                     # Username and timestamp
                     user_text = f"{msg['username']} • {msg['timestamp']}"
                     draw.text((bubble_x, y_pos), user_text, fill=msg['color'], font=font_small)
-                    y_pos += 22
+                    y_pos += 25
                     
-                    # Message text - shorter line length for smaller width
+                    # Message text
                     message_lines = []
                     current_line = ""
                     for word in msg['text'].split():
                         test_line = current_line + word + " "
-                        if len(test_line) > 40:  # Reduced from 50 chars for smaller width
+                        if len(test_line) > 50:  # Wrap at 50 chars
                             message_lines.append(current_line)
                             current_line = word + " "
                         else:
@@ -407,31 +406,27 @@ class WhatsAppRenderer:
                     
                     for line in message_lines:
                         draw.text((bubble_x, y_pos), line, fill=(255, 255, 255), font=font_medium)
-                        y_pos += 22
+                        y_pos += 25
                     
                     # Typing indicator for receiver bubbles
                     if msg.get('typing'):
                         draw.text((bubble_x, y_pos), "⏳ typing...", fill=(200, 200, 100), font=font_small)
-                        y_pos += 18
+                        y_pos += 20
                     
-                    y_pos += 12  # Space between messages
-                    # Check if we're running out of vertical space
-                    if y_pos > 650:  # Reduced from 1000 for smaller height
-                        draw.text((80, 680), "... more messages above", fill=(150, 150, 150), font=font_small)
-                        break
+                    y_pos += 15  # Space between messages
                 
             except Exception as pil_error:
                 if self._render_count % 10 == 0:
                     print(f"⚠️ Advanced PIL rendering failed: {pil_error}")
                 # Ultra simple fallback
-                draw.text((80, 80), f"Chat Frame - {len(filtered_messages)} messages", fill=(255, 255, 255))
+                draw.text((100, 100), f"Chat Frame - {len(filtered_messages)} messages", fill=(255, 255, 255))
                 if show_typing_bar and typing_user:
-                    draw.text((80, 120), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
+                    draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
             
             img.save(frame_file)
             # REDUCED LOGGING: Only log every 50th PIL frame (INCREASED FROM 20)
             if self._render_count % 50 == 0:
-                print(f"✅ PIL fallback frame {self._render_count}: {frame_file} (1280x720)")
+                print(f"✅ PIL fallback frame {self._render_count}: {frame_file}")
         
         # Cache non-typing frames only
         if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
