@@ -1,3 +1,4 @@
+
 # Add this to your main.py or web_ui.py startup code
 import subprocess
 import sys
@@ -10,55 +11,24 @@ print(f"📁 Current directory: {os.getcwd()}")
 print(f"🐍 Python version: {sys.version}")
 print(f"📦 Python path: {sys.path}")
 
-def install_ffmpeg():
-    """Install ffmpeg if not available - WITH BETTER ERROR HANDLING"""
-    try:
-        # Check if ffmpeg exists with multiple methods
-        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
-        if result.returncode == 0:
-            print("✅ ffmpeg is available")
-            return True
-        
-        # Also check with which/where
-        if sys.platform.startswith("win"):
-            result = subprocess.run(["where", "ffmpeg"], capture_output=True, text=True)
-        else:
-            result = subprocess.run(["which", "ffmpeg"], capture_output=True, text=True)
-            
-        if result.returncode == 0:
-            print("✅ ffmpeg is available (via which/where)")
-            return True
-            
-    except Exception as e:
-        print(f"⚠️ Error checking ffmpeg: {e}")
-    
-    print("📦 Installing ffmpeg...")
-    try:
-        # Use more robust installation method
-        if sys.platform.startswith("win"):
-            print("❌ Windows ffmpeg installation not automated - please install manually")
-            return False
-        else:
-            # For Linux/container environments
-            subprocess.run(["apt-get", "update"], check=True, capture_output=True)
-            result = subprocess.run(["apt-get", "install", "-y", "ffmpeg"], capture_output=True, text=True)
-            if result.returncode == 0:
-                print("✅ ffmpeg installed successfully")
-                return True
-            else:
-                print(f"❌ apt-get failed: {result.stderr}")
-                return False
-    except Exception as e:
-        print(f"❌ Failed to install ffmpeg: {e}")
-        return False
+# ⚠️ SKIP FFMPEG INSTALLATION - COMMENT THIS OUT
+# if not install_ffmpeg():
+#     print("⚠️ ffmpeg not available - video creation will fail")
 
-# Call this at application startup - BUT DON'T CRASH IF IT FAILS
-ffmpeg_available = install_ffmpeg()
-if not ffmpeg_available:
-    print("⚠️ ffmpeg not available - video creation may fail, but continuing startup...")
+# Just check if ffmpeg exists but don't install
+try:
+    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
+    if result.returncode == 0:
+        print("✅ ffmpeg is available")
+    else:
+        print("⚠️ ffmpeg not found - video rendering will fail")
+except:
+    print("⚠️ Could not check ffmpeg - video rendering will fail")
+
+# NOW import the rest of your modules...
 
 # NOW import the rest of your modules
-try:
+
     import gradio as gr
     import asyncio
     import json
@@ -77,12 +47,6 @@ try:
     import psutil
     from backend.render_bubble import reset_typing_sessions
     print("✅ All imports successful")
-    
-except ImportError as e:
-    print(f"❌ Import error: {e}")
-    traceback.print_exc()
-    # Don't crash - try to continue
-    print("⚠️ Continuing with limited functionality...")
 
 def debug_performance():
     """Debug function to identify performance bottlenecks"""
