@@ -174,7 +174,7 @@ def debug_timeline_entries():
         
         # Check if any have sound=True
         sound_entries = [e for e in typing_entries if e.get('sound')]
-        print(f"🔍 Entries with sound=True: {len(sound_entries)}")
+        print(f"🔍 Entries with sound=True: {len(sound_entries)}"
 
 
 # ---------- RENDERER ---------- #
@@ -227,7 +227,7 @@ class WhatsAppRenderer:
         self.message_history.append(message_entry)
         print(f"✅ Added combined message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
 
-   def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
+    def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
         """
         Optimized frame rendering with HTML2Image fallback to PIL
         """
@@ -394,7 +394,6 @@ class WhatsAppRenderer:
             print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
         
         return rendered_html
-    
 
 # ---------- BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
