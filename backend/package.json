@@ -1,0 +1,10 @@
+{
+  "name": "banka-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "python main.py"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.1.0"
+  }
+}
