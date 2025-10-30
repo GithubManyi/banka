@@ -305,7 +305,8 @@ class WhatsAppRenderer:
             generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
             if os.path.exists(generated_file):
                 os.rename(generated_file, frame_file)
-                print(f"✅ Frame rendered with HTML2Image: {frame_file}")
+                if self._render_count % 10 == 0:  # Only log every 10th frame
+                print(f"✅ Rendered frame {self._render_count}: {frame_file}")
             
             # Clean up temp HTML file
             if os.path.exists(temp_html):
