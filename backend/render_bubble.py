@@ -306,7 +306,7 @@ class WhatsAppRenderer:
             if os.path.exists(generated_file):
                 os.rename(generated_file, frame_file)
                 if self._render_count % 10 == 0:  # Only log every 10th frame
-                print(f"✅ Rendered frame {self._render_count}: {frame_file}")
+                    print(f"✅ Rendered frame {self._render_count}: {frame_file}")
             
             # Clean up temp HTML file
             if os.path.exists(temp_html):
@@ -390,7 +390,8 @@ class WhatsAppRenderer:
                     draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
             
             img.save(frame_file)
-            print(f"✅ Created PIL fallback frame: {frame_file}")
+            if self._render_count % 10 == 0:
+                print(f"✅ PIL fallback frame {self._render_count}: {frame_file}")
         
         # Cache non-typing frames only
         if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
