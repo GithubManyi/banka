@@ -2,14 +2,16 @@
 aptPkgs = [
     "ffmpeg", 
     "chromium", 
-    "chromium-driver",
-    "xvfb"
+    "chromium-chromedriver",  # Changed from chromium-driver
+    "xvfb",
+    "wget",
+    "curl"
 ]
 
 [phases.build]
 nixPkgs = [
-    "chromium",
-    "chromium-driver"
+    "chromium", 
+    "chromium-chromedriver"
 ]
 
 [start]
