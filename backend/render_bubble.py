@@ -20,6 +20,7 @@ import random
 # DEBUG: Track who's calling render_typing_bar_frame
 import traceback
 
+
 # Add performance monitoring
 import psutil
 import gc
