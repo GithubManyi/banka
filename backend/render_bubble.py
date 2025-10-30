@@ -78,28 +78,37 @@ def get_persistent_driver():
     # Create new driver if needed
     if PERSISTENT_DRIVER is None:
         chrome_options = Options()
+        
+        # ESSENTIAL FOR RAILWAY - Keep these 4 arguments
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--disable-gpu")
+        
+        # Keep your existing performance optimizations
+        chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--force-device-scale-factor=1")
         chrome_options.add_argument("--disable-font-subpixel-positioning")
         chrome_options.add_argument("--disable-web-security")
         chrome_options.add_argument("--allow-running-insecure-content")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-software-rasterizer")
         chrome_options.add_argument("--disable-background-timer-throttling")
         chrome_options.add_argument("--disable-renderer-backgrounding")
         chrome_options.add_argument("--disable-backgrounding-occluded-windows")
         chrome_options.add_argument("--memory-pressure-off")
-        
-        # Performance optimizations
         chrome_options.add_argument("--disable-javascript-harmony-shipping")
         chrome_options.add_argument("--max-old-space-size=4096")
         
-        PERSISTENT_DRIVER = webdriver.Chrome(options=chrome_options)
-        print("🚀 Created persistent Chrome driver for faster rendering")
+        # Use system Chromium in Railway
+        chrome_options.binary_location = "/usr/bin/chromium"
+        
+        # Use system chromedriver
+        from selenium.webdriver.chrome.service import Service
+        service = Service(executable_path="/usr/bin/chromedriver")
+        
+        PERSISTENT_DRIVER = webdriver.Chrome(service=service, options=chrome_options)
+        print("🚀 Created persistent Chrome driver for Railway")
     
     DRIVER_LAST_USED = current_time
     return PERSISTENT_DRIVER
