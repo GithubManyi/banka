@@ -169,12 +169,13 @@ def debug_timeline_entries():
         typing_entries = [e for e in render_bubble.timeline if e.get('typing_bar')]
         print(f"🔍 Found {len(typing_entries)} typing bar entries in timeline")
         
+        
         for i, entry in enumerate(typing_entries[-10:]):  # Show last 10 entries
             print(f"🔍 Entry {i}: text='{entry.get('upcoming_text')}' sound={entry.get('sound')} duration={entry.get('duration')}")
         
         # Check if any have sound=True
         sound_entries = [e for e in typing_entries if e.get('sound')]
-        print(f"🔍 Entries with sound=True: {len(sound_entries)}"
+        print(f"🔍 Entries with sound=True: {len(sound_entries)}")
 
 
 # ---------- RENDERER ---------- #
