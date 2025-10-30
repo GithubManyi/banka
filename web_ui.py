@@ -1,54 +1,88 @@
 # Add this to your main.py or web_ui.py startup code
 import subprocess
 import sys
+import os
+import traceback
+
+# Add debug logging immediately
+print("🚀 Application starting...")
+print(f"📁 Current directory: {os.getcwd()}")
+print(f"🐍 Python version: {sys.version}")
+print(f"📦 Python path: {sys.path}")
 
 def install_ffmpeg():
-    """Install ffmpeg if not available"""
+    """Install ffmpeg if not available - WITH BETTER ERROR HANDLING"""
     try:
-        # Check if ffmpeg exists
+        # Check if ffmpeg exists with multiple methods
         result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
         if result.returncode == 0:
             print("✅ ffmpeg is available")
             return True
-    except:
-        pass
+        
+        # Also check with which/where
+        if sys.platform.startswith("win"):
+            result = subprocess.run(["where", "ffmpeg"], capture_output=True, text=True)
+        else:
+            result = subprocess.run(["which", "ffmpeg"], capture_output=True, text=True)
+            
+        if result.returncode == 0:
+            print("✅ ffmpeg is available (via which/where)")
+            return True
+            
+    except Exception as e:
+        print(f"⚠️ Error checking ffmpeg: {e}")
     
     print("📦 Installing ffmpeg...")
     try:
-        subprocess.run(["apt-get", "update"], check=True, capture_output=True)
-        subprocess.run(["apt-get", "install", "-y", "ffmpeg"], check=True, capture_output=True)
-        print("✅ ffmpeg installed successfully")
-        return True
+        # Use more robust installation method
+        if sys.platform.startswith("win"):
+            print("❌ Windows ffmpeg installation not automated - please install manually")
+            return False
+        else:
+            # For Linux/container environments
+            subprocess.run(["apt-get", "update"], check=True, capture_output=True)
+            result = subprocess.run(["apt-get", "install", "-y", "ffmpeg"], capture_output=True, text=True)
+            if result.returncode == 0:
+                print("✅ ffmpeg installed successfully")
+                return True
+            else:
+                print(f"❌ apt-get failed: {result.stderr}")
+                return False
     except Exception as e:
         print(f"❌ Failed to install ffmpeg: {e}")
         return False
 
-# Call this at application startup
-if not install_ffmpeg():
-    print("⚠️ ffmpeg not available - video creation will fail")
+# Call this at application startup - BUT DON'T CRASH IF IT FAILS
+ffmpeg_available = install_ffmpeg()
+if not ffmpeg_available:
+    print("⚠️ ffmpeg not available - video creation may fail, but continuing startup...")
 
-import os
-import gradio as gr
-import asyncio
-import sys
-import json
-import shutil
-import pandas as pd
-import subprocess
-from backend.generate_script import generate_script_with_groq
-from backend.generate_video import build_video_from_timeline
-from backend.avatar_handler import save_uploaded_avatar
-from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame
-import time
-import threading
-from groq import Groq
-from backend.render_bubble import generate_beluga_typing_sequence
-import math
-import random
-import time
-import psutil
-import subprocess
-from backend.render_bubble import reset_typing_sessions
+# NOW import the rest of your modules
+try:
+    import gradio as gr
+    import asyncio
+    import json
+    import shutil
+    import pandas as pd
+    from backend.generate_script import generate_script_with_groq
+    from backend.generate_video import build_video_from_timeline
+    from backend.avatar_handler import save_uploaded_avatar
+    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame
+    import time
+    import threading
+    from groq import Groq
+    from backend.render_bubble import generate_beluga_typing_sequence
+    import math
+    import random
+    import psutil
+    from backend.render_bubble import reset_typing_sessions
+    print("✅ All imports successful")
+    
+except ImportError as e:
+    print(f"❌ Import error: {e}")
+    traceback.print_exc()
+    # Don't crash - try to continue
+    print("⚠️ Continuing with limited functionality...")
 
 def debug_performance():
     """Debug function to identify performance bottlenecks"""
@@ -90,9 +124,13 @@ SCRIPT_FILE = os.path.join(PROJECT_ROOT, "script.txt")
 BG_TIMELINE_FILE = os.path.join(PROJECT_ROOT, "frames", "bg_timeline.json")
 
 # Renderer state (fresh each session)
-render_bubble.frame_count = 0
-render_bubble.timeline = []
-render_bubble.renderer = WhatsAppRenderer()
+try:
+    render_bubble.frame_count = 0
+    render_bubble.timeline = []
+    render_bubble.renderer = WhatsAppRenderer()
+    print("✅ Renderer initialized")
+except Exception as e:
+    print(f"⚠️ Renderer initialization failed: {e}")
 
 # Keep track of the last generated script
 if os.path.exists(SCRIPT_FILE):
@@ -122,7 +160,12 @@ auto_refresh_thread = None
 rendering_in_progress = False
 
 # Groq client (assuming API key is set in environment)
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+try:
+    groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    print("✅ Groq client initialized")
+except Exception as e:
+    print(f"⚠️ Groq client initialization failed: {e}")
+    groq_client = None
 
 # --------------------------
 # Functions helper
@@ -1764,6 +1807,12 @@ with gr.Blocks() as demo:
     """
 
 if __name__ == "__main__":
+    print("🎬 Starting Banka Video Generator Web UI...")
     demo.queue(max_size=10)
     port = int(os.environ.get("PORT", 7860))
-    demo.launch(server_name="0.0.0.0", server_port=port, share=False, inbrowser=False)
+    print(f"🌐 Launching on port {port}...")
+    try:
+        demo.launch(server_name="0.0.0.0", server_port=port, share=False, inbrowser=False)
+    except Exception as e:
+        print(f"💥 Failed to launch: {e}")
+        traceback.print_exc()
