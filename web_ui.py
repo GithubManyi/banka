@@ -2040,6 +2040,9 @@ with gr.Blocks() as demo:
                 # ====================================
         # TAB 1: Character Management (IMPROVED)
         # ====================================
+                # ====================================
+        # TAB 1: Character Management (IMPROVED)
+        # ====================================
         with gr.TabItem("👥 Character Management", id="characters_tab"):
             gr.Markdown("### Manage Characters for Your Stories")
             
@@ -2182,9 +2185,10 @@ with gr.Blocks() as demo:
                 outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
             )
             
+            # FIXED: This line was causing the error - make sure the output target exists
             use_chars_btn.click(
                 fn=use_characters_in_script,
-                outputs=[characters]  # This will populate the characters field in the script tab
+                outputs=[character_name]  # This will populate the character name field in the same tab
             )
 
         # ====================================
