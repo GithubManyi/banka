@@ -170,6 +170,10 @@ print("✅ Configuration loaded successfully")
 # CHARACTER MANAGEMENT SYSTEM
 # =============================================
 
+# =============================================
+# CHARACTER MANAGEMENT SYSTEM (IMPROVED)
+# =============================================
+
 def load_characters():
     """Load characters from JSON file"""
     if os.path.exists(CHARACTERS_FILE):
@@ -276,14 +280,86 @@ def get_character_avatar_path(username):
         avatar_path = characters[username].get("avatar", "")
         if avatar_path and os.path.exists(os.path.join(PROJECT_ROOT, avatar_path)):
             return os.path.join(PROJECT_ROOT, avatar_path)
+        elif avatar_path:
+            # Try relative path
+            if os.path.exists(avatar_path):
+                return avatar_path
     
     # Fallback for "You" (Banka)
     if username.lower() == "banka" or username.lower() == "you":
-        return os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+        default_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+        if os.path.exists(default_path):
+            return default_path
     
     # Fallback for other characters
-    return os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+    default_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+    if os.path.exists(default_path):
+        return default_path
+    
+    # Ultimate fallback
+    return "static/images/contact.png"
 
+# IMPROVED AVATAR UPLOAD FUNCTION
+def handle_character_avatar_upload(avatar_file, character_name):
+    """Handle avatar uploads for specific characters with better file management"""
+    if not avatar_file or not character_name:
+        return "static/images/contact.png", "⚠️ No avatar or character name provided"
+    
+    try:
+        avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+        os.makedirs(avatars_dir, exist_ok=True)
+        
+        print(f"🎯 Uploading avatar for character: {character_name}")
+        print(f"🎯 Avatar file type: {type(avatar_file)}")
+        
+        # Get file extension
+        if hasattr(avatar_file, 'name'):
+            source_path = avatar_file.name
+            ext = os.path.splitext(avatar_file.name)[1]
+            print(f"🎯 Source path: {source_path}")
+        else:
+            source_path = str(avatar_file)
+            ext = os.path.splitext(str(avatar_file))[1]
+            print(f"🎯 Source path (string): {source_path}")
+        
+        # Create unique filename for this character
+        safe_name = "".join(c for c in character_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        dest_filename = f"{safe_name}{ext}"
+        dest_path = os.path.join(avatars_dir, dest_filename)
+        
+        print(f"🎯 Destination path: {dest_path}")
+        
+        # Copy file
+        shutil.copy2(source_path, dest_path)
+        
+        if os.path.exists(dest_path):
+            relative_path = f"static/avatars/{dest_filename}"
+            
+            # Update character record
+            characters = load_characters()
+            if character_name in characters:
+                characters[character_name]["avatar"] = relative_path
+                save_characters(characters)
+                print(f"✅ Updated avatar for character '{character_name}' -> {relative_path}")
+            else:
+                # If character doesn't exist, create it
+                characters[character_name] = {
+                    "avatar": relative_path,
+                    "personality": "New character"
+                }
+                save_characters(characters)
+                print(f"✅ Created new character '{character_name}' with avatar")
+            
+            return relative_path, f"✅ Avatar uploaded for {character_name}"
+        else:
+            print(f"❌ Failed to copy avatar file to {dest_path}")
+            return "static/images/contact.png", f"❌ Failed to upload avatar for {character_name}"
+            
+    except Exception as e:
+        print(f"❌ Error uploading avatar for {character_name}: {e}")
+        import traceback
+        traceback.print_exc()
+        return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
 # =============================================
 # FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
 # =============================================
@@ -1961,6 +2037,9 @@ with gr.Blocks() as demo:
         # ====================================
         # TAB 1: Character Management
         # ====================================
+                # ====================================
+        # TAB 1: Character Management (IMPROVED)
+        # ====================================
         with gr.TabItem("👥 Character Management", id="characters_tab"):
             gr.Markdown("### Manage Characters for Your Stories")
             
@@ -1969,7 +2048,11 @@ with gr.Blocks() as demo:
                     gr.Markdown("#### Add/Edit Character")
                     character_name = gr.Textbox(label="Character Name", placeholder="Enter character name")
                     character_personality = gr.Textbox(label="Personality/Traits", placeholder="Describe the character's personality", lines=3)
-                    character_avatar = gr.File(label="Character Avatar", file_types=[".png", ".jpg", ".jpeg"])
+                    character_avatar = gr.File(
+                        label="Character Avatar", 
+                        file_types=[".png", ".jpg", ".jpeg"],
+                        type="filepath"  # This helps with file handling
+                    )
                     
                     with gr.Row():
                         add_char_btn = gr.Button("➕ Add Character", variant="primary")
@@ -1993,55 +2076,75 @@ with gr.Blocks() as demo:
                         refresh_chars_btn = gr.Button("🔄 Refresh List")
                         use_chars_btn = gr.Button("🎭 Use in Script")
             
-            # Character management event handlers
+            # IMPROVED Character management event handlers
             def refresh_characters():
+                """Refresh the character list and clear the form"""
                 characters = get_character_names()
-                return gr.Dropdown(choices=characters), "", "static/images/contact.png", ""
+                return gr.Dropdown(choices=characters), "", "static/images/contact.png", "", None
             
             def load_character_details(name):
+                """Load character details when selected from dropdown"""
                 if not name:
-                    return "static/images/contact.png", ""
+                    return "static/images/contact.png", "", None
                 details = get_character_details(name)
-                return details["avatar"], details["personality"]
+                return details["avatar"], details["personality"], None
             
             def add_character_handler(name, personality, avatar):
+                """Add a new character with avatar"""
                 if not name:
-                    return "❌ Please enter a character name", "", "static/images/contact.png", ""
+                    return "❌ Please enter a character name", "", "static/images/contact.png", "", None
                 
                 avatar_path = "static/images/contact.png"
+                avatar_status = "Using default avatar"
+                
                 if avatar:
-                    # Save avatar and get path
-                    avatar_path, avatar_status = handle_avatar_upload(avatar, name)
+                    # Use the improved avatar upload function
+                    avatar_path, avatar_status = handle_character_avatar_upload(avatar, name)
                     print(avatar_status)
                 
                 success, message = add_character(name, avatar_path, personality)
                 characters = get_character_names()
-                return message, gr.Dropdown(choices=characters), "static/images/contact.png", ""
+                
+                if success:
+                    return message, gr.Dropdown(choices=characters), avatar_path, "", None
+                else:
+                    return message, gr.Dropdown(choices=characters), "static/images/contact.png", "", None
             
             def update_character_handler(name, personality, avatar):
+                """Update an existing character with new avatar"""
                 if not name:
-                    return "❌ Please select a character to update", "", "static/images/contact.png", ""
+                    return "❌ Please select a character to update", "", "static/images/contact.png", "", None
                 
-                avatar_path = get_character_details(name)["avatar"]
+                # Get current avatar path
+                current_details = get_character_details(name)
+                avatar_path = current_details["avatar"]
+                avatar_status = "Keeping current avatar"
+                
                 if avatar:
-                    # Update avatar and get path
-                    avatar_path, avatar_status = handle_avatar_upload(avatar, name)
+                    # Use the improved avatar upload function
+                    avatar_path, avatar_status = handle_character_avatar_upload(avatar, name)
                     print(avatar_status)
                 
                 success, message = update_character(name, avatar_path, personality)
                 characters = get_character_names()
                 details = get_character_details(name)
-                return message, gr.Dropdown(choices=characters), details["avatar"], details["personality"]
+                
+                if success:
+                    return message, gr.Dropdown(choices=characters), details["avatar"], details["personality"], None
+                else:
+                    return message, gr.Dropdown(choices=characters), current_details["avatar"], personality, None
             
             def delete_character_handler(name):
+                """Delete a character"""
                 if not name:
-                    return "❌ Please select a character to delete", "", "static/images/contact.png", ""
+                    return "❌ Please select a character to delete", "", "static/images/contact.png", "", None
                 
                 success, message = delete_character(name)
                 characters = get_character_names()
-                return message, gr.Dropdown(choices=characters), "static/images/contact.png", ""
+                return message, gr.Dropdown(choices=characters), "static/images/contact.png", "", None
             
             def use_characters_in_script():
+                """Use all characters in script tab"""
                 characters = get_character_names()
                 if characters:
                     char_string = ", ".join(characters)
@@ -2052,36 +2155,36 @@ with gr.Blocks() as demo:
             # Connect event handlers
             refresh_chars_btn.click(
                 fn=refresh_characters,
-                outputs=[characters_list, char_status, character_preview, character_details]
+                outputs=[characters_list, char_status, character_preview, character_details, character_avatar]
             )
             
             characters_list.change(
                 fn=load_character_details,
                 inputs=[characters_list],
-                outputs=[character_preview, character_details]
+                outputs=[character_preview, character_details, character_avatar]
             )
             
             add_char_btn.click(
                 fn=add_character_handler,
                 inputs=[character_name, character_personality, character_avatar],
-                outputs=[char_status, characters_list, character_preview, character_details]
+                outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
             )
             
             update_char_btn.click(
                 fn=update_character_handler,
                 inputs=[characters_list, character_personality, character_avatar],
-                outputs=[char_status, characters_list, character_preview, character_details]
+                outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
             )
             
             delete_char_btn.click(
                 fn=delete_character_handler,
                 inputs=[characters_list],
-                outputs=[char_status, characters_list, character_preview, character_details]
+                outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
             )
             
             use_chars_btn.click(
                 fn=use_characters_in_script,
-                outputs=[character_name]  # This will populate the characters field in the script tab
+                outputs=[characters]  # This will populate the characters field in the script tab
             )
 
         # ====================================
