@@ -44,39 +44,54 @@ def get_initials(name: str) -> str:
     return (parts[0][0] + parts[1][0]).upper()
 
 def get_avatar(name, size=128):
+    """Railway-compatible avatar path resolver"""
     safe_name = name.lower().replace(" ", "_")
+    
+    # Try multiple possible locations for existing avatars
+    possible_paths = [
+        os.path.join(AVATAR_DIR, f"{safe_name}.png"),
+        os.path.join(AVATAR_DIR, f"{safe_name}.jpg"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static", "avatars", f"{safe_name}.png"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static", "avatars", f"{safe_name}.jpg"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static", "images", "avatars", f"{safe_name}.png"),
+    ]
+    
+    # Check if avatar already exists in any location
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+    
+    # If avatar doesn't exist, create it in the main AVATAR_DIR
     filename = f"{safe_name}.png"
     filepath = os.path.join(AVATAR_DIR, filename)
 
-    if not os.path.exists(filepath):
-        initials = get_initials(name)
-        bg_color = name_to_color(name)
+    # Create the avatar (your existing creation code)
+    initials = get_initials(name)
+    bg_color = name_to_color(name)
 
-        # --- Create square canvas ---
-        img = Image.new("RGB", (size, size), color=bg_color)
-        mask = Image.new("L", (size, size), 0)
-        draw_mask = ImageDraw.Draw(mask)
-        draw_mask.ellipse((0, 0, size, size), fill=255)
+    # --- Create square canvas ---
+    img = Image.new("RGB", (size, size), color=bg_color)
+    mask = Image.new("L", (size, size), 0)
+    draw_mask = ImageDraw.Draw(mask)
+    draw_mask.ellipse((0, 0, size, size), fill=255)
 
-        draw = ImageDraw.Draw(img)
+    draw = ImageDraw.Draw(img)
 
-        # --- WhatsApp-like font (bold, centered) ---
-        font = get_font(size // 2)
+    # --- WhatsApp-like font (bold, centered) ---
+    font = get_font(size // 2)
 
-        bbox = draw.textbbox((0, 0), initials, font=font)
-        text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        # Adjust with bbox offsets so text is truly centered
-        x = (size - text_w) / 2 - bbox[0]
-        y = (size - text_h) / 2 - bbox[1]
+    bbox = draw.textbbox((0, 0), initials, font=font)
+    text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    # Adjust with bbox offsets so text is truly centered
+    x = (size - text_w) / 2 - bbox[0]
+    y = (size - text_h) / 2 - bbox[1]
 
-        draw.text((x, y), initials, fill=(255, 255, 255), font=font)
+    draw.text((x, y), initials, fill=(255, 255, 255), font=font)
 
-
-
-        # --- Apply circular mask ---
-        final_img = Image.new("RGB", (size, size), (0, 0, 0))
-        final_img.paste(img, (0, 0), mask)
-        final_img.save(filepath, format="PNG")
+    # --- Apply circular mask ---
+    final_img = Image.new("RGB", (size, size), (0, 0, 0))
+    final_img.paste(img, (0, 0), mask)
+    final_img.save(filepath, format="PNG")
 
     return filepath
 
