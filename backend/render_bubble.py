@@ -393,13 +393,12 @@ class WhatsAppRenderer:
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
         """
-        ULTRA OPTIMIZED frame rendering
+        ULTRA FAST PIL-ONLY RENDERING - Maintains all features, no Chrome delays
         """
         start_time = time.time()
         self._render_count += 1
         
-        # Check cache first - MORE AGGRESSIVE CACHING
-        is_typing_frame = show_typing_bar and upcoming_text
+        # Check cache first
         cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
         
         if cache_key in FRAME_CACHE and os.path.exists(FRAME_CACHE[cache_key]):
@@ -408,377 +407,228 @@ class WhatsAppRenderer:
                 import shutil
                 shutil.copy2(cached_frame, frame_file)
                 if self._render_count % 20 == 0:
-                    print(f"⚡ FAST CACHE: {cache_key[:8]}...")
+                    print(f"⚡ CACHED FRAME: {cache_key[:8]}...")
                 return f"CACHED: {cached_frame}"
         
-        template = self.jinja_env.get_template(TEMPLATE_FILE)
-    
-        # Filter typing bubbles for sender
-        filtered_messages = []
-        for msg in self.message_history:
-            if msg['is_sender'] and msg['typing']:
-                continue
-            filtered_messages.append(msg)
-    
-        rendered_html = template.render(
-            messages=filtered_messages,
-            chat_title=getattr(self, "chat_title", None),
-            chat_avatar=getattr(self, "chat_avatar", None),
-            chat_status=getattr(self, "chat_status", None),
-            show_typing_bar=show_typing_bar,
-            typing_user=typing_user,
-            upcoming_text=upcoming_text
-        )
-    
-        with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
-            f.write(rendered_html)
-    
-        # Try HTML2Image first, fallback to PIL if it fails
+        # FORCE PIL-ONLY RENDERING - MAINTAINS ALL FEATURES
         try:
-            # Get HTML2Image with optimized flags
-            hti = get_html2image()
-            if hti is None:
-                raise Exception("HTML2Image not available")
-            
-            # Save HTML to temporary file
-            temp_html = os.path.join(FRAMES_DIR, f"temp_{render_bubble.frame_count}.html")
-            with open(temp_html, "w", encoding="utf-8") as f:
-                f.write(rendered_html)
-            
-            # Render to image with error handling
-            try:
-                hti.screenshot(
-                    html_file=temp_html,
-                    save_as=os.path.basename(frame_file),
-                    size=(1920, 1080)
-                )
-            except Exception as render_error:
-                print(f"⚠️ HTML2Image render failed: {render_error}")
-                raise render_error
-            
-            # Move the screenshot to the correct location
-            generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
-            if os.path.exists(generated_file):
-                os.rename(generated_file, frame_file)
-                # REDUCED LOGGING: Only log every 50th frame
-                if self._render_count % 50 == 0:
-                    print(f"✅ Rendered frame {self._render_count}: {frame_file}")
-            else:
-                # If file wasn't generated, fall back to PIL
-                raise Exception("HTML2Image didn't generate output file")
-            
-            # Clean up temp HTML file
-            if os.path.exists(temp_html):
-                os.remove(temp_html)
-                
-        except Exception as e:
-            # REDUCED LOGGING: Only log HTML2Image failures, not every fallback
-            if self._render_count % 10 == 0:
-                print(f"❌ HTML2Image failed: {e}")
-                print("🔄 Falling back to PIL rendering...")
-            
-            # PIL FALLBACK - Create a visual chat frame
             from PIL import Image, ImageDraw, ImageFont
             
-            # Create background
-            img = Image.new('RGB', (1920, 1080), color=(53, 53, 53))
+            # Create WhatsApp-style background
+            img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))  # WhatsApp dark green
             draw = ImageDraw.Draw(img)
             
+            # Load fonts or use defaults
             try:
-                # Try to use a font (fallback to default if not available)
-                try:
-                    font_large = ImageFont.truetype("Arial", 24)
-                    font_medium = ImageFont.truetype("Arial", 18)
-                    font_small = ImageFont.truetype("Arial", 14)
-                except:
-                    font_large = ImageFont.load_default()
-                    font_medium = ImageFont.load_default()
-                    font_small = ImageFont.load_default()
-                
-                y_pos = 50
-                
-                # Chat header
-                draw.text((100, y_pos), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
-                y_pos += 40
-                draw.text((100, y_pos), f"👥 {self.chat_status}", fill=(200, 200, 200), font=font_medium)
-                y_pos += 60
-                
-                # Show typing indicator if active
-                if show_typing_bar and typing_user:
-                    draw.text((100, y_pos), f"⌨️ {typing_user} is typing: {upcoming_text}", fill=(100, 255, 100), font=font_medium)
-                    y_pos += 40
-                
-                # Draw message bubbles
-                for msg in filtered_messages[-8:]:  # Show last 8 messages
-                    # Message bubble
-                    bubble_x = 100 if not msg['is_sender'] else 1000
-                    bubble_color = (30, 120, 200) if not msg['is_sender'] else (50, 150, 50)
-                    
-                    # Username and timestamp
-                    user_text = f"{msg['username']} • {msg['timestamp']}"
-                    draw.text((bubble_x, y_pos), user_text, fill=msg['color'], font=font_small)
-                    y_pos += 25
-                    
-                    # Message text
-                    message_lines = []
-                    current_line = ""
-                    for word in msg['text'].split():
-                        test_line = current_line + word + " "
-                        if len(test_line) > 50:  # Wrap at 50 chars
-                            message_lines.append(current_line)
-                            current_line = word + " "
-                        else:
-                            current_line = test_line
-                    if current_line:
-                        message_lines.append(current_line)
-                    
-                    for line in message_lines:
-                        draw.text((bubble_x, y_pos), line, fill=(255, 255, 255), font=font_medium)
-                        y_pos += 25
-                    
-                    # Typing indicator for receiver bubbles
-                    if msg.get('typing'):
-                        draw.text((bubble_x, y_pos), "⏳ typing...", fill=(200, 200, 100), font=font_small)
-                        y_pos += 20
-                    
-                    y_pos += 15  # Space between messages
-                
-            except Exception as pil_error:
-                if self._render_count % 10 == 0:
-                    print(f"⚠️ Advanced PIL rendering failed: {pil_error}")
-                # Ultra simple fallback
-                draw.text((100, 100), f"Chat Frame - {len(filtered_messages)} messages", fill=(255, 255, 255))
-                if show_typing_bar and typing_user:
-                    draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
+                # Try different font paths
+                font_paths = [
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                    "Arial",
+                    "/System/Library/Fonts/Arial.ttf"  # macOS
+                ]
+                font_large = None
+                for path in font_paths:
+                    try:
+                        font_large = ImageFont.truetype(path, 36)
+                        font_medium = ImageFont.truetype(path, 28)
+                        font_small = ImageFont.truetype(path, 22)
+                        break
+                    except:
+                        continue
+                if font_large is None:
+                    raise Exception("No system font found")
+            except:
+                # Use default font
+                font_large = ImageFont.load_default()
+                font_medium = ImageFont.load_default()
+                font_small = ImageFont.load_default()
             
-            img.save(frame_file)
-            # REDUCED LOGGING: Only log every 50th PIL frame
-            if self._render_count % 50 == 0:
-                print(f"✅ PIL fallback frame {self._render_count}: {frame_file}")
+            # Draw header (matches your template style)
+            header_bg = Image.new('RGB', (1920, 130), color=(17, 27, 33))
+            img.paste(header_bg, (0, 0))
+            draw.text((120, 40), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
+            draw.text((120, 85), f"👥 {self.chat_status}", fill=(134, 150, 160), font=font_small)
+            
+            # Draw messages - MAINTAINS ALL MESSAGE FEATURES
+            y_pos = 150
+            messages_to_show = self.message_history[-10:]  # Last 10 messages
+            
+            for msg in messages_to_show:
+                is_sender = msg.get('is_sender', False)
+                username = msg.get('username', 'Unknown')
+                text = msg.get('text', '')
+                timestamp = msg.get('timestamp', '')
+                color = msg.get('color', '#FFFFFF')
+                is_typing = msg.get('typing', False)
+                has_meme = msg.get('meme') is not None
+                
+                # Message bubble position (matches your CSS)
+                bubble_x = 120 if not is_sender else 1000
+                bubble_color = (32, 44, 51) if not is_sender else (0, 92, 75)  # WhatsApp colors
+                
+                # Calculate bubble size
+                display_text = text[:100] + "..." if len(text) > 100 else text  # Truncate long texts
+                
+                # Handle different message types
+                if is_typing and not is_sender:
+                    # TYPING INDICATOR (receiver only)
+                    bubble_height = 80
+                    bubble = Image.new('RGB', (400, bubble_height), bubble_color)
+                    img.paste(bubble, (bubble_x, y_pos))
+                    
+                    # Typing dots
+                    dot_y = y_pos + 40
+                    for i in range(3):
+                        dot_x = bubble_x + 20 + (i * 25)
+                        draw.ellipse([dot_x, dot_y, dot_x + 12, dot_y + 12], fill=(134, 150, 160))
+                    
+                    draw.text((bubble_x + 100, y_pos + 35), "typing...", 
+                             fill=(200, 200, 200), font=font_small)
+                    
+                    y_pos += bubble_height + 20
+                    
+                elif has_meme:
+                    # MEME MESSAGE - draw meme indicator
+                    bubble_height = 120
+                    bubble = Image.new('RGB', (500, bubble_height), bubble_color)
+                    img.paste(bubble, (bubble_x, y_pos))
+                    
+                    draw.text((bubble_x + 20, y_pos + 15), username, fill=color, font=font_small)
+                    draw.text((bubble_x + 20, y_pos + 45), "📷 [Media]", 
+                             fill=(233, 237, 239), font=font_medium)
+                    draw.text((bubble_x + 20, y_pos + 85), timestamp, 
+                             fill=(134, 150, 160), font=font_small)
+                    
+                    y_pos += bubble_height + 20
+                    
+                else:
+                    # REGULAR TEXT MESSAGE
+                    # Calculate text dimensions
+                    text_bbox = draw.textbbox((0, 0), display_text, font=font_medium)
+                    text_width = text_bbox[2] - text_bbox[0] + 40
+                    text_height = text_bbox[3] - text_bbox[1] + 80  # Extra space for username/timestamp
+                    
+                    # Create bubble (max width 600 like your CSS)
+                    bubble_width = min(600, max(200, text_width))
+                    bubble = Image.new('RGB', (bubble_width, text_height), bubble_color)
+                    img.paste(bubble, (bubble_x, y_pos))
+                    
+                    # Draw username
+                    draw.text((bubble_x + 20, y_pos + 15), username, fill=color, font=font_small)
+                    
+                    # Draw message text
+                    if display_text:
+                        draw.text((bubble_x + 20, y_pos + 45), display_text, 
+                                 fill=(233, 237, 239), font=font_medium)
+                    
+                    # Draw timestamp
+                    draw.text((bubble_x + 20, y_pos + text_height - 30), timestamp, 
+                             fill=(134, 150, 160), font=font_small)
+                    
+                    # Draw read receipts for sender
+                    if is_sender and msg.get('is_read', False):
+                        draw.text((bubble_x + bubble_width - 40, y_pos + text_height - 30), "✓✓", 
+                                 fill=(83, 189, 235), font=font_small)
+                    elif is_sender:
+                        draw.text((bubble_x + bubble_width - 20, y_pos + text_height - 30), "✓", 
+                                 fill=(134, 150, 160), font=font_small)
+                    
+                    y_pos += text_height + 20
+                
+                # Stop if we run out of space
+                if y_pos > 900:
+                    break
+            
+            # Draw typing bar if active (sender typing) - MAINTAINS TYPING BAR FEATURE
+            if show_typing_bar and typing_user:
+                typing_bg = Image.new('RGB', (1920, 80), color=(17, 27, 33))
+                img.paste(typing_bg, (0, 1000))
+                
+                # Draw typing input bar (matches your template)
+                input_bg = Image.new('RGB', (1600, 60), color=(32, 44, 51))
+                img.paste(input_bg, (160, 1010))
+                
+                # Draw typing text with cursor
+                typing_text = f"{upcoming_text[:60]}|" if upcoming_text else "Message"
+                text_color = (233, 237, 239) if upcoming_text else (134, 150, 160)
+                
+                draw.text((180, 1025), typing_text, fill=text_color, font=font_medium)
+                
+                # Draw icons (simplified)
+                draw.text((1780, 1020), "📎", fill=(134, 150, 160), font=font_medium)
+                draw.text((1820, 1020), "📷", fill=(134, 150, 160), font=font_medium)
+                if upcoming_text:
+                    draw.text((1860, 1020), "📩", fill=(83, 189, 235), font=font_medium)
+                else:
+                    draw.text((1860, 1020), "🎤", fill=(134, 150, 160), font=font_medium)
+            
+            # Save optimized for speed
+            img.save(frame_file, 'PNG', optimize=True)
+            
+            render_time = time.time() - start_time
+            if self._render_count % 10 == 0 or render_time > 0.1:
+                print(f"⚡ FRAME {self._render_count}: {render_time:.3f}s")
+                
+        except Exception as e:
+            # ULTIMATE FALLBACK: Simple frame with basic info
+            print(f"⚠️ Advanced PIL failed: {e}")
+            try:
+                from PIL import Image, ImageDraw
+                img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
+                draw = ImageDraw.Draw(img)
+                draw.text((100, 100), f"Chat: {self.chat_title}", fill=(255, 255, 255))
+                draw.text((100, 150), f"Messages: {len(self.message_history)}", fill=(255, 255, 255))
+                if show_typing_bar:
+                    draw.text((100, 200), f"Typing: {typing_user}", fill=(100, 255, 100))
+                img.save(frame_file)
+            except:
+                # Final fallback - blank frame
+                Image.new('RGB', (1920, 1080), color=(11, 20, 26)).save(frame_file)
         
-        # Cache non-typing frames only
-        if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
+        # Cache ALL frames for maximum speed
+        if len(FRAME_CACHE) < CACHE_MAX_SIZE:
             FRAME_CACHE[cache_key] = frame_file
         
-        # Use ULTRA SHORT wait for typing frames
-        if short_wait:
-            time.sleep(0.05)  # Reduced from whatever it was
-        else:
-            time.sleep(0.1)   # Reduced for regular frames
-        
-        render_time = time.time() - start_time
-        # REDUCED LOGGING: Only log slow renders
-        if render_time > 1.0:
-            print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
-        
-        return rendered_html
+        return frame_file
 
-# ---------- BUBBLE RENDERING ---------- #
-def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
-    """
-    ULTRA FAST PIL-ONLY RENDERING - Maintains all features, no Chrome delays
-    """
-    start_time = time.time()
-    self._render_count += 1
+def render_bubble(username, message, meme_path=None, is_sender=False, is_read=False):
+    """Main function to render message bubbles"""
+    if not hasattr(render_bubble, 'renderer'):
+        render_bubble.renderer = WhatsAppRenderer(
+            chat_title="BANKA TOUR GROUP",
+            chat_avatar="static/images/group.png", 
+            chat_status="jay, khooi, banka"
+        )
+        render_bubble.frame_count = 0
+        render_bubble.timeline = []
     
-    # Check cache first
-    cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
+    # Add the message
+    render_bubble.renderer.add_message(username, message, meme_path=meme_path, is_read=is_read)
     
-    if cache_key in FRAME_CACHE and os.path.exists(FRAME_CACHE[cache_key]):
-        cached_frame = FRAME_CACHE[cache_key]
-        if os.path.exists(cached_frame):
-            import shutil
-            shutil.copy2(cached_frame, frame_file)
-            if self._render_count % 20 == 0:
-                print(f"⚡ CACHED FRAME: {cache_key[:8]}...")
-            return f"CACHED: {cached_frame}"
+    # Render the frame
+    frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
+    render_bubble.renderer.render_frame(frame_file)
     
-    # FORCE PIL-ONLY RENDERING - MAINTAINS ALL FEATURES
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-        
-        # Create WhatsApp-style background
-        img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))  # WhatsApp dark green
-        draw = ImageDraw.Draw(img)
-        
-        # Load fonts or use defaults
-        try:
-            # Try different font paths
-            font_paths = [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                "Arial",
-                "/System/Library/Fonts/Arial.ttf"  # macOS
-            ]
-            font_large = None
-            for path in font_paths:
-                try:
-                    font_large = ImageFont.truetype(path, 36)
-                    font_medium = ImageFont.truetype(path, 28)
-                    font_small = ImageFont.truetype(path, 22)
-                    break
-                except:
-                    continue
-            if font_large is None:
-                raise Exception("No system font found")
-        except:
-            # Use default font
-            font_large = ImageFont.load_default()
-            font_medium = ImageFont.load_default()
-            font_small = ImageFont.load_default()
-        
-        # Draw header (matches your template style)
-        header_bg = Image.new('RGB', (1920, 130), color=(17, 27, 33))
-        img.paste(header_bg, (0, 0))
-        draw.text((120, 40), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
-        draw.text((120, 85), f"👥 {self.chat_status}", fill=(134, 150, 160), font=font_small)
-        
-        # Draw messages - MAINTAINS ALL MESSAGE FEATURES
-        y_pos = 150
-        messages_to_show = self.message_history[-10:]  # Last 10 messages
-        
-        for msg in messages_to_show:
-            is_sender = msg.get('is_sender', False)
-            username = msg.get('username', 'Unknown')
-            text = msg.get('text', '')
-            timestamp = msg.get('timestamp', '')
-            color = msg.get('color', '#FFFFFF')
-            is_typing = msg.get('typing', False)
-            has_meme = msg.get('meme') is not None
-            
-            # Message bubble position (matches your CSS)
-            bubble_x = 120 if not is_sender else 1000
-            bubble_color = (32, 44, 51) if not is_sender else (0, 92, 75)  # WhatsApp colors
-            
-            # Calculate bubble size
-            display_text = text[:100] + "..." if len(text) > 100 else text  # Truncate long texts
-            
-            # Handle different message types
-            if is_typing and not is_sender:
-                # TYPING INDICATOR (receiver only)
-                bubble_height = 80
-                bubble = Image.new('RGB', (400, bubble_height), bubble_color)
-                img.paste(bubble, (bubble_x, y_pos))
-                
-                # Typing dots
-                dot_y = y_pos + 40
-                for i in range(3):
-                    dot_x = bubble_x + 20 + (i * 25)
-                    draw.ellipse([dot_x, dot_y, dot_x + 12, dot_y + 12], fill=(134, 150, 160))
-                
-                draw.text((bubble_x + 100, y_pos + 35), "typing...", 
-                         fill=(200, 200, 200), font=font_small)
-                
-                y_pos += bubble_height + 20
-                
-            elif has_meme:
-                # MEME MESSAGE - draw meme indicator
-                bubble_height = 120
-                bubble = Image.new('RGB', (500, bubble_height), bubble_color)
-                img.paste(bubble, (bubble_x, y_pos))
-                
-                draw.text((bubble_x + 20, y_pos + 15), username, fill=color, font=font_small)
-                draw.text((bubble_x + 20, y_pos + 45), "📷 [Media]", 
-                         fill=(233, 237, 239), font=font_medium)
-                draw.text((bubble_x + 20, y_pos + 85), timestamp, 
-                         fill=(134, 150, 160), font=font_small)
-                
-                y_pos += bubble_height + 20
-                
-            else:
-                # REGULAR TEXT MESSAGE
-                # Calculate text dimensions
-                text_bbox = draw.textbbox((0, 0), display_text, font=font_medium)
-                text_width = text_bbox[2] - text_bbox[0] + 40
-                text_height = text_bbox[3] - text_bbox[1] + 80  # Extra space for username/timestamp
-                
-                # Create bubble (max width 600 like your CSS)
-                bubble_width = min(600, max(200, text_width))
-                bubble = Image.new('RGB', (bubble_width, text_height), bubble_color)
-                img.paste(bubble, (bubble_x, y_pos))
-                
-                # Draw username
-                draw.text((bubble_x + 20, y_pos + 15), username, fill=color, font=font_small)
-                
-                # Draw message text
-                if display_text:
-                    draw.text((bubble_x + 20, y_pos + 45), display_text, 
-                             fill=(233, 237, 239), font=font_medium)
-                
-                # Draw timestamp
-                draw.text((bubble_x + 20, y_pos + text_height - 30), timestamp, 
-                         fill=(134, 150, 160), font=font_small)
-                
-                # Draw read receipts for sender
-                if is_sender and msg.get('is_read', False):
-                    draw.text((bubble_x + bubble_width - 40, y_pos + text_height - 30), "✓✓", 
-                             fill=(83, 189, 235), font=font_small)
-                elif is_sender:
-                    draw.text((bubble_x + bubble_width - 20, y_pos + text_height - 30), "✓", 
-                             fill=(134, 150, 160), font=font_small)
-                
-                y_pos += text_height + 20
-            
-            # Stop if we run out of space
-            if y_pos > 900:
-                break
-        
-        # Draw typing bar if active (sender typing) - MAINTAINS TYPING BAR FEATURE
-        if show_typing_bar and typing_user:
-            typing_bg = Image.new('RGB', (1920, 80), color=(17, 27, 33))
-            img.paste(typing_bg, (0, 1000))
-            
-            # Draw typing input bar (matches your template)
-            input_bg = Image.new('RGB', (1600, 60), color=(32, 44, 51))
-            img.paste(input_bg, (160, 1010))
-            
-            # Draw typing text with cursor
-            typing_text = f"{upcoming_text[:60]}|" if upcoming_text else "Message"
-            text_color = (233, 237, 239) if upcoming_text else (134, 150, 160)
-            
-            draw.text((180, 1025), typing_text, fill=text_color, font=font_medium)
-            
-            # Draw icons (simplified)
-            draw.text((1780, 1020), "📎", fill=(134, 150, 160), font=font_medium)
-            draw.text((1820, 1020), "📷", fill=(134, 150, 160), font=font_medium)
-            if upcoming_text:
-                draw.text((1860, 1020), "📩", fill=(83, 189, 235), font=font_medium)
-            else:
-                draw.text((1860, 1020), "🎤", fill=(134, 150, 160), font=font_medium)
-        
-        # Save optimized for speed
-        img.save(frame_file, 'PNG', optimize=True)
-        
-        render_time = time.time() - start_time
-        if self._render_count % 10 == 0 or render_time > 0.1:
-            print(f"⚡ FRAME {self._render_count}: {render_time:.3f}s")
-            
-    except Exception as e:
-        # ULTIMATE FALLBACK: Simple frame with basic info
-        print(f"⚠️ Advanced PIL failed: {e}")
-        try:
-            from PIL import Image, ImageDraw
-            img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
-            draw = ImageDraw.Draw(img)
-            draw.text((100, 100), f"Chat: {self.chat_title}", fill=(255, 255, 255))
-            draw.text((100, 150), f"Messages: {len(self.message_history)}", fill=(255, 255, 255))
-            if show_typing_bar:
-                draw.text((100, 200), f"Typing: {typing_user}", fill=(100, 255, 100))
-            img.save(frame_file)
-        except:
-            # Final fallback - blank frame
-            Image.new('RGB', (1920, 1080), color=(11, 20, 26)).save(frame_file)
+    # Create timeline entry
+    entry = {
+        "frame": os.path.abspath(frame_file),
+        "duration": 2.0,  # Default duration for regular messages
+        "is_sender": is_sender,
+        "username": username,
+        "text": message,
+        "is_meme": meme_path is not None,
+        "meme_path": meme_path,
+        "typing": False
+    }
     
-    # Cache ALL frames for maximum speed
-    if len(FRAME_CACHE) < CACHE_MAX_SIZE:
-        FRAME_CACHE[cache_key] = frame_file
+    render_bubble.timeline.append(entry)
     
-    # Remove the sleep delays - they're not needed with PIL
-    # if short_wait:
-    #     time.sleep(0.05)
-    # else:
-    #     time.sleep(0.1)
+    # Save timeline
+    with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
+        json.dump(render_bubble.timeline, tf, indent=2)
     
+    render_bubble.frame_count += 1
     return frame_file
 
 def render_meme(username, meme_path):
