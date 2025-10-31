@@ -4,6 +4,15 @@ FROM python:3.10-slim
 ENV DBUS_SESSION_BUS_ADDRESS=""
 ENV DBUS_SYSTEM_BUS_ADDRESS=""
 
+# Chrome/Chromium specific environment variables
+ENV CHROME_DRIVER=/usr/bin/chromedriver
+ENV CHROME_BIN=/usr/bin/chromium
+ENV DISPLAY=:99
+ENV NO_SANDBOX=true
+ENV DISABLE_DEV_SHM=true
+ENV ENABLE_CRASH_REPORTER=false
+ENV CRASH_PAD_ENABLED=false
+
 # Install system dependencies including ffmpeg and Chromium for Selenium
 RUN apt-get update && apt-get install -y \
     ffmpeg \
@@ -18,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     libgbm1 \
     libxss1 \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -35,5 +45,5 @@ RUN mkdir -p frames tmp_ffmpeg static/assets
 # Expose port
 EXPOSE 7860
 
-# Start Python application (NOT npm start)
-CMD ["python", "web_ui.py"]
+# Start Xvfb and then your Python application
+CMD Xvfb :99 -screen 0 1024x768x16 & python web_ui.py
