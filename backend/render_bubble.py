@@ -80,8 +80,43 @@ import html2image
 # Global HTML2Image instance
 HTI = None
 
+# Add avatar caching at the top with other caches
+AVATAR_CACHE = {}
+AVATAR_CACHE_MAX_SIZE = 100  # Increased from 50
+
+def get_cached_avatar(username):
+    """Get cached base64 avatar or create and cache it"""
+    if username in AVATAR_CACHE:
+        return AVATAR_CACHE[username]
+    
+    avatar_path = get_avatar(username)
+    avatar_data = None
+    
+    if avatar_path and os.path.exists(avatar_path):
+        try:
+            with open(avatar_path, "rb") as f:
+                avatar_data = base64.b64encode(f.read()).decode("utf-8")
+            # Get MIME type
+            mime_type = "image/jpeg"
+            if avatar_path.lower().endswith('.png'):
+                mime_type = "image/png"
+            elif avatar_path.lower().endswith('.gif'):
+                mime_type = "image/gif"
+            avatar_data = f"data:{mime_type};base64,{avatar_data}"
+        except Exception as e:
+            print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
+            avatar_data = None
+    
+    # Cache the result
+    if len(AVATAR_CACHE) >= AVATAR_CACHE_MAX_SIZE:
+        # Remove oldest entry
+        AVATAR_CACHE.pop(next(iter(AVATAR_CACHE)))
+    
+    AVATAR_CACHE[username] = avatar_data
+    return avatar_data
+
 def get_html2image():
-    """Get or create HTML2Image instance with optimized Chrome flags to minimize errors"""
+    """Get or create HTML2Image instance with optimized Chrome flags"""
     global HTI
     if HTI is None:
         try:
@@ -102,7 +137,7 @@ def get_html2image():
                     break
             
             if chromium_path:
-                # OPTIMIZED CHROME FLAGS TO MINIMIZE ERRORS
+                # ULTRA OPTIMIZED CHROME FLAGS FOR SPEED
                 chrome_flags = [
                     '--no-sandbox',
                     '--disable-dev-shm-usage',
@@ -128,7 +163,19 @@ def get_html2image():
                     '--disable-in-process-stack-traces',
                     '--disable-logging',
                     '--disable-breakpad',
-                    '--memory-pressure-off'
+                    '--memory-pressure-off',
+                    '--max-old-space-size=4096',  # ADD THIS
+                    '--single-process',  # ADD THIS FOR SPEED (but less stable)
+                    '--no-zygote',  # ADD THIS
+                    '--disable-setuid-sandbox',
+                    '--disable-extensions',
+                    '--disable-component-extensions-with-background-pages',
+                    '--disable-default-apps',
+                    '--disable-plugins',
+                    '--disable-translate',
+                    '--disable-sync',
+                    '--metrics-recording-only',
+                    '--disable-default-apps'
                 ]
                 
                 HTI = html2image.Html2Image(
@@ -136,7 +183,7 @@ def get_html2image():
                     browser_executable=chromium_path,
                     custom_flags=chrome_flags
                 )
-                print("🚀 Created HTML2Image renderer with optimized Chrome flags")
+                print("🚀 Created OPTIMIZED HTML2Image renderer")
             else:
                 print("❌ No Chromium found, will use PIL fallback")
                 HTI = None
@@ -152,6 +199,7 @@ def cleanup_resources():
     if HTI:
         HTI = None
     FRAME_CACHE.clear()
+    AVATAR_CACHE.clear()
     gc.collect()
     print("🧹 Cleaned up rendering resources")
 
@@ -169,7 +217,7 @@ def close_persistent_driver():
 
 # Cache for rendered frames to avoid re-rendering identical states
 FRAME_CACHE = {}
-CACHE_MAX_SIZE = 100
+CACHE_MAX_SIZE = 200  # Increased from 100
 
 def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     """Generate a cache key for frame rendering"""
@@ -255,7 +303,8 @@ class WhatsAppRenderer:
             ts = datetime.now().strftime("%#I:%M %p").lower()
 
         color = name_to_color(username)
-        avatar_path = get_avatar(username)
+        # FIX: Use cached avatar instead of encoding every time
+        avatar_data = get_cached_avatar(username)
 
         meme_data = None
         if meme_path and os.path.exists(meme_path):
@@ -277,7 +326,7 @@ class WhatsAppRenderer:
             "is_read": is_read,
             "timestamp": ts,
             "color": color,
-            "avatar": os.path.basename(avatar_path)
+            "avatar": avatar_data  # NOW USING CACHED BASE64 DATA
         }
     
         # Add meme data to the same message if present
@@ -293,23 +342,22 @@ class WhatsAppRenderer:
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
         """
-        Optimized frame rendering with HTML2Image fallback to PIL
+        ULTRA OPTIMIZED frame rendering
         """
         start_time = time.time()
         self._render_count += 1
         
-        # Check cache first
+        # Check cache first - MORE AGGRESSIVE CACHING
         is_typing_frame = show_typing_bar and upcoming_text
         cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
         
-        if not is_typing_frame and cache_key in FRAME_CACHE and os.path.exists(FRAME_CACHE[cache_key]):
+        if cache_key in FRAME_CACHE and os.path.exists(FRAME_CACHE[cache_key]):
             cached_frame = FRAME_CACHE[cache_key]
             if os.path.exists(cached_frame):
                 import shutil
                 shutil.copy2(cached_frame, frame_file)
-                # REDUCED LOGGING: Only log every 50th cache hit
-                if self._render_count % 50 == 0:
-                    print(f"⚡ Using cached frame: {cache_key[:8]}...")
+                if self._render_count % 20 == 0:
+                    print(f"⚡ FAST CACHE: {cache_key[:8]}...")
                 return f"CACHED: {cached_frame}"
         
         template = self.jinja_env.get_template(TEMPLATE_FILE)
@@ -461,6 +509,12 @@ class WhatsAppRenderer:
         if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
             FRAME_CACHE[cache_key] = frame_file
         
+        # Use ULTRA SHORT wait for typing frames
+        if short_wait:
+            time.sleep(0.05)  # Reduced from whatever it was
+        else:
+            time.sleep(0.1)   # Reduced for regular frames
+        
         render_time = time.time() - start_time
         # REDUCED LOGGING: Only log slow renders
         if render_time > 1.0:
@@ -474,6 +528,7 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
     Optimized bubble rendering with performance improvements.
     KEEPS THE EXACT SAME NUMBER OF FRAMES FOR TYPING ANIMATIONS.
     """
+    start_time = time.time()
     # initialize renderer state once
     if not hasattr(render_bubble, 'renderer'):
         render_bubble.renderer = WhatsAppRenderer(
@@ -551,31 +606,8 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         ts = datetime.now().strftime("%#I:%M %p").lower()
 
     color = name_to_color(username)
-    avatar_path = get_avatar(username)
-
-    # FIX: Encode avatar as base64 instead of just filename
-    avatar_data = None
-    if avatar_path and os.path.exists(avatar_path):
-        try:
-            with open(avatar_path, "rb") as f:
-                avatar_data = base64.b64encode(f.read()).decode("utf-8")
-            # Get MIME type
-            mime_type = "image/jpeg"
-            if avatar_path.lower().endswith('.png'):
-                mime_type = "image/png"
-            elif avatar_path.lower().endswith('.gif'):
-                mime_type = "image/gif"
-            avatar_data = f"data:{mime_type};base64,{avatar_data}"
-            # REDUCED LOGGING: Only log every 20th avatar load
-            if render_bubble.frame_count % 20 == 0:
-                print(f"✅ Avatar loaded for {username}: {os.path.basename(avatar_path)}")
-        except Exception as e:
-            print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
-            avatar_data = None
-    else:
-        # REDUCED LOGGING: Only log missing avatars occasionally
-        if render_bubble.frame_count % 50 == 0:
-            print(f"⚠️ Avatar not found for {username}: {avatar_path}")
+    # FIX: Use cached avatar instead of encoding every time
+    avatar_data = get_cached_avatar(username)
 
     meme_data = None
     if meme_path and os.path.exists(meme_path):
@@ -653,6 +685,12 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         json.dump(render_bubble.timeline, tf, indent=2)
 
     render_bubble.frame_count += 1
+    
+    # Add performance logging
+    render_time = time.time() - start_time
+    if render_time > 0.5:  # Log slow renders
+        print(f"🐢 SLOW RENDER: {username} took {render_time:.2f}s")
+    
     # REDUCED LOGGING: Only log every 20th frame
     if render_bubble.frame_count % 20 == 0:
         print(f"✅ Regular frame {render_bubble.frame_count}: {frame_file} ({duration}s)")
@@ -1011,6 +1049,7 @@ def cleanup_resources():
     """Clean up all resources when done"""
     close_persistent_driver()
     FRAME_CACHE.clear()
+    AVATAR_CACHE.clear()
     gc.collect()
     print("🧹 Cleaned up rendering resources")
 
