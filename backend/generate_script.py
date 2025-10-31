@@ -43,9 +43,9 @@ def inject_random_memes(timeline, chance=0.25, max_per_video=3):
             injected += 1
     return new_tl
 
-render_bubble.frame_count = 0
-render_bubble.timeline = []
-render_bubble.renderer = WhatsAppRenderer()
+# render_bubble.frame_count = 0
+# render_bubble.timeline = []
+# render_bubble.renderer = WhatsAppRenderer()
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
