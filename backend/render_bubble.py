@@ -544,8 +544,70 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
             render_bubble.frame_count += 1
             return frame_file
 
-    # Normal rendering for all users
-    render_bubble.renderer.add_message(username, message, meme_path=meme_path, is_read=is_read, typing=False)
+    # Normal rendering for all users - FIXED AVATAR HANDLING
+    try:
+        ts = datetime.now().strftime("%-I:%M %p").lower()
+    except ValueError:
+        ts = datetime.now().strftime("%#I:%M %p").lower()
+
+    color = name_to_color(username)
+    avatar_path = get_avatar(username)
+
+    # FIX: Encode avatar as base64 instead of just filename
+    avatar_data = None
+    if avatar_path and os.path.exists(avatar_path):
+        try:
+            with open(avatar_path, "rb") as f:
+                avatar_data = base64.b64encode(f.read()).decode("utf-8")
+            # Get MIME type
+            mime_type = "image/jpeg"
+            if avatar_path.lower().endswith('.png'):
+                mime_type = "image/png"
+            elif avatar_path.lower().endswith('.gif'):
+                mime_type = "image/gif"
+            avatar_data = f"data:{mime_type};base64,{avatar_data}"
+            # REDUCED LOGGING: Only log every 20th avatar load
+            if render_bubble.frame_count % 20 == 0:
+                print(f"✅ Avatar loaded for {username}: {os.path.basename(avatar_path)}")
+        except Exception as e:
+            print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
+            avatar_data = None
+    else:
+        # REDUCED LOGGING: Only log missing avatars occasionally
+        if render_bubble.frame_count % 50 == 0:
+            print(f"⚠️ Avatar not found for {username}: {avatar_path}")
+
+    meme_data = None
+    if meme_path and os.path.exists(meme_path):
+        try:
+            meme_data = encode_meme(meme_path)
+            size_kb = os.path.getsize(meme_path) // 1024
+            # REDUCED LOGGING: Only log every 10th meme
+            if render_bubble.frame_count % 10 == 0:
+                print(f"✅ add_message: meme encoded {meme_path} size={size_kb}KB mime={meme_data['mime']}")
+        except Exception as e:
+            print(f"⚠️ add_message: failed to encode meme {meme_path}: {e}")
+
+    # Create single message entry with both text and meme - FIXED AVATAR
+    message_entry = {
+        "username": username,
+        "text": message if not typing else "",
+        "typing": typing,
+        "is_sender": (username.strip().lower() == MAIN_USER.lower()),
+        "is_read": is_read,
+        "timestamp": ts,
+        "color": color,
+        "avatar": avatar_data  # NOW PASSING BASE64 DATA INSTEAD OF FILENAME
+    }
+
+    # Add meme data to the same message if present
+    if meme_data:
+        message_entry["meme"] = meme_data["meme"]
+        message_entry["meme_type"] = meme_data["meme_type"]
+        message_entry["mime"] = meme_data["mime"]
+
+    render_bubble.renderer.message_history.append(message_entry)
+    
     frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
     
     # Use short wait for better performance
