@@ -20,6 +20,24 @@ except Exception as e:
 # NOW import the rest of your modules - WITHOUT try/except that hides errors
 print("📦 Importing dependencies...")
 
+# ADD THESE IMPORTS RIGHT AFTER YOUR EXISTING IMPORTS
+import tempfile
+import shutil
+from pathlib import Path
+
+# Add after your existing imports, around line 45-55
+try:
+    from static_server import get_static_path, get_avatar_path
+    print("✅ Static server utilities imported")
+except ImportError as e:
+    print(f"⚠️ Could not import static server: {e}")
+    # Fallback functions
+    def get_static_path(filename):
+        return os.path.join(PROJECT_ROOT, "static", filename)
+    
+    def get_avatar_path(username):
+        return os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+
 try:
     import gradio as gr
     print("✅ Gradio imported")
@@ -399,7 +417,9 @@ def handle_generate(characters, topic, mood, length, title, avatar_upload, manua
     else:
         char_list = [c.strip() for c in characters.split(",") if c.strip()]
         if avatar_upload and char_list:
-            save_uploaded_avatar(avatar_upload, char_list[0])
+            # Use new avatar handling - ADD THIS LINE
+            avatar_path, avatar_status = handle_avatar_upload(avatar_upload, char_list[0])
+            print(avatar_status)
         latest_generated_script = generate_script_with_groq(char_list, topic, mood, length, title)
 
     with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
@@ -829,12 +849,14 @@ def fix_bg_segments():
         return "⚠️ No BG segments file to fix"
 
 def handle_audio_upload(audio_file, audio_type):
+    """Railway-compatible audio upload handler"""
     if not audio_file:
         return AUDIO_FILES, f"⚠️ No {audio_type} audio uploaded."
+    
     try:
+        # Create audio directory if it doesn't exist
         os.makedirs(AUDIO_DIR, exist_ok=True)
         
-        # Handle both single file and multiple files
         files_to_process = []
         if isinstance(audio_file, list):
             files_to_process = audio_file
@@ -842,36 +864,56 @@ def handle_audio_upload(audio_file, audio_type):
             files_to_process = [audio_file]
         
         statuses = []
+        new_files = []
+        
         for f in files_to_process:
-            # Extract filename safely - handle both File objects and file paths
+            # Handle both Gradio file objects and file paths
             if hasattr(f, 'name'):
-                filename = os.path.basename(f.name)
                 source_path = f.name
+                filename = os.path.basename(f.name)
             else:
-                filename = os.path.basename(str(f))
                 source_path = str(f)
+                filename = os.path.basename(str(f))
             
-            # Clean filename and create destination path
+            # Clean filename for security
+            filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).rstrip()
+            
+            # Create destination path
             dest_path = os.path.join(AUDIO_DIR, filename)
             
-            # Copy the file
-            shutil.copy(source_path, dest_path)
-            
-            # Add to AUDIO_FILES if not already there
-            if filename not in AUDIO_FILES:
-                AUDIO_FILES.append(filename)
-            
-            statuses.append(filename)
+            # Copy file with error handling
+            try:
+                shutil.copy2(source_path, dest_path)
+                
+                # Verify the file was copied
+                if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0:
+                    if filename not in AUDIO_FILES:
+                        AUDIO_FILES.append(filename)
+                        new_files.append(filename)
+                    statuses.append(filename)
+                    print(f"✅ Successfully uploaded: {filename} -> {dest_path}")
+                else:
+                    print(f"❌ File copy failed: {filename}")
+                    
+            except Exception as copy_error:
+                print(f"❌ Error copying {filename}: {copy_error}")
+                continue
         
-        if len(statuses) == 1:
-            status_msg = f"✅ Uploaded {audio_type} audio: {statuses[0]}"
+        if statuses:
+            if len(statuses) == 1:
+                status_msg = f"✅ Uploaded {audio_type} audio: {statuses[0]}"
+            else:
+                status_msg = f"✅ Uploaded {len(statuses)} {audio_type} audios"
+            
+            # Return updated dropdown choices
+            return AUDIO_FILES + [""], status_msg
         else:
-            status_msg = f"✅ Uploaded {audio_type} audios: {', '.join(statuses)}"
-        
-        return AUDIO_FILES + [""], status_msg  # Add empty string for silence option
-        
+            return AUDIO_FILES + [""], f"❌ Failed to upload {audio_type} audio"
+            
     except Exception as e:
-        print(f"❌ Error uploading {audio_type} audio: {e}")
+        print(f"❌ Error in handle_audio_upload: {e}")
+        import traceback
+        traceback.print_exc()
         return AUDIO_FILES + [""], f"❌ Error uploading {audio_type} audio: {str(e)}"
 
 def debug_bg_file():
