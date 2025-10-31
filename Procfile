@@ -1,1 +1,2 @@
-web: python web_ui.py
+
+web: python railway_setup.py && python web_ui.py
