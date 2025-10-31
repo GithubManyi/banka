@@ -3,10 +3,8 @@ import json
 import sys
 import time
 from datetime import datetime
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from jinja2 import Environment, FileSystemLoader
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import base64
 import hashlib
 import colorsys
@@ -17,45 +15,24 @@ from base64 import b64encode
 import mimetypes
 import requests
 import random
-# DEBUG: Track who's calling render_typing_bar_frame
 import traceback
-
-# Add performance monitoring
-import psutil
 import gc
 import logging
 
-# FORCE PIL-ONLY RENDERING - Add this after imports
+# FORCE PIL-ONLY RENDERING - No Chrome/HTML2Image
 FORCE_PIL_MODE = True
 
-def get_html2image():
-    """Completely disable HTML2Image to force PIL rendering"""
-    print("🔄 FORCING PIL-ONLY MODE - No Chrome/HTML2Image")
-    return None
-
-# Reduce logging verbosity for HTML2Image and other noisy libraries
-logging.getLogger('html2image').setLevel(logging.WARNING)
+# Reduce logging verbosity
 logging.getLogger('PIL').setLevel(logging.WARNING)
-logging.getLogger('selenium').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
-logging.getLogger('chardet').setLevel(logging.WARNING)
-
-# Suppress Chrome/Chromium specific warnings
-logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.ERROR)
-os.environ['DBUS_SESSION_BUS_ADDRESS'] = ''
-os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = ''
-os.environ['DISABLE_DEV_SHM'] = 'true'
-os.environ['ENABLE_CRASH_REPORTER'] = 'false'
 
 def debug_caller():
     """Print who's calling the rendering functions"""
     stack = traceback.extract_stack()
-    # Look for the caller before render_typing_bar_frame
     for i, frame in enumerate(stack[:-1]):
         if 'render_typing_bar_frame' in frame.name:
             caller_frame = stack[i-1] if i > 0 else frame
             print(f"🔍 CALLER: {caller_frame.filename}:{caller_frame.lineno} in {caller_frame.name}")
-            print(f"🔍   Calling code: {caller_frame.line}")
             break
 
 # ---------- CONFIG ---------- #
@@ -76,21 +53,22 @@ os.makedirs(TMP, exist_ok=True)
 
 MAIN_USER = "Banka"  # right-side sender
 
-# ---------- PERFORMANCE OPTIMIZATIONS ---------- #
-# Global persistent browser instance for faster rendering
-PERSISTENT_DRIVER = None
-DRIVER_LAST_USED = 0
-DRIVER_TIMEOUT = 30  # Close driver after 30 seconds of inactivity
-
-# Remove all Selenium imports and add:
-import html2image
-
-# Global HTML2Image instance
-HTI = None
-
-# Add avatar caching at the top with other caches
+# ---------- CACHING SYSTEM ---------- #
+FRAME_CACHE = {}
+CACHE_MAX_SIZE = 200
 AVATAR_CACHE = {}
-AVATAR_CACHE_MAX_SIZE = 100  # Increased from 50
+AVATAR_CACHE_MAX_SIZE = 100
+
+def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
+    """Generate a cache key for frame rendering"""
+    key_data = {
+        'messages': [(msg.get('username', ''), msg.get('text', ''), msg.get('typing', False)) 
+                    for msg in messages],
+        'show_typing_bar': show_typing_bar,
+        'typing_user': typing_user,
+        'upcoming_text': upcoming_text
+    }
+    return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
 
 def get_cached_avatar(username):
     """Get cached base64 avatar or create and cache it"""
@@ -104,7 +82,6 @@ def get_cached_avatar(username):
         try:
             with open(avatar_path, "rb") as f:
                 avatar_data = base64.b64encode(f.read()).decode("utf-8")
-            # Get MIME type
             mime_type = "image/jpeg"
             if avatar_path.lower().endswith('.png'):
                 mime_type = "image/png"
@@ -117,171 +94,12 @@ def get_cached_avatar(username):
     
     # Cache the result
     if len(AVATAR_CACHE) >= AVATAR_CACHE_MAX_SIZE:
-        # Remove oldest entry
         AVATAR_CACHE.pop(next(iter(AVATAR_CACHE)))
     
     AVATAR_CACHE[username] = avatar_data
     return avatar_data
 
-def get_html2image():
-    """Get or create HTML2Image instance with optimized Chrome flags"""
-    global HTI
-    if HTI is None:
-        try:
-            # Try multiple possible Chromium paths
-            possible_paths = [
-                '/usr/bin/chromium',
-                '/usr/bin/chromium-browser',
-                '/usr/bin/google-chrome',
-                '/usr/bin/chrome',
-                '/app/.apt/usr/bin/chromium-browser'
-            ]
-            
-            chromium_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    chromium_path = path
-                    print(f"✅ Found Chromium at: {path}")
-                    break
-            
-            if chromium_path:
-                # ULTRA SILENT CHROME FLAGS - NO ERRORS
-                chrome_flags = [
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--disable-software-rasterizer',
-                    '--headless',
-                    '--window-size=1920,1080',
-                    '--disable-webgl',
-                    '--disable-accelerated-2d-canvas',
-                    '--disable-accelerated-video-decode',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    '--no-default-browser-check',
-                    '--no-first-run',
-                    '--disable-default-apps',
-                    '--disable-features=TranslateUI',
-                    '--disable-ipc-flooding-protection',
-                    '--enable-features=NetworkService,NetworkServiceInProcess',
-                    '--disable-vulkan',
-                    '--disable-gl-drawing-for-tests',
-                    '--disable-crash-reporter',
-                    '--disable-in-process-stack-traces',
-                    '--disable-logging',
-                    '--disable-breakpad',
-                    '--memory-pressure-off',
-                    '--max-old-space-size=4096',
-                    '--single-process',
-                    '--no-zygote',
-                    '--disable-setuid-sandbox',
-                    '--disable-extensions',
-                    '--disable-component-extensions-with-background-pages',
-                    '--disable-default-apps',
-                    '--disable-plugins',
-                    '--disable-translate',
-                    '--disable-sync',
-                    '--metrics-recording-only',
-                    '--disable-default-apps',
-                    # ADD THESE FOR ERROR SUPPRESSION:
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-back-forward-cache',
-                    '--disable-component-update',
-                    '--disable-domain-reliability',
-                    '--disable-print-preview',
-                    '--disable-speech-api',
-                    '--disable-threaded-animation',
-                    '--disable-threaded-scrolling',
-                    '--disable-smooth-scrolling',
-                    '--disable-cookie-encryption',
-                    '--disable-webrtc-hw-decoding',
-                    '--disable-webrtc-hw-encoding',
-                    '--disable-file-system',
-                    '--disable-notifications',
-                    '--disable-remote-fonts',
-                    '--disable-shared-workers',
-                    '--disable-web-security',
-                    '--disable-client-side-phishing-detection',
-                    '--disable-component-extensions-with-background-pages',
-                    '--disable-default-apps',
-                    '--disable-hang-monitor',
-                    '--disable-popup-blocking',
-                    '--disable-prompt-on-repost',
-                    '--disable-renderer-backgrounding',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    '--disable-site-isolation-trials',
-                    '--no-pings',
-                    '--no-wifi',
-                    '--noerrdialogs',
-                    '--disable-crash-reporter',
-                    '--disable-in-process-stack-traces',
-                    '--ignore-certificate-errors',
-                    '--ignore-ssl-errors',
-                    '--ignore-certificate-errors-spki-list',
-                    '--log-level=0',  # MOST IMPORTANT: Silence all logs
-                    '--silent',
-                    '--disable-features=AudioServiceOutOfProcess',
-                    '--disable-features=AudioServiceSandbox',
-                    '--disable-features=MediaSessionService',
-                    '--disable-blink-features=InterestCohortAPI',
-                ]
-                
-                HTI = html2image.Html2Image(
-                    browser='chromium',
-                    browser_executable=chromium_path,
-                    custom_flags=chrome_flags
-                )
-                print("🚀 Created SILENT HTML2Image renderer")
-            else:
-                print("❌ No Chromium found, will use PIL fallback")
-                HTI = None
-        except Exception as e:
-            print(f"⚠️ HTML2Image setup failed: {e}")
-            HTI = None
-    return HTI
-
-# Update the cleanup function:
-def cleanup_resources():
-    """Clean up all resources when done"""
-    global HTI
-    if HTI:
-        HTI = None
-    FRAME_CACHE.clear()
-    AVATAR_CACHE.clear()
-    gc.collect()
-    print("🧹 Cleaned up rendering resources")
-
-def close_persistent_driver():
-    """Close the persistent driver when done"""
-    global PERSISTENT_DRIVER
-    if PERSISTENT_DRIVER:
-        try:
-            PERSISTENT_DRIVER.quit()
-            PERSISTENT_DRIVER = None
-            print("🔴 Closed persistent driver")
-        except Exception as e:
-            print(f"⚠️ Error closing persistent driver: {e}")
-            PERSISTENT_DRIVER = None
-
-# Cache for rendered frames to avoid re-rendering identical states
-FRAME_CACHE = {}
-CACHE_MAX_SIZE = 200  # Increased from 100
-
-def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
-    """Generate a cache key for frame rendering"""
-    key_data = {
-        'messages': [(msg.get('username', ''), msg.get('text', ''), msg.get('typing', False)) 
-                    for msg in messages],
-        'show_typing_bar': show_typing_bar,
-        'typing_user': typing_user,
-        'upcoming_text': upcoming_text
-    }
-    return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
-
-# ---------- HELPERS ---------- # 
+# ---------- HELPERS ---------- #
 def encode_meme(path):
     if not path or not isinstance(path, str) or not os.path.exists(path):
         return None
@@ -297,30 +115,27 @@ def encode_meme(path):
 
     return {
         "meme": encoded,
-        "meme_type": ext,   # ".jpg", ".png", ".mp4", etc.
-        "mime": mime        # "image/png", "image/jpeg", "video/mp4"
+        "meme_type": ext,
+        "mime": mime
     }
 
 def name_to_color(username: str) -> str:
-    """Readable deterministic color from username, with better spread."""
+    """Readable deterministic color from username"""
     h = hashlib.md5(username.strip().lower().encode("utf-8")).hexdigest()
     n = int(h[:8], 16)
-
     hue = (n * 137) % 360
     saturation = 0.7
     lightness = 0.55
-
     r, g, b = colorsys.hls_to_rgb(hue/360, lightness, saturation)
     return f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
 
 def calculate_typing_duration(text):
     """Calculate realistic typing duration based on text length"""
     chars = len(text.strip())
-    base_duration = 1.5  # Minimum typing time
-    char_duration = 0.08  # Per character typing speed
-    
+    base_duration = 1.5
+    char_duration = 0.08
     typing_time = base_duration + (chars * char_duration)
-    return min(typing_time, 4.0)  # Cap at 4 seconds max
+    return min(typing_time, 4.0)
 
 def debug_timeline_entries():
     """Debug function to check what's in the timeline"""
@@ -329,12 +144,8 @@ def debug_timeline_entries():
         typing_entries = [e for e in render_bubble.timeline if e.get('typing_bar')]
         print(f"🔍 Found {len(typing_entries)} typing bar entries in timeline")
         
-        for i, entry in enumerate(typing_entries[-10:]):  # Show last 10 entries
+        for i, entry in enumerate(typing_entries[-10:]):
             print(f"🔍 Entry {i}: text='{entry.get('upcoming_text')}' sound={entry.get('sound')} duration={entry.get('duration')}")
-        
-        # Check if any have sound=True
-        sound_entries = [e for e in typing_entries if e.get('sound')]
-        print(f"🔍 Entries with sound=True: {len(sound_entries)}")
 
 # ---------- RENDERER ---------- #
 class WhatsAppRenderer:
@@ -346,6 +157,46 @@ class WhatsAppRenderer:
         self.chat_status = chat_status
         self._last_render_time = 0
         self._render_count = 0
+        self._fonts_loaded = False
+        self._font_large = None
+        self._font_medium = None
+        self._font_small = None
+        
+    def _load_fonts(self):
+        """Load fonts once and cache them"""
+        if self._fonts_loaded:
+            return
+            
+        try:
+            font_paths = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                "Arial",
+                "/System/Library/Fonts/Arial.ttf"
+            ]
+            
+            for path in font_paths:
+                try:
+                    self._font_large = ImageFont.truetype(path, 36)
+                    self._font_medium = ImageFont.truetype(path, 28)
+                    self._font_small = ImageFont.truetype(path, 22)
+                    self._fonts_loaded = True
+                    break
+                except:
+                    continue
+                    
+            if not self._fonts_loaded:
+                self._font_large = ImageFont.load_default()
+                self._font_medium = ImageFont.load_default()
+                self._font_small = ImageFont.load_default()
+                self._fonts_loaded = True
+                
+        except Exception as e:
+            print(f"⚠️ Font loading failed: {e}")
+            self._font_large = ImageFont.load_default()
+            self._font_medium = ImageFont.load_default()
+            self._font_small = ImageFont.load_default()
+            self._fonts_loaded = True
     
     def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
         try:
@@ -354,21 +205,18 @@ class WhatsAppRenderer:
             ts = datetime.now().strftime("%#I:%M %p").lower()
 
         color = name_to_color(username)
-        # FIX: Use cached avatar instead of encoding every time
         avatar_data = get_cached_avatar(username)
 
         meme_data = None
         if meme_path and os.path.exists(meme_path):
             try:
                 meme_data = encode_meme(meme_path)
-                size_kb = os.path.getsize(meme_path) // 1024
-                # REDUCED LOGGING: Only log every 10th meme
                 if self._render_count % 10 == 0:
-                    print(f"✅ add_message: meme encoded {meme_path} size={size_kb}KB mime={meme_data['mime']}")
+                    size_kb = os.path.getsize(meme_path) // 1024
+                    print(f"✅ add_message: meme encoded {meme_path} size={size_kb}KB")
             except Exception as e:
                 print(f"⚠️ add_message: failed to encode meme {meme_path}: {e}")
 
-        # Create single message entry with both text and meme
         message_entry = {
             "username": username,
             "text": message if not typing else "",
@@ -377,26 +225,94 @@ class WhatsAppRenderer:
             "is_read": is_read,
             "timestamp": ts,
             "color": color,
-            "avatar": avatar_data  # NOW USING CACHED BASE64 DATA
+            "avatar": avatar_data
         }
     
-        # Add meme data to the same message if present
         if meme_data:
             message_entry["meme"] = meme_data["meme"]
             message_entry["meme_type"] = meme_data["meme_type"]
             message_entry["mime"] = meme_data["mime"]
     
         self.message_history.append(message_entry)
-        # REDUCED LOGGING: Only log every 5th message
         if self._render_count % 5 == 0:
-            print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
+            print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)}")
 
-    def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
-        """
-        ULTRA FAST PIL-ONLY RENDERING - Maintains all features, no Chrome delays
-        """
+    def _draw_message_bubble(self, draw, x, y, username, text, timestamp, color, is_sender, is_read=False):
+        """Draw a single message bubble with all features"""
+        bubble_color = (32, 44, 51) if not is_sender else (0, 92, 75)
+        
+        # Calculate text dimensions
+        display_text = text[:100] + "..." if len(text) > 100 else text
+        text_bbox = draw.textbbox((0, 0), display_text, font=self._font_medium)
+        text_width = text_bbox[2] - text_bbox[0] + 40
+        text_height = text_bbox[3] - text_bbox[1] + 80
+        
+        # Create bubble
+        bubble_width = min(600, max(200, text_width))
+        bubble_height = text_height
+        
+        # Draw bubble background
+        draw.rectangle([x, y, x + bubble_width, y + bubble_height], fill=bubble_color, outline=None)
+        
+        # Draw username
+        draw.text((x + 20, y + 15), username, fill=color, font=self._font_small)
+        
+        # Draw message text
+        if display_text:
+            draw.text((x + 20, y + 45), display_text, fill=(233, 237, 239), font=self._font_medium)
+        
+        # Draw timestamp
+        draw.text((x + 20, y + bubble_height - 30), timestamp, fill=(134, 150, 160), font=self._font_small)
+        
+        # Draw read receipts for sender
+        if is_sender and is_read:
+            draw.text((x + bubble_width - 40, y + bubble_height - 30), "✓✓", fill=(83, 189, 235), font=self._font_small)
+        elif is_sender:
+            draw.text((x + bubble_width - 20, y + bubble_height - 30), "✓", fill=(134, 150, 160), font=self._font_small)
+        
+        return bubble_height
+
+    def _draw_typing_indicator(self, draw, x, y):
+        """Draw typing indicator (three dots)"""
+        bubble_color = (32, 44, 51)
+        bubble_height = 80
+        bubble_width = 400
+        
+        # Draw bubble
+        draw.rectangle([x, y, x + bubble_width, y + bubble_height], fill=bubble_color, outline=None)
+        
+        # Draw typing dots
+        dot_y = y + 40
+        for i in range(3):
+            dot_x = x + 20 + (i * 25)
+            draw.ellipse([dot_x, dot_y, dot_x + 12, dot_y + 12], fill=(134, 150, 160))
+        
+        draw.text((x + 100, y + 35), "typing...", fill=(200, 200, 200), font=self._font_small)
+        
+        return bubble_height
+
+    def _draw_meme_indicator(self, draw, x, y, username, timestamp, color, is_sender):
+        """Draw meme/media indicator"""
+        bubble_color = (32, 44, 51) if not is_sender else (0, 92, 75)
+        bubble_height = 120
+        bubble_width = 500
+        
+        # Draw bubble
+        draw.rectangle([x, y, x + bubble_width, y + bubble_height], fill=bubble_color, outline=None)
+        
+        draw.text((x + 20, y + 15), username, fill=color, font=self._font_small)
+        draw.text((x + 20, y + 45), "📷 [Media]", fill=(233, 237, 239), font=self._font_medium)
+        draw.text((x + 20, y + 85), timestamp, fill=(134, 150, 160), font=self._font_small)
+        
+        return bubble_height
+
+    def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
+        """ULTRA FAST PIL-ONLY RENDERING - Maintains all features"""
         start_time = time.time()
         self._render_count += 1
+        
+        # Load fonts if needed
+        self._load_fonts()
         
         # Check cache first
         cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
@@ -410,49 +326,20 @@ class WhatsAppRenderer:
                     print(f"⚡ CACHED FRAME: {cache_key[:8]}...")
                 return f"CACHED: {cached_frame}"
         
-        # FORCE PIL-ONLY RENDERING - MAINTAINS ALL FEATURES
         try:
-            from PIL import Image, ImageDraw, ImageFont
-            
             # Create WhatsApp-style background
-            img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))  # WhatsApp dark green
+            img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
             draw = ImageDraw.Draw(img)
             
-            # Load fonts or use defaults
-            try:
-                # Try different font paths
-                font_paths = [
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                    "Arial",
-                    "/System/Library/Fonts/Arial.ttf"  # macOS
-                ]
-                font_large = None
-                for path in font_paths:
-                    try:
-                        font_large = ImageFont.truetype(path, 36)
-                        font_medium = ImageFont.truetype(path, 28)
-                        font_small = ImageFont.truetype(path, 22)
-                        break
-                    except:
-                        continue
-                if font_large is None:
-                    raise Exception("No system font found")
-            except:
-                # Use default font
-                font_large = ImageFont.load_default()
-                font_medium = ImageFont.load_default()
-                font_small = ImageFont.load_default()
-            
-            # Draw header (matches your template style)
+            # Draw header
             header_bg = Image.new('RGB', (1920, 130), color=(17, 27, 33))
             img.paste(header_bg, (0, 0))
-            draw.text((120, 40), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
-            draw.text((120, 85), f"👥 {self.chat_status}", fill=(134, 150, 160), font=font_small)
+            draw.text((120, 40), f"💬 {self.chat_title}", fill=(255, 255, 255), font=self._font_large)
+            draw.text((120, 85), f"👥 {self.chat_status}", fill=(134, 150, 160), font=self._font_small)
             
-            # Draw messages - MAINTAINS ALL MESSAGE FEATURES
+            # Draw messages - last 10 messages
             y_pos = 150
-            messages_to_show = self.message_history[-10:]  # Last 10 messages
+            messages_to_show = self.message_history[-10:]
             
             for msg in messages_to_show:
                 is_sender = msg.get('is_sender', False)
@@ -462,106 +349,49 @@ class WhatsAppRenderer:
                 color = msg.get('color', '#FFFFFF')
                 is_typing = msg.get('typing', False)
                 has_meme = msg.get('meme') is not None
+                is_read = msg.get('is_read', False)
                 
-                # Message bubble position (matches your CSS)
                 bubble_x = 120 if not is_sender else 1000
-                bubble_color = (32, 44, 51) if not is_sender else (0, 92, 75)  # WhatsApp colors
                 
-                # Calculate bubble size
-                display_text = text[:100] + "..." if len(text) > 100 else text  # Truncate long texts
-                
-                # Handle different message types
                 if is_typing and not is_sender:
                     # TYPING INDICATOR (receiver only)
-                    bubble_height = 80
-                    bubble = Image.new('RGB', (400, bubble_height), bubble_color)
-                    img.paste(bubble, (bubble_x, y_pos))
-                    
-                    # Typing dots
-                    dot_y = y_pos + 40
-                    for i in range(3):
-                        dot_x = bubble_x + 20 + (i * 25)
-                        draw.ellipse([dot_x, dot_y, dot_x + 12, dot_y + 12], fill=(134, 150, 160))
-                    
-                    draw.text((bubble_x + 100, y_pos + 35), "typing...", 
-                             fill=(200, 200, 200), font=font_small)
-                    
-                    y_pos += bubble_height + 20
+                    height = self._draw_typing_indicator(draw, bubble_x, y_pos)
+                    y_pos += height + 20
                     
                 elif has_meme:
-                    # MEME MESSAGE - draw meme indicator
-                    bubble_height = 120
-                    bubble = Image.new('RGB', (500, bubble_height), bubble_color)
-                    img.paste(bubble, (bubble_x, y_pos))
-                    
-                    draw.text((bubble_x + 20, y_pos + 15), username, fill=color, font=font_small)
-                    draw.text((bubble_x + 20, y_pos + 45), "📷 [Media]", 
-                             fill=(233, 237, 239), font=font_medium)
-                    draw.text((bubble_x + 20, y_pos + 85), timestamp, 
-                             fill=(134, 150, 160), font=font_small)
-                    
-                    y_pos += bubble_height + 20
+                    # MEME MESSAGE
+                    height = self._draw_meme_indicator(draw, bubble_x, y_pos, username, timestamp, color, is_sender)
+                    y_pos += height + 20
                     
                 else:
                     # REGULAR TEXT MESSAGE
-                    # Calculate text dimensions
-                    text_bbox = draw.textbbox((0, 0), display_text, font=font_medium)
-                    text_width = text_bbox[2] - text_bbox[0] + 40
-                    text_height = text_bbox[3] - text_bbox[1] + 80  # Extra space for username/timestamp
-                    
-                    # Create bubble (max width 600 like your CSS)
-                    bubble_width = min(600, max(200, text_width))
-                    bubble = Image.new('RGB', (bubble_width, text_height), bubble_color)
-                    img.paste(bubble, (bubble_x, y_pos))
-                    
-                    # Draw username
-                    draw.text((bubble_x + 20, y_pos + 15), username, fill=color, font=font_small)
-                    
-                    # Draw message text
-                    if display_text:
-                        draw.text((bubble_x + 20, y_pos + 45), display_text, 
-                                 fill=(233, 237, 239), font=font_medium)
-                    
-                    # Draw timestamp
-                    draw.text((bubble_x + 20, y_pos + text_height - 30), timestamp, 
-                             fill=(134, 150, 160), font=font_small)
-                    
-                    # Draw read receipts for sender
-                    if is_sender and msg.get('is_read', False):
-                        draw.text((bubble_x + bubble_width - 40, y_pos + text_height - 30), "✓✓", 
-                                 fill=(83, 189, 235), font=font_small)
-                    elif is_sender:
-                        draw.text((bubble_x + bubble_width - 20, y_pos + text_height - 30), "✓", 
-                                 fill=(134, 150, 160), font=font_small)
-                    
-                    y_pos += text_height + 20
+                    height = self._draw_message_bubble(draw, bubble_x, y_pos, username, text, timestamp, color, is_sender, is_read)
+                    y_pos += height + 20
                 
                 # Stop if we run out of space
                 if y_pos > 900:
                     break
             
-            # Draw typing bar if active (sender typing) - MAINTAINS TYPING BAR FEATURE
+            # Draw typing bar if active (sender typing)
             if show_typing_bar and typing_user:
                 typing_bg = Image.new('RGB', (1920, 80), color=(17, 27, 33))
                 img.paste(typing_bg, (0, 1000))
                 
-                # Draw typing input bar (matches your template)
                 input_bg = Image.new('RGB', (1600, 60), color=(32, 44, 51))
                 img.paste(input_bg, (160, 1010))
                 
-                # Draw typing text with cursor
                 typing_text = f"{upcoming_text[:60]}|" if upcoming_text else "Message"
                 text_color = (233, 237, 239) if upcoming_text else (134, 150, 160)
                 
-                draw.text((180, 1025), typing_text, fill=text_color, font=font_medium)
+                draw.text((180, 1025), typing_text, fill=text_color, font=self._font_medium)
                 
-                # Draw icons (simplified)
-                draw.text((1780, 1020), "📎", fill=(134, 150, 160), font=font_medium)
-                draw.text((1820, 1020), "📷", fill=(134, 150, 160), font=font_medium)
+                # Draw icons
+                draw.text((1780, 1020), "📎", fill=(134, 150, 160), font=self._font_medium)
+                draw.text((1820, 1020), "📷", fill=(134, 150, 160), font=self._font_medium)
                 if upcoming_text:
-                    draw.text((1860, 1020), "📩", fill=(83, 189, 235), font=font_medium)
+                    draw.text((1860, 1020), "📩", fill=(83, 189, 235), font=self._font_medium)
                 else:
-                    draw.text((1860, 1020), "🎤", fill=(134, 150, 160), font=font_medium)
+                    draw.text((1860, 1020), "🎤", fill=(134, 150, 160), font=self._font_medium)
             
             # Save optimized for speed
             img.save(frame_file, 'PNG', optimize=True)
@@ -571,10 +401,9 @@ class WhatsAppRenderer:
                 print(f"⚡ FRAME {self._render_count}: {render_time:.3f}s")
                 
         except Exception as e:
-            # ULTIMATE FALLBACK: Simple frame with basic info
-            print(f"⚠️ Advanced PIL failed: {e}")
+            print(f"⚠️ PIL rendering failed: {e}")
+            # Ultimate fallback
             try:
-                from PIL import Image, ImageDraw
                 img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
                 draw = ImageDraw.Draw(img)
                 draw.text((100, 100), f"Chat: {self.chat_title}", fill=(255, 255, 255))
@@ -583,51 +412,121 @@ class WhatsAppRenderer:
                     draw.text((100, 200), f"Typing: {typing_user}", fill=(100, 255, 100))
                 img.save(frame_file)
             except:
-                # Final fallback - blank frame
                 Image.new('RGB', (1920, 1080), color=(11, 20, 26)).save(frame_file)
         
-        # Cache ALL frames for maximum speed
+        # Cache frame for maximum speed
         if len(FRAME_CACHE) < CACHE_MAX_SIZE:
             FRAME_CACHE[cache_key] = frame_file
         
         return frame_file
 
-def render_bubble(username, message, meme_path=None, is_sender=False, is_read=False):
-    """Main function to render message bubbles"""
+# ---------- BUBBLE RENDERING ---------- #
+def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
+    """Optimized bubble rendering with performance improvements"""
     if not hasattr(render_bubble, 'renderer'):
         render_bubble.renderer = WhatsAppRenderer(
             chat_title="BANKA TOUR GROUP",
-            chat_avatar="static/images/group.png", 
-            chat_status="jay, khooi, banka"
+            chat_avatar="static/images/group.png",
+            chat_status="jay, khooi, banka, Paula"
         )
         render_bubble.frame_count = 0
         render_bubble.timeline = []
-    
-    # Add the message
-    render_bubble.renderer.add_message(username, message, meme_path=meme_path, is_read=is_read)
-    
-    # Render the frame
+
+    if is_sender is None:
+        is_sender = (username.strip().lower() == MAIN_USER.lower())
+
+    def _text_duration(text: str, typing_flag: bool) -> float:
+        if typing_flag:
+            return 1.5
+        chars = len(text.strip()) if text else 0
+        return max(2.5, chars / 10.0)
+
+    def _meme_duration(path: str) -> float:
+        if not path or not os.path.exists(path):
+            return 3.0
+        try:
+            with Image.open(path) as img:
+                w, h = img.size
+            aspect_ratio = h / max(w, 1)
+            size_factor = (w * h) / (1920 * 1080)
+            meme_duration = 2.0 + (aspect_ratio * 1.5) + (size_factor * 4.0)
+            return max(2.5, min(meme_duration, 6.0))
+        except Exception:
+            return 3.0
+
+    # Handle typing differently based on sender vs receiver
+    if typing:
+        if is_sender:
+            if render_bubble.frame_count % 20 == 0:
+                print(f"⌨️ Sender {username} typing - using typing bar instead of bubble")
+            return render_typing_bar_frame(username, upcoming_text=message if message else "", duration=1.5)
+        else:
+            if render_bubble.frame_count % 20 == 0:
+                print(f"⌨️ Receiver {username} typing - showing typing bubble")
+            original_history = render_bubble.renderer.message_history.copy()
+            render_bubble.renderer.add_message(username, None, typing=True)
+            frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
+            render_bubble.renderer.render_frame(frame_file, short_wait=True)
+            render_bubble.renderer.message_history = original_history
+
+            entry = {
+                "frame": os.path.abspath(frame_file),
+                "duration": 1.5,
+                "is_sender": is_sender,
+                "username": username,
+                "text": "",
+                "is_meme": False,
+                "meme_path": None,
+                "typing": True
+            }
+            render_bubble.timeline.append(entry)
+            with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
+                json.dump(render_bubble.timeline, tf, indent=2)
+
+            render_bubble.frame_count += 1
+            return frame_file
+
+    # Normal rendering for all users
+    render_bubble.renderer.add_message(username, message, meme_path=meme_path, is_read=is_read, typing=False)
     frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
-    render_bubble.renderer.render_frame(frame_file)
     
-    # Create timeline entry
+    is_typing_bar = (username.strip().lower() == MAIN_USER.lower() and not message)
+    render_bubble.renderer.render_frame(frame_file, show_typing_bar=False, short_wait=is_typing_bar)
+
+    # Compute durations
+    text_dur = _text_duration(message, False)
+    meme_dur = _meme_duration(meme_path) if meme_path else 0.0
+
+    if meme_path:
+        duration = max(text_dur, meme_dur)
+    else:
+        duration = text_dur
+
     entry = {
         "frame": os.path.abspath(frame_file),
-        "duration": 2.0,  # Default duration for regular messages
+        "duration": round(duration, 3),
         "is_sender": is_sender,
         "username": username,
         "text": message,
-        "is_meme": meme_path is not None,
+        "is_meme": bool(meme_path),
         "meme_path": meme_path,
         "typing": False
     }
-    
+
+    if meme_path and os.path.exists(meme_path):
+        try:
+            meme_info = encode_meme(meme_path)
+            if meme_info:
+                entry["meme_type"] = meme_info.get("meme_type")
+                entry["meme_b64"] = meme_info.get("meme")
+                entry["mime"] = meme_info.get("mime")
+        except Exception as e:
+            print(f"⚠️ render_bubble: failed to encode meme {meme_path}: {e}")
+
     render_bubble.timeline.append(entry)
-    
-    # Save timeline
     with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
         json.dump(render_bubble.timeline, tf, indent=2)
-    
+
     render_bubble.frame_count += 1
     return frame_file
 
@@ -635,7 +534,7 @@ def render_meme(username, meme_path):
     return render_bubble(username, "", meme_path=meme_path)
 
 def render_typing_bubble(username, duration=None, is_sender=None, custom_durations=None):
-    custom_durations = custom_durations or {}  # ✅ prevents NoneType errors
+    custom_durations = custom_durations or {}
     """Optimized typing bubble rendering"""
     if not hasattr(render_bubble, 'renderer'):
         render_bubble.renderer = WhatsAppRenderer(
@@ -649,26 +548,17 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
     if is_sender is None:
         is_sender = (username.strip().lower() == MAIN_USER.lower())
 
-    # 🔹 FIXED: Don't show typing bubbles for sender
     if is_sender:
-        # REDUCED LOGGING
         if render_bubble.frame_count % 20 == 0:
             print(f"⌨️ Skipping typing bubble for sender {username} - using typing bar instead")
         return render_typing_bar_frame(username, "", duration=1.5)
 
-    # Use the MAIN renderer, but temporarily add typing message
     original_history = render_bubble.renderer.message_history.copy()
-    
-    # Add typing indicator to main renderer temporarily
     render_bubble.renderer.add_message(username, None, typing=True)
-    
     frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
-    render_bubble.renderer.render_frame(frame_file, short_wait=True)  # Use short wait
-    
-    # Restore original history (remove the typing message)
+    render_bubble.renderer.render_frame(frame_file, short_wait=True)
     render_bubble.renderer.message_history = original_history
 
-    # Use custom duration if available, else default to 1.5
     typing_key = f"typing:{username}"
     duration = custom_durations.get(typing_key, 1.5) if custom_durations else 1.5
     if duration <= 0:
@@ -684,16 +574,14 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
         "is_meme": False,
         "meme_path": None,
         "typing": True,
-        "typing_sound": False  # ✅ FORCE NO SOUND for typing bubbles
+        "typing_sound": False
     }
 
     render_bubble.timeline.append(entry)
-    
     with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
         json.dump(render_bubble.timeline, tf, indent=2)
 
     render_bubble.frame_count += 1
-    # REDUCED LOGGING: Only log every 20th typing indicator
     if render_bubble.frame_count % 20 == 0:
         print(f"⌨️ Typing indicator for {username} (duration: {duration}s)")
     return frame_file
@@ -711,28 +599,21 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
     img = Image.open(meme_path)
     img.thumbnail((W, H))
 
-    # Create the output directory if it doesn't exist
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # Save a single frame (not multiple frames)
     frame_path = output_path if output_path.endswith('.png') else output_path + '.png'
     img.save(frame_path, "PNG")
     
-    # Return the single frame path and duration
     return frame_path, duration
 
 def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duration=None, is_character_typing=True):
-    # DEBUG: Find who's calling this
-    # REDUCED LOGGING: Only debug every 50th call
+    """Render typing bar frames with CONTINUOUS sound logic"""
     if render_bubble.frame_count % 50 == 0:
         debug_caller()
         print(f"🔍 CALLED WITH: '{upcoming_text}', duration={duration}, is_character_typing={is_character_typing}")
     
-    """
-    SIMPLIFIED: Render typing bar frames with CONTINUOUS sound logic.
-    """
     if not hasattr(render_bubble, 'renderer'):
         render_bubble.renderer = WhatsAppRenderer(
             chat_title="BANKA TOUR GROUP",
@@ -745,17 +626,12 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
     if not frame_path:
         frame_path = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
 
-    # Skip typing bar for non-sender
     if username.strip().lower() != MAIN_USER.lower():
-        # REDUCED LOGGING
         if render_bubble.frame_count % 20 == 0:
             print(f"⌨️ Non-sender '{username}' - using typing bubble instead of typing bar")
         return render_typing_bubble(username, custom_durations={})
 
-    # Save current history
     original_history = render_bubble.renderer.message_history.copy()
-
-    # Use short_wait=True for typing frames
     render_bubble.renderer.render_frame(
         frame_file=frame_path,
         show_typing_bar=True,
@@ -763,72 +639,47 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         upcoming_text=upcoming_text,
         short_wait=True
     )
-
-    # Restore original history
     render_bubble.renderer.message_history = original_history
 
-    # SIMPLE duration handling
     if duration is None or duration <= 0:
         if not is_character_typing or upcoming_text.endswith('|'):
-            frame_duration = 0.8  # Longer for cursor blinks
+            frame_duration = 0.8
         else:
-            frame_duration = 0.4  # Shorter for actual typing
+            frame_duration = 0.4
     else:
         frame_duration = duration
     
-    # ✅ SIMPLIFIED SOUND LOGIC: Continuous sound during active typing
     current_text = upcoming_text.replace("|", "").strip()
-    
-    # Get previous frame's text for comparison
     prev_text = ""
     if render_bubble.timeline:
-        # Look backwards for the most recent typing bar entry
         for entry in reversed(render_bubble.timeline):
             if entry.get("typing_bar"):
                 prev_text = entry.get("upcoming_text", "").replace("|", "").strip()
                 break
     
-    # ✅ NEW RULES FOR CONTINUOUS SOUND:
-    # 1. Play sound during ACTIVE typing (is_character_typing=True)
-    # 2. Stop sound during cursor blinks (is_character_typing=False)  
-    # 3. Stop sound when text is complete (no cursor) and we're in the last 3 frames
     should_play_sound = is_character_typing
-    
-    # Check if this is one of the last 3 frames (no cursor, complete text)
     is_final_frame = (not upcoming_text.endswith('|') and current_text)
     if is_final_frame:
-        # Look ahead to see if there are more typing frames
-        future_has_typing = False
-        # We can't see future, but we can check if this looks like a completion frame
-        should_play_sound = False  # No sound in final frames
-        # REDUCED LOGGING
+        should_play_sound = False
         if render_bubble.frame_count % 20 == 0:
             print(f"🎹 FINAL FRAME DETECTED: '{upcoming_text}' - NO SOUND")
 
-    # REDUCED LOGGING: Only log sound info every 50th frame
     if render_bubble.frame_count % 50 == 0:
         print(f"🎹 SIMPLE SOUND: is_typing={is_character_typing} -> sound={should_play_sound}")
-        print(f"🎹 TEXT: prev='{prev_text}' current='{current_text}'")
 
-    # Generate session ID for continuous sound grouping
     if not hasattr(render_bubble, 'current_typing_session'):
         render_bubble.current_typing_session = None
     
-    # Start new session when we begin typing after not typing
     if is_character_typing and not prev_text and current_text:
         render_bubble.current_typing_session = f"session_{render_bubble.frame_count}"
-        # REDUCED LOGGING
         if render_bubble.frame_count % 20 == 0:
             print(f"🎹 🆕 STARTING NEW TYPING SESSION: {render_bubble.current_typing_session}")
     
-    # End session when we stop typing
     if not is_character_typing and render_bubble.current_typing_session:
-        # REDUCED LOGGING
         if render_bubble.frame_count % 20 == 0:
             print(f"🎹 🛑 ENDING TYPING SESSION: {render_bubble.current_typing_session}")
         render_bubble.current_typing_session = None
 
-    # SIMPLE timeline entry
     entry = {
         "frame": os.path.abspath(frame_path),
         "duration": frame_duration,
@@ -843,12 +694,10 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         "typing_session_id": render_bubble.current_typing_session if is_character_typing else None
     }
 
-    # REDUCED LOGGING: Only log every 20th typing frame
     if render_bubble.frame_count % 20 == 0:
         print(f"🎹 Frame {render_bubble.frame_count}: '{upcoming_text}' - Sound: {should_play_sound}")
 
     render_bubble.timeline.append(entry)
-
     with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
         json.dump(render_bubble.timeline, tf, indent=2)
 
@@ -856,13 +705,9 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
     return frame_path
 
 def generate_beluga_typing_sequence(real_message):
-    """
-    FIXED: Actually renders typing frames with CONTINUOUS sound control
-    """
+    """Generate typing sequence with CONTINUOUS sound control"""
     if not real_message:
         return []
-
-    import random
 
     fake_phrases = [
         "Wait", "Hold on", "Hmm", "Nah", "Actually", "But", "Wait what",
@@ -886,93 +731,75 @@ def generate_beluga_typing_sequence(real_message):
         return base * SPEED_MULTIPLIER
 
     def blink_frame(text, blinks=1):
-        """Adds cursor blinks - NO SOUND during blinks"""
         for _ in range(blinks):
-            sequence.append((text + "|", 0.25, False))  # False = no typing activity (NO SOUND)
-            sequence.append((text, 0.25, False))        # False = no typing activity (NO SOUND)
+            sequence.append((text + "|", 0.25, False))
+            sequence.append((text, 0.25, False))
 
-    # CONTROLLED fake typing (1-2 times per video, not per message)
     if not hasattr(render_bubble, 'fake_typing_count'):
         render_bubble.fake_typing_count = 0
-        render_bubble.max_fakes_per_video = random.randint(1, 2)  # 1-2 fakes total
+        render_bubble.max_fakes_per_video = random.randint(1, 2)
 
     if (render_bubble.fake_typing_count < render_bubble.max_fakes_per_video and 
-        random.random() < 0.4):  # 40% chance per message
+        random.random() < 0.4):
         
         fake = random.choice(fake_phrases)
         render_bubble.fake_typing_count += 1
         print(f"🎲 FAKE TYPING {render_bubble.fake_typing_count}/{render_bubble.max_fakes_per_video}: '{fake}'")
         
-        # Type fake text WITH SOUND (continuous)
         buf = ""
         for ch in fake:
             buf += ch
             sequence.append((buf + "|", typing_speed_for(ch), True))
         
-        # Blink cursor - NO SOUND
         blink_frame(buf, blinks=1)
         
-        # Delete fake text - NO SOUND
         for i in range(len(fake) - 1, -1, -1):
             buf = fake[:i]
             sequence.append((buf + "|", random.uniform(0.15, 0.25), False))
         
-        # Pause - NO SOUND
         sequence.append(("", 0.5, False))
     else:
-        # REDUCED LOGGING
         if random.random() < 0.05:
             print("🎲 No fake typing this message")
 
-    # Type actual message WITH SOUND (continuous)
     buf = ""
     for i, ch in enumerate(real_message):
         buf += ch
         is_active_typing = True
         
-        # Last 3 characters should have no sound
         if i >= len(real_message) - 3:
             is_active_typing = False
-            # REDUCED LOGGING
             if random.random() < 0.05:
                 print(f"🎹 LAST 3 CHARS: '{ch}' at position {i} - NO SOUND")
             
         sequence.append((buf + "|", typing_speed_for(ch), is_active_typing))
 
-    # Final cursor blinks and stable frame - NO SOUND
     blink_frame(real_message, blinks=2)
     sequence.append((real_message, 0.8, False))
 
-    # REDUCED LOGGING
     print(f"⌨️ Generated {len(sequence)} typing frames for '{real_message[:50]}...'")
     
     return sequence
 
 def render_typing_sequence(username, real_message):
-    # After rendering the typing sequence, add this:
-    # REDUCED LOGGING: Only debug timeline occasionally
+    """Render typing sequence frames with sound"""
     if random.random() < 0.05:
         debug_timeline_entries()
     
-    """
-    FIXED: Actually renders the typing sequence frames with sound
-    """
     print(f"🎬 Starting typing sequence for '{username}': '{real_message[:50]}...'")
     
     sequence = generate_beluga_typing_sequence(real_message)
     
     rendered_frames = []
     for i, (text, duration, has_sound) in enumerate(sequence):
-        # REDUCED LOGGING: Only log every 20th typing frame
         if i % 20 == 0:
             print(f"🎬 Rendering typing frame {i}: '{text}' - duration: {duration}s - sound: {has_sound}")
         
-        # Actually render the frame with sound information
         frame_path = render_typing_bar_frame(
             username=username,
             upcoming_text=text,
             duration=duration,
-            is_character_typing=has_sound  # This controls the sound!
+            is_character_typing=has_sound
         )
         rendered_frames.append(frame_path)
     
@@ -982,14 +809,13 @@ def render_typing_sequence(username, real_message):
 # ---------- CLEANUP ---------- #
 def cleanup_resources():
     """Clean up all resources when done"""
-    close_persistent_driver()
     FRAME_CACHE.clear()
     AVATAR_CACHE.clear()
     gc.collect()
     print("🧹 Cleaned up rendering resources")
 
 def reset_typing_sessions():
-    """Reset typing session tracking - call this when starting a new video"""
+    """Reset typing session tracking"""
     if hasattr(render_bubble, 'typing_session_active'):
         render_bubble.typing_session_active = False
         render_bubble.typing_session_start = 0
@@ -1006,7 +832,6 @@ if __name__ == "__main__":
         render_bubble.frame_count = 0
         render_bubble.timeline = []
         render_bubble.renderer = WhatsAppRenderer()
-        # ✅ ADD THESE for session tracking:
         render_bubble.typing_session_active = False
         render_bubble.typing_session_start = 0
         print("🔄 Initialized typing session tracking for main script")
@@ -1032,54 +857,11 @@ if __name__ == "__main__":
                 print(f"✅ Matched meme '{meme_desc}' → {meme_file}")
                 frame_file = render_meme(MAIN_USER, meme_file)
 
-                # Add timeline entry with base64
                 render_bubble.timeline[-1]["is_meme"] = True
                 meme_info = encode_meme(meme_file)
                 render_bubble.timeline[-1]["meme_type"] = meme_info["meme_type"]
                 render_bubble.timeline[-1]["meme_b64"] = meme_info["meme"]
                 render_bubble.timeline[-1]["mime"] = meme_info["mime"]
-
-                if not meme_file:
-                    auto_dir = os.path.join("assets", "memes", "auto")
-                    files = [f for f in os.listdir(auto_dir) if os.path.isfile(os.path.join(auto_dir, f))]
-                    if not files:
-                        print(f"⚠️ No memes available in {auto_dir}, skipping random fallback")
-                        continue
-                    meme_file = os.path.join(auto_dir, random.choice(files))
-                    print(f"⚠️ No exact match for '{meme_desc}', using random: {meme_file}")
-
-                else:
-                    print(f"✅ Matched meme '{meme_desc}' → {meme_file}")
-
-                if meme_file:
-                    if meme_file.startswith("http"):
-                        try:
-                            local_name = os.path.basename(meme_file.split("?")[0])
-                            local_path = os.path.join("assets", "memes", "auto", local_name)
-                            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                            print(f"⬇️ Downloading meme URL to {local_path}")
-                            with requests.get(meme_file, stream=True, timeout=20) as r:
-                                r.raise_for_status()
-                                with open(local_path, "wb") as fh:
-                                    for ch in r.iter_content(8192):
-                                        fh.write(ch)
-                            meme_file = local_path
-                        except Exception as e:
-                            print(f"⚠️ Failed to download meme URL {meme_file}: {e}")
-
-                    if not os.path.exists(meme_file):
-                        print(f"⚠️ Meme file not found after fetch: {meme_file}")
-                    else:
-                        print(f"✅ Meme fetched: {meme_file} (exists={os.path.exists(meme_file)})")
-                        frame_file = render_meme(MAIN_USER, meme_file)
-
-                        # Add timeline entry with base64
-                        render_bubble.timeline[-1]["is_meme"] = True
-                        render_bubble.timeline[-1]["meme_type"] = os.path.splitext(meme_file)[1].lower()
-                        render_bubble.timeline[-1]["meme_b64"] = encode_meme(meme_file)
-
-                else:
-                    print(f"⚠️ Meme fetch failed for: {meme_desc}")
 
             elif line.startswith("[MEME]"):
                 parts = line.replace("[MEME]", "").strip().split(" ", 1)
@@ -1103,28 +885,21 @@ if __name__ == "__main__":
                 is_sender = (name.lower() == MAIN_USER.lower())
                 is_read = False
 
-                # 🔥 FIX: If it's Banka typing, render the typing sequence first
                 if is_sender and message:
                     print(f"🎬 Banka is typing: '{message}' - rendering typing sequence...")
-                    # Render the typing sequence with sound
                     render_typing_sequence(name, message)
-                    # Now render the final message bubble
                     print(f"🎬 Rendering final message after typing...")
                 
-                # Check if this message contains a meme reference
                 if "[MEME]" in message:
-                    # COMBINE: Send text + meme in the SAME bubble
                     text_part, meme_desc = message.split("[MEME]", 1)
                     text_message = text_part.strip()
                     meme_desc = meme_desc.strip()
 
                     print(f"🔎 Found meme in message: {name}: '{text_message}' + [MEME:{meme_desc}]")
                     
-                    # Look for meme file
                     meme_file = find_meme(meme_desc, assets_dir=os.path.join("assets", "memes", "auto"))
                     
                     if not meme_file:
-                        # Fallback to random meme
                         auto_dir = os.path.join("assets", "memes", "auto")
                         files = [f for f in os.listdir(auto_dir) if os.path.isfile(os.path.join(auto_dir, f))]
                         if files:
@@ -1132,21 +907,17 @@ if __name__ == "__main__":
                             print(f"⚠️ No exact match for '{meme_desc}', using random: {meme_file}")
 
                     if meme_file and os.path.exists(meme_file):
-                        # Send text + meme in the SAME bubble
                         render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender, is_read=is_read)
                         print(f"✅ Combined message: {name}: '{text_message}' + meme")
                     else:
-                        # Fallback: just send text
                         render_bubble(name, text_message, is_sender=is_sender, is_read=is_read)
                         print(f"💬 Text only: {name}: {text_message} (meme not found)")
                 else:
-                    # Regular text message
                     if not is_sender:
                         for msg in render_bubble.renderer.message_history:
                             if msg["is_sender"]:
                                 msg["is_read"] = True
 
-                    # REDUCED LOGGING: Only log every 10th chat line
                     if render_bubble.frame_count % 10 == 0:
                         print(f"💬 Chat line: {name}: {message[:80]}")
                     render_bubble(name, message, is_sender=is_sender, is_read=is_read)
