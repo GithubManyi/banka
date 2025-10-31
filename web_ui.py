@@ -1110,14 +1110,18 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
 
                         # Auto-generate typing stages for Banka only - BELUGA STYLE
                         typing_sequence = generate_beluga_typing_sequence(text_message)
-                        for text, duration, should_play_sound in typing_sequence:
+                        # Even better - with conditional debugging:
+                        for frame_text, frame_duration, frame_sound in typing_sequence:
                             render_typing_bar_frame(
                                 username=name,
-                                upcoming_text=text,
-                                duration=duration,
-                                is_character_typing=should_play_sound  # This should be True for actual typing frames
+                                upcoming_text=frame_text,
+                                duration=frame_duration,
+                                is_character_typing=frame_sound
                             )
-                        print(f"🔊 TYPING BAR: '{text}' | duration: {duration}s | sound: {should_play_sound}")  # Debug output
+    
+                            # Only log every 5th frame to reduce console spam
+                            if random.random() < 0.2:  # 20% chance to log
+                                print(f"🔊 TYPING BAR: '{frame_text}' | duration: {frame_duration}s | sound: {frame_sound}")
                     # For other senders, keep the existing random typing logic
                     elif is_sender and random.random() < 0.3:
                         print(f"⌨️ Adding typing indicator for {name}")
