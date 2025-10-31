@@ -6,7 +6,7 @@ import json
 import random
 from dotenv import load_dotenv
 from openai import OpenAI
-from backend.render_bubble import render_bubble, WhatsAppRenderer
+# from backend.render_bubble import render_bubble, WhatsAppRenderer
 from backend.meme_fetcher import fetch_meme_from_giphy
 from backend.config import client, MODEL
 
