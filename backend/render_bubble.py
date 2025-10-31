@@ -137,7 +137,7 @@ def get_html2image():
                     break
             
             if chromium_path:
-                # ULTRA OPTIMIZED CHROME FLAGS FOR SPEED
+                # ULTRA SILENT CHROME FLAGS - NO ERRORS
                 chrome_flags = [
                     '--no-sandbox',
                     '--disable-dev-shm-usage',
@@ -164,9 +164,9 @@ def get_html2image():
                     '--disable-logging',
                     '--disable-breakpad',
                     '--memory-pressure-off',
-                    '--max-old-space-size=4096',  # ADD THIS
-                    '--single-process',  # ADD THIS FOR SPEED (but less stable)
-                    '--no-zygote',  # ADD THIS
+                    '--max-old-space-size=4096',
+                    '--single-process',
+                    '--no-zygote',
                     '--disable-setuid-sandbox',
                     '--disable-extensions',
                     '--disable-component-extensions-with-background-pages',
@@ -175,7 +175,50 @@ def get_html2image():
                     '--disable-translate',
                     '--disable-sync',
                     '--metrics-recording-only',
-                    '--disable-default-apps'
+                    '--disable-default-apps',
+                    # ADD THESE FOR ERROR SUPPRESSION:
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-back-forward-cache',
+                    '--disable-component-update',
+                    '--disable-domain-reliability',
+                    '--disable-print-preview',
+                    '--disable-speech-api',
+                    '--disable-threaded-animation',
+                    '--disable-threaded-scrolling',
+                    '--disable-smooth-scrolling',
+                    '--disable-cookie-encryption',
+                    '--disable-webrtc-hw-decoding',
+                    '--disable-webrtc-hw-encoding',
+                    '--disable-file-system',
+                    '--disable-notifications',
+                    '--disable-remote-fonts',
+                    '--disable-shared-workers',
+                    '--disable-web-security',
+                    '--disable-client-side-phishing-detection',
+                    '--disable-component-extensions-with-background-pages',
+                    '--disable-default-apps',
+                    '--disable-hang-monitor',
+                    '--disable-popup-blocking',
+                    '--disable-prompt-on-repost',
+                    '--disable-renderer-backgrounding',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-site-isolation-trials',
+                    '--no-pings',
+                    '--no-wifi',
+                    '--noerrdialogs',
+                    '--disable-crash-reporter',
+                    '--disable-in-process-stack-traces',
+                    '--ignore-certificate-errors',
+                    '--ignore-ssl-errors',
+                    '--ignore-certificate-errors-spki-list',
+                    '--log-level=0',  # MOST IMPORTANT: Silence all logs
+                    '--silent',
+                    '--disable-features=AudioServiceOutOfProcess',
+                    '--disable-features=AudioServiceSandbox',
+                    '--disable-features=MediaSessionService',
+                    '--disable-blink-features=InterestCohortAPI',
                 ]
                 
                 HTI = html2image.Html2Image(
@@ -183,7 +226,7 @@ def get_html2image():
                     browser_executable=chromium_path,
                     custom_flags=chrome_flags
                 )
-                print("🚀 Created OPTIMIZED HTML2Image renderer")
+                print("🚀 Created SILENT HTML2Image renderer")
             else:
                 print("❌ No Chromium found, will use PIL fallback")
                 HTI = None
