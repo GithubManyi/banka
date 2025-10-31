@@ -43,6 +43,28 @@ FPS = 25  # Target frame rate
 # Helpers
 # --------------------
 
+def debug_audio_generation(delayed_bg_files, delayed_files, final_audio):
+    """Debug audio file generation"""
+    print("🔊 ===== AUDIO GENERATION DEBUG =====")
+    print(f"🔊 Background files: {len(delayed_bg_files)}")
+    for i, file in enumerate(delayed_bg_files):
+        exists = "✅" if os.path.exists(file) else "❌"
+        print(f"🔊   BG {i}: {exists} {os.path.basename(file)}")
+    
+    print(f"🔊 Sound effect files: {len(delayed_files)}")
+    for i, file in enumerate(delayed_files):
+        exists = "✅" if os.path.exists(file) else "❌"
+        print(f"🔊   SFX {i}: {exists} {os.path.basename(file)}")
+    
+    print(f"🔊 Final audio path: {final_audio}")
+    print(f"🔊 Final audio exists: {os.path.exists(final_audio)}")
+    
+    # Check if any audio files exist at all
+    all_files = delayed_bg_files + delayed_files
+    existing_files = [f for f in all_files if os.path.exists(f)]
+    print(f"🔊 Total existing audio files: {len(existing_files)}")
+    
+    return len(existing_files) > 0
 
 def debug_typing_timeline_entries(timeline):
     """Debug function to check typing entries in timeline"""
