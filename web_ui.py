@@ -849,72 +849,216 @@ def fix_bg_segments():
         return "⚠️ No BG segments file to fix"
 
 def handle_audio_upload(audio_file, audio_type):
-    """Railway-compatible audio upload handler"""
+    """Improved Railway-compatible audio upload handler with progress tracking"""
     if not audio_file:
         return AUDIO_FILES, f"⚠️ No {audio_type} audio uploaded."
+    
+    print(f"🎵 Starting {audio_type} audio upload...")
     
     try:
         # Create audio directory if it doesn't exist
         os.makedirs(AUDIO_DIR, exist_ok=True)
+        print(f"🎵 Audio directory: {AUDIO_DIR}")
         
         files_to_process = []
         if isinstance(audio_file, list):
             files_to_process = audio_file
+            print(f"🎵 Processing {len(files_to_process)} files")
         else:
             files_to_process = [audio_file]
+            print(f"🎵 Processing single file")
         
         statuses = []
         new_files = []
         
-        for f in files_to_process:
+        for i, f in enumerate(files_to_process):
+            print(f"🎵 Processing file {i+1}/{len(files_to_process)}")
+            
             # Handle both Gradio file objects and file paths
             if hasattr(f, 'name'):
                 source_path = f.name
                 filename = os.path.basename(f.name)
+                file_size = os.path.getsize(source_path) if os.path.exists(source_path) else 0
+                print(f"🎵 Source: {source_path}, Size: {file_size} bytes")
             else:
                 source_path = str(f)
                 filename = os.path.basename(str(f))
+                file_size = os.path.getsize(source_path) if os.path.exists(source_path) else 0
+                print(f"🎵 Source: {source_path}, Size: {file_size} bytes")
             
             # Clean filename for security
+            original_filename = filename
             filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).rstrip()
+            if filename != original_filename:
+                print(f"🎵 Cleaned filename: {original_filename} -> {filename}")
             
             # Create destination path
             dest_path = os.path.join(AUDIO_DIR, filename)
+            print(f"🎵 Destination: {dest_path}")
+            
+            # Check if source file exists and is readable
+            if not os.path.exists(source_path):
+                print(f"❌ Source file does not exist: {source_path}")
+                continue
+                
+            if not os.access(source_path, os.R_OK):
+                print(f"❌ Source file not readable: {source_path}")
+                continue
             
             # Copy file with error handling
             try:
+                print(f"🎵 Copying {filename}...")
                 shutil.copy2(source_path, dest_path)
+                print(f"🎵 Copy completed for {filename}")
                 
                 # Verify the file was copied
-                if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0:
-                    if filename not in AUDIO_FILES:
-                        AUDIO_FILES.append(filename)
-                        new_files.append(filename)
-                    statuses.append(filename)
-                    print(f"✅ Successfully uploaded: {filename} -> {dest_path}")
+                if os.path.exists(dest_path):
+                    copied_size = os.path.getsize(dest_path)
+                    print(f"🎵 Verification: {filename} -> {copied_size} bytes")
+                    
+                    if copied_size > 0:
+                        if filename not in AUDIO_FILES:
+                            AUDIO_FILES.append(filename)
+                            new_files.append(filename)
+                        statuses.append(filename)
+                        print(f"✅ Successfully uploaded: {filename} -> {dest_path} ({copied_size} bytes)")
+                    else:
+                        print(f"❌ File copy failed: {filename} is empty")
+                        # Remove empty file
+                        if os.path.exists(dest_path):
+                            os.remove(dest_path)
                 else:
-                    print(f"❌ File copy failed: {filename}")
+                    print(f"❌ File copy failed: {filename} not found at destination")
                     
             except Exception as copy_error:
                 print(f"❌ Error copying {filename}: {copy_error}")
+                import traceback
+                traceback.print_exc()
                 continue
         
         if statuses:
             if len(statuses) == 1:
                 status_msg = f"✅ Uploaded {audio_type} audio: {statuses[0]}"
             else:
-                status_msg = f"✅ Uploaded {len(statuses)} {audio_type} audios"
+                status_msg = f"✅ Uploaded {len(statuses)} {audio_type} audios: {', '.join(statuses)}"
             
-            # Return updated dropdown choices
-            return AUDIO_FILES + [""], status_msg
+            print(f"🎵 Upload completed: {status_msg}")
+            
+            # Return updated dropdown choices (remove duplicates)
+            unique_files = list(dict.fromkeys(AUDIO_FILES + [""]))
+            return unique_files, status_msg
         else:
-            return AUDIO_FILES + [""], f"❌ Failed to upload {audio_type} audio"
+            error_msg = f"❌ Failed to upload {audio_type} audio - no files processed successfully"
+            print(f"🎵 {error_msg}")
+            return AUDIO_FILES + [""], error_msg
             
     except Exception as e:
-        print(f"❌ Error in handle_audio_upload: {e}")
+        error_msg = f"❌ Error in handle_audio_upload: {e}"
+        print(error_msg)
         import traceback
         traceback.print_exc()
         return AUDIO_FILES + [""], f"❌ Error uploading {audio_type} audio: {str(e)}"
+
+def debug_upload_issue():
+    """Debug function to identify upload problems"""
+    print("🔍 ===== UPLOAD DEBUGGING =====")
+    
+    # Check audio directory permissions
+    print(f"📁 Audio directory: {AUDIO_DIR}")
+    print(f"📁 Exists: {os.path.exists(AUDIO_DIR)}")
+    if os.path.exists(AUDIO_DIR):
+        print(f"📁 Writable: {os.access(AUDIO_DIR, os.W_OK)}")
+        print(f"📁 Readable: {os.access(AUDIO_DIR, os.R_OK)}")
+    
+    # Check current files
+    print(f"📁 Current files in audio directory:")
+    if os.path.exists(AUDIO_DIR):
+        files = os.listdir(AUDIO_DIR)
+        for f in files[:5]:  # Show first 5 files
+            file_path = os.path.join(AUDIO_DIR, f)
+            size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+            print(f"   {f} - {size} bytes")
+        if len(files) > 5:
+            print(f"   ... and {len(files) - 5} more files")
+    
+    # Check disk space
+    try:
+        disk_usage = shutil.disk_usage(AUDIO_DIR)
+        free_gb = disk_usage.free / (1024**3)
+        print(f"💾 Free disk space: {free_gb:.2f} GB")
+    except:
+        print("💾 Could not check disk space")
+    
+    return "✅ Upload debug complete - check console for details"
+
+def handle_avatar_upload(avatar_file, username):
+    """Handle avatar uploads for Railway"""
+    if not avatar_file or not username:
+        return "static/images/contact.png", "⚠️ No avatar or username provided"
+    
+    try:
+        avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+        os.makedirs(avatars_dir, exist_ok=True)
+        
+        # Get file extension
+        if hasattr(avatar_file, 'name'):
+            source_path = avatar_file.name
+            ext = os.path.splitext(avatar_file.name)[1]
+        else:
+            source_path = str(avatar_file)
+            ext = os.path.splitext(str(avatar_file))[1]
+        
+        # Create destination filename
+        dest_filename = f"{username}{ext}"
+        dest_path = os.path.join(avatars_dir, dest_filename)
+        
+        # Copy file
+        shutil.copy2(source_path, dest_path)
+        
+        if os.path.exists(dest_path):
+            relative_path = f"static/avatars/{dest_filename}"
+            return relative_path, f"✅ Avatar uploaded for {username}"
+        else:
+            return "static/images/contact.png", f"❌ Failed to upload avatar"
+            
+    except Exception as e:
+        print(f"❌ Error uploading avatar: {e}")
+        return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
+
+def handle_file_upload(uploaded_file, target_dir, file_type="file"):
+    """Generic file upload handler for Railway"""
+    if not uploaded_file:
+        return None, f"⚠️ No {file_type} uploaded"
+    
+    try:
+        # Create target directory
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # Get source path
+        if hasattr(uploaded_file, 'name'):
+            source_path = uploaded_file.name
+            filename = os.path.basename(uploaded_file.name)
+        else:
+            source_path = str(uploaded_file)
+            filename = os.path.basename(str(uploaded_file))
+        
+        # Clean filename
+        filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).rstrip()
+        dest_path = os.path.join(target_dir, filename)
+        
+        # Copy file
+        shutil.copy2(source_path, dest_path)
+        
+        # Verify
+        if os.path.exists(dest_path):
+            print(f"✅ Successfully uploaded {file_type}: {filename}")
+            return dest_path, f"✅ Uploaded {file_type}: {filename}"
+        else:
+            return None, f"❌ Failed to upload {file_type}"
+            
+    except Exception as e:
+        print(f"❌ Error uploading {file_type}: {e}")
+        return None, f"❌ Error uploading {file_type}: {str(e)}"
 
 def debug_bg_file():
     """Debug what's actually in the BG timeline file"""
@@ -927,6 +1071,7 @@ def debug_bg_file():
         return f"BG file content: {content}"
     else:
         return "No BG timeline file found"
+        
 
 def load_bg_segments(file_path=None):
     """
@@ -1538,6 +1683,8 @@ with gr.Blocks() as demo:
                     allow_custom_value=True
                 )
                 bg_upload = gr.File(label="Upload Background Audio(s)", file_count="multiple", file_types=[".mp3"])
+                # ADD THIS DEBUG BUTTON
+                debug_upload_btn = gr.Button("🐛 Debug Upload Issue", size="sm")
                 send_choice = gr.Dropdown(
                     choices=AUDIO_FILES + [""],
                     label="Send Sound",
@@ -1620,6 +1767,12 @@ with gr.Blocks() as demo:
                 fn=lambda x: handle_audio_upload(x, "typing bar"),
                 inputs=[typing_bar_upload],
                 outputs=[typing_bar_choice, status]
+            )
+
+             # ADD THIS DEBUG BUTTON HANDLER
+            debug_upload_btn.click(
+                fn=debug_upload_issue,
+                outputs=[status]
             )
 
             render_btn.click(
