@@ -1050,7 +1050,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                 if meme_file:
                     # USE CHARACTER-SPECIFIC AVATAR FOR MEME SENDER
                     character_avatar = get_character_avatar_path(meme_sender)
-                    render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender, avatar_path=character_avatar)
+                    # FIXED: Use the correct parameter name for render_bubble
+                    render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
                     if render_bubble.timeline:
                         custom_key = ""
                         duration = custom_durations.get(custom_key, 4.0)
@@ -1081,7 +1082,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     if meme_file:
                         # USE CHARACTER-SPECIFIC AVATAR
                         character_avatar = get_character_avatar_path(name)
-                        render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender, avatar_path=character_avatar)
+                        # FIXED: Use the correct parameter name for render_bubble
+                        render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
                         if render_bubble.timeline:
                             custom_key = text_message.strip() if text_message.strip() else ""
                             duration = custom_durations.get(custom_key, 4.0 if not text_message.strip() else max(3.0, len(text_message) / 8))
@@ -1092,7 +1094,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                         if text_message.strip():
                             # USE CHARACTER-SPECIFIC AVATAR
                             character_avatar = get_character_avatar_path(name)
-                            render_bubble(name, text_message, is_sender=is_sender, avatar_path=character_avatar)
+                            # FIXED: Use the correct parameter name for render_bubble
+                            render_bubble(name, text_message, is_sender=is_sender)
                             if render_bubble.timeline:
                                 custom_key = text_message.strip()
                                 duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
@@ -1126,7 +1129,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     
                     # USE CHARACTER-SPECIFIC AVATAR
                     character_avatar = get_character_avatar_path(name)
-                    render_bubble(name, text_message, is_sender=is_sender, avatar_path=character_avatar)
+                    # FIXED: Use the correct parameter name for render_bubble
+                    render_bubble(name, text_message, is_sender=is_sender)
                     
                     if render_bubble.timeline:
                         render_bubble.timeline[-1]["duration"] = duration
