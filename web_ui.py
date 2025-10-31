@@ -2,6 +2,8 @@ import subprocess
 import sys
 import os
 import traceback
+from 
+from backend.generate_script import generate_script_with_groq
 
 print("🚀 Application starting...")
 print(f"📁 Current directory: {os.getcwd()}")
