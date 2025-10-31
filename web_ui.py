@@ -165,6 +165,282 @@ if sys.platform.startswith("win"):
 
 print("✅ Configuration loaded successfully")
 
+# =============================================
+# FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
+# =============================================
+
+def debug_upload_issue():
+    """Debug function to identify upload problems"""
+    print("🔍 ===== UPLOAD DEBUGGING =====")
+    
+    # Check audio directory permissions
+    print(f"📁 Audio directory: {AUDIO_DIR}")
+    print(f"📁 Exists: {os.path.exists(AUDIO_DIR)}")
+    if os.path.exists(AUDIO_DIR):
+        print(f"📁 Writable: {os.access(AUDIO_DIR, os.W_OK)}")
+        print(f"📁 Readable: {os.access(AUDIO_DIR, os.R_OK)}")
+        print(f"📁 Files in directory: {len(os.listdir(AUDIO_DIR))}")
+    
+    # Check disk space
+    try:
+        disk_usage = shutil.disk_usage(AUDIO_DIR)
+        free_gb = disk_usage.free / (1024**3)
+        print(f"💾 Free disk space: {free_gb:.2f} GB")
+    except:
+        print("💾 Could not check disk space")
+    
+    return "✅ Upload debug complete - check console for details"
+
+def test_basic_file_operations():
+    """Test if basic file operations work on Railway"""
+    print("🔧 ===== TESTING BASIC FILE OPERATIONS =====")
+    
+    test_file = os.path.join(PROJECT_ROOT, "test_upload.txt")
+    
+    try:
+        # Test 1: Create a file
+        print("1. Testing file creation...")
+        with open(test_file, "w") as f:
+            f.write("test content")
+        print("   ✅ File creation: SUCCESS")
+        
+        # Test 2: Read the file
+        print("2. Testing file reading...")
+        with open(test_file, "r") as f:
+            content = f.read()
+        print(f"   ✅ File reading: SUCCESS (content: {content})")
+        
+        # Test 3: Copy the file
+        print("3. Testing file copying...")
+        copy_file = os.path.join(PROJECT_ROOT, "test_copy.txt")
+        shutil.copy2(test_file, copy_file)
+        print("   ✅ File copying: SUCCESS")
+        
+        # Test 4: Check audio directory
+        print("4. Testing audio directory...")
+        print(f"   Audio dir: {AUDIO_DIR}")
+        print(f"   Exists: {os.path.exists(AUDIO_DIR)}")
+        if os.path.exists(AUDIO_DIR):
+            print(f"   Writable: {os.access(AUDIO_DIR, os.W_OK)}")
+        
+        # Cleanup
+        if os.path.exists(test_file):
+            os.remove(test_file)
+        if os.path.exists(copy_file):
+            os.remove(copy_file)
+            
+        print("🔧 ===== BASIC FILE OPERATIONS TEST COMPLETE =====")
+        return "✅ Basic file operations working - check console"
+        
+    except Exception as e:
+        print(f"❌ Basic file operations failed: {e}")
+        return f"❌ Basic file operations failed: {e}"
+
+def check_gradio_file_object(file_input):
+    """Check what Gradio is actually sending us"""
+    print("🎯 ===== CHECKING GRADIO FILE OBJECT =====")
+    
+    # Get the current value from the file input
+    file_obj = file_input
+    
+    print(f"🎯 Type: {type(file_obj)}")
+    print(f"🎯 Value: {file_obj}")
+    
+    if file_obj is None:
+        print("🎯 File object is None")
+        return "File object is None"
+    
+    if isinstance(file_obj, list):
+        print(f"🎯 List with {len(file_obj)} items")
+        for i, item in enumerate(file_obj):
+            print(f"🎯 Item {i}: {type(item)} = {item}")
+            if hasattr(item, 'name'):
+                print(f"🎯   .name: {item.name}")
+            if hasattr(item, 'size'):
+                print(f"🎯   .size: {item.size}")
+            if hasattr(item, 'orig_name'):
+                print(f"🎯   .orig_name: {item.orig_name}")
+    else:
+        print(f"🎯 Single object")
+        if hasattr(file_obj, 'name'):
+            print(f"🎯   .name: {file_obj.name}")
+        if hasattr(file_obj, 'size'):
+            print(f"🎯   .size: {file_obj.size}")
+        if hasattr(file_obj, 'orig_name'):
+            print(f"🎯   .orig_name: {file_obj.orig_name}")
+    
+    print("🎯 ===== GRADIO FILE CHECK COMPLETE =====")
+    return "✅ Gradio file check complete - check console"
+
+def handle_audio_upload_fixed(audio_file, audio_type):
+    """FIXED VERSION for Railway - with comprehensive debugging"""
+    print(f"🎵 ===== ENTERING handle_audio_upload for {audio_type} =====")
+    print(f"🎵 Input type: {type(audio_file)}")
+    print(f"🎵 Input value: {audio_file}")
+    
+    if not audio_file:
+        print(f"🎵 No file provided, returning early")
+        return AUDIO_FILES, f"⚠️ No {audio_type} audio uploaded."
+    
+    print(f"🎵 Starting {audio_type} audio upload processing...")
+    
+    try:
+        # Create audio directory if it doesn't exist
+        print(f"🎵 Creating audio directory: {AUDIO_DIR}")
+        os.makedirs(AUDIO_DIR, exist_ok=True)
+        print(f"🎵 Audio directory ready: {os.path.exists(AUDIO_DIR)}")
+        
+        files_to_process = []
+        if isinstance(audio_file, list):
+            files_to_process = audio_file
+            print(f"🎵 Processing {len(files_to_process)} files from list")
+        else:
+            files_to_process = [audio_file]
+            print(f"🎵 Processing single file")
+        
+        print(f"🎵 Files to process: {len(files_to_process)}")
+        
+        statuses = []
+        new_files = []
+        
+        for i, f in enumerate(files_to_process):
+            print(f"🎵 --- Processing file {i+1}/{len(files_to_process)} ---")
+            
+            # Handle both Gradio file objects and file paths
+            if hasattr(f, 'name'):
+                source_path = f.name
+                # Try to get original filename, fall back to basename
+                if hasattr(f, 'orig_name'):
+                    filename = f.orig_name
+                else:
+                    filename = os.path.basename(f.name)
+                print(f"🎵 Gradio file object detected")
+                print(f"🎵 Source path: {source_path}")
+                print(f"🎵 Filename: {filename}")
+            else:
+                # Handle string paths
+                source_path = str(f)
+                filename = os.path.basename(str(f))
+                print(f"🎵 String path detected: {source_path}")
+                print(f"🎵 Filename: {filename}")
+            
+            # Check if source exists
+            source_exists = os.path.exists(source_path)
+            print(f"🎵 Checking if source exists: {source_exists}")
+            
+            if not source_exists:
+                print(f"❌ Source file does not exist: {source_path}")
+                statuses.append(f"❌ {filename} (file not found)")
+                continue
+            
+            # Check file size and readability
+            try:
+                file_size = os.path.getsize(source_path)
+                is_readable = os.access(source_path, os.R_OK)
+                print(f"🎵 Source file size: {file_size} bytes")
+                print(f"🎵 Source file readable: {is_readable}")
+                
+                if file_size == 0:
+                    print(f"❌ Source file is empty: {filename}")
+                    statuses.append(f"❌ {filename} (empty file)")
+                    continue
+                    
+            except Exception as size_error:
+                print(f"❌ Error checking file {filename}: {size_error}")
+                statuses.append(f"❌ {filename} (error: {str(size_error)})")
+                continue
+            
+            # Clean filename for security
+            original_filename = filename
+            filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).rstrip()
+            if filename != original_filename:
+                print(f"🎵 Cleaned filename: {original_filename} -> {filename}")
+            
+            # Create destination path
+            dest_path = os.path.join(AUDIO_DIR, filename)
+            print(f"🎵 Destination path: {dest_path}")
+            
+            # Check if audio directory is writable
+            audio_dir_writable = os.access(AUDIO_DIR, os.W_OK)
+            print(f"🎵 Audio dir writable: {audio_dir_writable}")
+            
+            if not audio_dir_writable:
+                print(f"❌ Audio directory is not writable: {AUDIO_DIR}")
+                statuses.append(f"❌ {filename} (directory not writable)")
+                continue
+            
+            # Copy file with error handling
+            print(f"🎵 Starting file copy...")
+            try:
+                shutil.copy2(source_path, dest_path)
+                print(f"🎵 File copy completed")
+                
+                # Verify the file was copied
+                dest_exists = os.path.exists(dest_path)
+                print(f"🎵 Checking if destination exists: {dest_exists}")
+                
+                if dest_exists:
+                    copied_size = os.path.getsize(dest_path)
+                    print(f"🎵 Destination file size: {copied_size} bytes")
+                    
+                    if copied_size > 0:
+                        if filename not in AUDIO_FILES:
+                            AUDIO_FILES.append(filename)
+                            new_files.append(filename)
+                            print(f"🎵 Added to AUDIO_FILES: {filename}")
+                        statuses.append(filename)
+                        print(f"✅ Successfully uploaded: {filename}")
+                    else:
+                        print(f"❌ File copy failed: {filename} is empty")
+                        # Remove empty file
+                        if os.path.exists(dest_path):
+                            os.remove(dest_path)
+                            print(f"🎵 Removed empty file")
+                        statuses.append(f"❌ {filename} (copy failed - empty)")
+                else:
+                    print(f"❌ File copy failed: {filename} not found at destination")
+                    statuses.append(f"❌ {filename} (copy failed - not found)")
+                    
+            except Exception as copy_error:
+                print(f"❌ Error copying {filename}: {copy_error}")
+                traceback.print_exc()
+                statuses.append(f"❌ {filename} (error: {str(copy_error)})")
+                continue
+        
+        print(f"🎵 Processing complete. Statuses: {statuses}")
+        
+        # Filter successful uploads
+        successful_uploads = [s for s in statuses if not s.startswith('❌')]
+        
+        if successful_uploads:
+            if len(successful_uploads) == 1:
+                status_msg = f"✅ Uploaded {audio_type} audio: {successful_uploads[0]}"
+            else:
+                status_msg = f"✅ Uploaded {len(successful_uploads)} {audio_type} audios"
+            
+            print(f"🎵 Returning success: {status_msg}")
+            
+            # Return updated dropdown choices
+            unique_files = list(dict.fromkeys(AUDIO_FILES))
+            return gr.Dropdown(choices=unique_files + [""]), status_msg
+        else:
+            error_msg = f"❌ Failed to upload {audio_type} audio. Check console for details."
+            print(f"🎵 Returning error: {error_msg}")
+            return gr.Dropdown(choices=AUDIO_FILES + [""]), error_msg
+            
+    except Exception as e:
+        error_msg = f"❌ Error in handle_audio_upload: {e}"
+        print(error_msg)
+        traceback.print_exc()
+        return gr.Dropdown(choices=AUDIO_FILES + [""]), f"❌ Error uploading {audio_type} audio: {str(e)}"
+    
+    finally:
+        print(f"🎵 ===== EXITING handle_audio_upload for {audio_type} =====")
+
+# =============================================
+# KEEP ALL YOUR EXISTING FUNCTIONS BELOW
+# =============================================
+
 def debug_performance():
     """Debug function to identify performance bottlenecks"""
     print("🔍 ===== PERFORMANCE DEBUGGING =====")
@@ -192,12 +468,6 @@ def debug_performance():
         print(f"🖼️  Frames generated: {len(frame_files)}")
     
     return f"✅ Performance check complete - CPU: {cpu_percent}%, Memory: {memory.percent}%, Chrome processes: {len(chrome_processes)}"
-
-# Prevent Gradio timeouts
-os.environ["GRADIO_QUEUE"] = "True"
-
-if sys.platform.startswith("win"):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Paths
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -847,149 +1117,6 @@ def fix_bg_segments():
             return "✅ No corrupted segments found"
     else:
         return "⚠️ No BG segments file to fix"
-
-def handle_audio_upload(audio_file, audio_type):
-    """Improved Railway-compatible audio upload handler with progress tracking"""
-    if not audio_file:
-        return AUDIO_FILES, f"⚠️ No {audio_type} audio uploaded."
-    
-    print(f"🎵 Starting {audio_type} audio upload...")
-    
-    try:
-        # Create audio directory if it doesn't exist
-        os.makedirs(AUDIO_DIR, exist_ok=True)
-        print(f"🎵 Audio directory: {AUDIO_DIR}")
-        
-        files_to_process = []
-        if isinstance(audio_file, list):
-            files_to_process = audio_file
-            print(f"🎵 Processing {len(files_to_process)} files")
-        else:
-            files_to_process = [audio_file]
-            print(f"🎵 Processing single file")
-        
-        statuses = []
-        new_files = []
-        
-        for i, f in enumerate(files_to_process):
-            print(f"🎵 Processing file {i+1}/{len(files_to_process)}")
-            
-            # Handle both Gradio file objects and file paths
-            if hasattr(f, 'name'):
-                source_path = f.name
-                filename = os.path.basename(f.name)
-                file_size = os.path.getsize(source_path) if os.path.exists(source_path) else 0
-                print(f"🎵 Source: {source_path}, Size: {file_size} bytes")
-            else:
-                source_path = str(f)
-                filename = os.path.basename(str(f))
-                file_size = os.path.getsize(source_path) if os.path.exists(source_path) else 0
-                print(f"🎵 Source: {source_path}, Size: {file_size} bytes")
-            
-            # Clean filename for security
-            original_filename = filename
-            filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).rstrip()
-            if filename != original_filename:
-                print(f"🎵 Cleaned filename: {original_filename} -> {filename}")
-            
-            # Create destination path
-            dest_path = os.path.join(AUDIO_DIR, filename)
-            print(f"🎵 Destination: {dest_path}")
-            
-            # Check if source file exists and is readable
-            if not os.path.exists(source_path):
-                print(f"❌ Source file does not exist: {source_path}")
-                continue
-                
-            if not os.access(source_path, os.R_OK):
-                print(f"❌ Source file not readable: {source_path}")
-                continue
-            
-            # Copy file with error handling
-            try:
-                print(f"🎵 Copying {filename}...")
-                shutil.copy2(source_path, dest_path)
-                print(f"🎵 Copy completed for {filename}")
-                
-                # Verify the file was copied
-                if os.path.exists(dest_path):
-                    copied_size = os.path.getsize(dest_path)
-                    print(f"🎵 Verification: {filename} -> {copied_size} bytes")
-                    
-                    if copied_size > 0:
-                        if filename not in AUDIO_FILES:
-                            AUDIO_FILES.append(filename)
-                            new_files.append(filename)
-                        statuses.append(filename)
-                        print(f"✅ Successfully uploaded: {filename} -> {dest_path} ({copied_size} bytes)")
-                    else:
-                        print(f"❌ File copy failed: {filename} is empty")
-                        # Remove empty file
-                        if os.path.exists(dest_path):
-                            os.remove(dest_path)
-                else:
-                    print(f"❌ File copy failed: {filename} not found at destination")
-                    
-            except Exception as copy_error:
-                print(f"❌ Error copying {filename}: {copy_error}")
-                import traceback
-                traceback.print_exc()
-                continue
-        
-        if statuses:
-            if len(statuses) == 1:
-                status_msg = f"✅ Uploaded {audio_type} audio: {statuses[0]}"
-            else:
-                status_msg = f"✅ Uploaded {len(statuses)} {audio_type} audios: {', '.join(statuses)}"
-            
-            print(f"🎵 Upload completed: {status_msg}")
-            
-            # Return updated dropdown choices (remove duplicates)
-            unique_files = list(dict.fromkeys(AUDIO_FILES + [""]))
-            return unique_files, status_msg
-        else:
-            error_msg = f"❌ Failed to upload {audio_type} audio - no files processed successfully"
-            print(f"🎵 {error_msg}")
-            return AUDIO_FILES + [""], error_msg
-            
-    except Exception as e:
-        error_msg = f"❌ Error in handle_audio_upload: {e}"
-        print(error_msg)
-        import traceback
-        traceback.print_exc()
-        return AUDIO_FILES + [""], f"❌ Error uploading {audio_type} audio: {str(e)}"
-
-def debug_upload_issue():
-    """Debug function to identify upload problems"""
-    print("🔍 ===== UPLOAD DEBUGGING =====")
-    
-    # Check audio directory permissions
-    print(f"📁 Audio directory: {AUDIO_DIR}")
-    print(f"📁 Exists: {os.path.exists(AUDIO_DIR)}")
-    if os.path.exists(AUDIO_DIR):
-        print(f"📁 Writable: {os.access(AUDIO_DIR, os.W_OK)}")
-        print(f"📁 Readable: {os.access(AUDIO_DIR, os.R_OK)}")
-    
-    # Check current files
-    print(f"📁 Current files in audio directory:")
-    if os.path.exists(AUDIO_DIR):
-        files = os.listdir(AUDIO_DIR)
-        for f in files[:5]:  # Show first 5 files
-            file_path = os.path.join(AUDIO_DIR, f)
-            size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-            print(f"   {f} - {size} bytes")
-        if len(files) > 5:
-            print(f"   ... and {len(files) - 5} more files")
-    
-    # Check disk space
-    try:
-        disk_usage = shutil.disk_usage(AUDIO_DIR)
-        free_gb = disk_usage.free / (1024**3)
-        print(f"💾 Free disk space: {free_gb:.2f} GB")
-    except:
-        print("💾 Could not check disk space")
-    
-    return "✅ Upload debug complete - check console for details"
 
 def handle_avatar_upload(avatar_file, username):
     """Handle avatar uploads for Railway"""
@@ -1643,9 +1770,6 @@ def test_bg_music_system():
 # --------------------------
 # Gradio UI
 # --------------------------
-# --------------------------
-# Gradio UI
-# --------------------------
 with gr.Blocks() as demo:
     gr.Markdown("## 🎬 Chat Script & Video Generator", elem_classes="orange-title")
     
@@ -1683,8 +1807,11 @@ with gr.Blocks() as demo:
                     allow_custom_value=True
                 )
                 bg_upload = gr.File(label="Upload Background Audio(s)", file_count="multiple", file_types=[".mp3"])
-                # ADD THIS DEBUG BUTTON
+                # ADD DEBUG BUTTONS
                 debug_upload_btn = gr.Button("🐛 Debug Upload Issue", size="sm")
+                test_file_btn = gr.Button("🔧 Test File Ops", size="sm")
+                check_gradio_btn = gr.Button("🎯 Check Gradio File", size="sm")
+                
                 send_choice = gr.Dropdown(
                     choices=AUDIO_FILES + [""],
                     label="Send Sound",
@@ -1743,35 +1870,46 @@ with gr.Blocks() as demo:
                 outputs=[script_output, status]
             )
 
+            # USE THE FIXED UPLOAD FUNCTION
             bg_upload.change(
-                fn=lambda x: handle_audio_upload(x, "background"),
+                fn=lambda x: handle_audio_upload_fixed(x, "background"),
                 inputs=[bg_upload],
                 outputs=[bg_choice, status]
             )
             send_upload.change(
-                fn=lambda x: handle_audio_upload(x, "send"),
+                fn=lambda x: handle_audio_upload_fixed(x, "send"),
                 inputs=[send_upload],
                 outputs=[send_choice, status]
             )
             recv_upload.change(
-                fn=lambda x: handle_audio_upload(x, "receive"),
+                fn=lambda x: handle_audio_upload_fixed(x, "receive"),
                 inputs=[recv_upload],
                 outputs=[recv_choice, status]
             )
             typing_upload.change(
-                fn=lambda x: handle_audio_upload(x, "typing"),
+                fn=lambda x: handle_audio_upload_fixed(x, "typing"),
                 inputs=[typing_upload],
                 outputs=[typing_choice, status]
             )
             typing_bar_upload.change(
-                fn=lambda x: handle_audio_upload(x, "typing bar"),
+                fn=lambda x: handle_audio_upload_fixed(x, "typing bar"),
                 inputs=[typing_bar_upload],
                 outputs=[typing_bar_choice, status]
             )
 
-             # ADD THIS DEBUG BUTTON HANDLER
+            # ADD DEBUG BUTTON HANDLERS
             debug_upload_btn.click(
                 fn=debug_upload_issue,
+                outputs=[status]
+            )
+            
+            test_file_btn.click(
+                fn=test_basic_file_operations,
+                outputs=[status]
+            )
+            
+            check_gradio_btn.click(
+                fn=lambda: check_gradio_file_object(bg_upload.value),
                 outputs=[status]
             )
 
@@ -1989,28 +2127,29 @@ with gr.Blocks() as demo:
             test_video_btn.click(fn=create_simple_test_video, outputs=[test_video_output, timeline_status])
             system_test_btn.click(fn=test_bg_music_system, outputs=[system_test_output])
 
+            # USE THE FIXED UPLOAD FUNCTION FOR TIMELINE TAB TOO
             bg_upload_timeline.change(
-                fn=lambda x: handle_audio_upload(x, "background"),
+                fn=lambda x: handle_audio_upload_fixed(x, "background"),
                 inputs=[bg_upload_timeline],
                 outputs=[bg_choice_timeline, bg_status]
             )
             send_upload_timeline.change(
-                fn=lambda x: handle_audio_upload(x, "send"),
+                fn=lambda x: handle_audio_upload_fixed(x, "send"),
                 inputs=[send_upload_timeline],
                 outputs=[send_choice_timeline, bg_status]
             )
             recv_upload_timeline.change(
-                fn=lambda x: handle_audio_upload(x, "receive"),
+                fn=lambda x: handle_audio_upload_fixed(x, "receive"),
                 inputs=[recv_upload_timeline],
                 outputs=[recv_choice_timeline, bg_status]
             )
             typing_upload_timeline.change(
-                fn=lambda x: handle_audio_upload(x, "typing"),
+                fn=lambda x: handle_audio_upload_fixed(x, "typing"),
                 inputs=[typing_upload_timeline],
                 outputs=[typing_choice_timeline, bg_status]
             )
             typing_bar_upload_timeline.change(
-                fn=lambda x: handle_audio_upload(x, "typing bar"),
+                fn=lambda x: handle_audio_upload_fixed(x, "typing bar"),
                 inputs=[typing_bar_upload_timeline],
                 outputs=[typing_bar_choice_timeline, bg_status]
             )
