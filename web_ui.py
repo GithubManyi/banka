@@ -171,7 +171,7 @@ print("✅ Configuration loaded successfully")
 # =============================================
 
 # =============================================
-# CHARACTER MANAGEMENT SYSTEM (IMPROVED)
+# CHARACTER MANAGEMENT SYSTEM (FIXED)
 # =============================================
 
 def load_characters():
@@ -310,24 +310,19 @@ def handle_character_avatar_upload(avatar_file, character_name):
         os.makedirs(avatars_dir, exist_ok=True)
         
         print(f"🎯 Uploading avatar for character: {character_name}")
-        print(f"🎯 Avatar file type: {type(avatar_file)}")
         
         # Get file extension
         if hasattr(avatar_file, 'name'):
             source_path = avatar_file.name
             ext = os.path.splitext(avatar_file.name)[1]
-            print(f"🎯 Source path: {source_path}")
         else:
             source_path = str(avatar_file)
             ext = os.path.splitext(str(avatar_file))[1]
-            print(f"🎯 Source path (string): {source_path}")
         
         # Create unique filename for this character
         safe_name = "".join(c for c in character_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
         dest_filename = f"{safe_name}{ext}"
         dest_path = os.path.join(avatars_dir, dest_filename)
-        
-        print(f"🎯 Destination path: {dest_path}")
         
         # Copy file
         shutil.copy2(source_path, dest_path)
@@ -360,6 +355,8 @@ def handle_character_avatar_upload(avatar_file, character_name):
         import traceback
         traceback.print_exc()
         return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
+
+
 # =============================================
 # FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
 # =============================================
@@ -2038,10 +2035,7 @@ with gr.Blocks() as demo:
         # TAB 1: Character Management
         # ====================================
                 # ====================================
-        # TAB 1: Character Management (IMPROVED)
-        # ====================================
-                # ====================================
-        # TAB 1: Character Management (IMPROVED)
+        # TAB 1: Character Management (FIXED)
         # ====================================
         with gr.TabItem("👥 Character Management", id="characters_tab"):
             gr.Markdown("### Manage Characters for Your Stories")
@@ -2054,7 +2048,7 @@ with gr.Blocks() as demo:
                     character_avatar = gr.File(
                         label="Character Avatar", 
                         file_types=[".png", ".jpg", ".jpeg"],
-                        type="filepath"  # This helps with file handling
+                        type="filepath"
                     )
                     
                     with gr.Row():
@@ -2079,11 +2073,11 @@ with gr.Blocks() as demo:
                         refresh_chars_btn = gr.Button("🔄 Refresh List")
                         use_chars_btn = gr.Button("🎭 Use in Script")
             
-            # IMPROVED Character management event handlers
+            # FIXED Character management event handlers
             def refresh_characters():
                 """Refresh the character list and clear the form"""
                 characters = get_character_names()
-                return gr.Dropdown(choices=characters), "", "static/images/contact.png", "", None
+                return gr.Dropdown(choices=characters, value=""), "", "static/images/contact.png", "", None
             
             def load_character_details(name):
                 """Load character details when selected from dropdown"""
@@ -2098,7 +2092,6 @@ with gr.Blocks() as demo:
                     return "❌ Please enter a character name", "", "static/images/contact.png", "", None
                 
                 avatar_path = "static/images/contact.png"
-                avatar_status = "Using default avatar"
                 
                 if avatar:
                     # Use the improved avatar upload function
@@ -2109,7 +2102,9 @@ with gr.Blocks() as demo:
                 characters = get_character_names()
                 
                 if success:
-                    return message, gr.Dropdown(choices=characters), avatar_path, "", None
+                    # After adding, automatically select the new character and load its details
+                    details = get_character_details(name)
+                    return message, gr.Dropdown(choices=characters, value=name), details["avatar"], details["personality"], None
                 else:
                     return message, gr.Dropdown(choices=characters), "static/images/contact.png", "", None
             
@@ -2121,7 +2116,6 @@ with gr.Blocks() as demo:
                 # Get current avatar path
                 current_details = get_character_details(name)
                 avatar_path = current_details["avatar"]
-                avatar_status = "Keeping current avatar"
                 
                 if avatar:
                     # Use the improved avatar upload function
@@ -2130,10 +2124,11 @@ with gr.Blocks() as demo:
                 
                 success, message = update_character(name, avatar_path, personality)
                 characters = get_character_names()
-                details = get_character_details(name)
                 
                 if success:
-                    return message, gr.Dropdown(choices=characters), details["avatar"], details["personality"], None
+                    # After updating, reload the character details
+                    details = get_character_details(name)
+                    return message, gr.Dropdown(choices=characters, value=name), details["avatar"], details["personality"], None
                 else:
                     return message, gr.Dropdown(choices=characters), current_details["avatar"], personality, None
             
@@ -2144,7 +2139,10 @@ with gr.Blocks() as demo:
                 
                 success, message = delete_character(name)
                 characters = get_character_names()
-                return message, gr.Dropdown(choices=characters), "static/images/contact.png", "", None
+                if success:
+                    return message, gr.Dropdown(choices=characters, value=""), "static/images/contact.png", "", None
+                else:
+                    return message, gr.Dropdown(choices=characters), "static/images/contact.png", "", None
             
             def use_characters_in_script():
                 """Use all characters in script tab"""
@@ -2185,10 +2183,9 @@ with gr.Blocks() as demo:
                 outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
             )
             
-            # FIXED: This line was causing the error - make sure the output target exists
             use_chars_btn.click(
                 fn=use_characters_in_script,
-                outputs=[character_name]  # This will populate the character name field in the same tab
+                outputs=[character_name]
             )
 
         # ====================================
