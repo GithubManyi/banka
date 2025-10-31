@@ -2,7 +2,8 @@ moviepy==1.0.3
 opencv-python==4.8.1.78
 gunicorn
 gradio>=4.0.0
-flask
+flask==2.3.3
+flask-cors==4.0.0
 pillow==10.1.0
 pilmoji>=2.0.0,<2.1.0
 numpy>=1.26.0,<2.0.0
