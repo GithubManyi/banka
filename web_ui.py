@@ -266,6 +266,23 @@ def get_character_details(name):
         return characters[name]
     else:
         return {"avatar": "static/images/contact.png", "personality": ""}
+        
+def get_character_avatar_path(username):
+    """Get the avatar path for a specific character, with fallbacks"""
+    characters = load_characters()
+    
+    # Check if this is a known character
+    if username in characters:
+        avatar_path = characters[username].get("avatar", "")
+        if avatar_path and os.path.exists(os.path.join(PROJECT_ROOT, avatar_path)):
+            return os.path.join(PROJECT_ROOT, avatar_path)
+    
+    # Fallback for "You" (Banka)
+    if username.lower() == "banka" or username.lower() == "you":
+        return os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+    
+    # Fallback for other characters
+    return os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
 
 # =============================================
 # FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
@@ -858,7 +875,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
     global latest_generated_script, rendering_in_progress
     reset_typing_sessions()
 
-     # ADD DEBUG HERE
+    # ADD DEBUG HERE
     print(f"🎬 DEBUG handle_render: moral_text = '{moral_text}'")
     print(f"🎬 DEBUG moral_text type: {type(moral_text)}")
     print(f"🎬 DEBUG moral_text is None: {moral_text is None}")
@@ -958,7 +975,9 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                 
                 meme_file = fetch_meme_from_giphy(meme_desc)
                 if meme_file:
-                    render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
+                    # USE CHARACTER-SPECIFIC AVATAR FOR MEME SENDER
+                    character_avatar = get_character_avatar_path(meme_sender)
+                    render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender, avatar_path=character_avatar)
                     if render_bubble.timeline:
                         custom_key = ""
                         duration = custom_durations.get(custom_key, 4.0)
@@ -987,7 +1006,9 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
 
                     meme_file = fetch_meme_from_giphy(meme_desc)
                     if meme_file:
-                        render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
+                        # USE CHARACTER-SPECIFIC AVATAR
+                        character_avatar = get_character_avatar_path(name)
+                        render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender, avatar_path=character_avatar)
                         if render_bubble.timeline:
                             custom_key = text_message.strip() if text_message.strip() else ""
                             duration = custom_durations.get(custom_key, 4.0 if not text_message.strip() else max(3.0, len(text_message) / 8))
@@ -996,7 +1017,9 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     else:
                         print(f"⚠️ Meme not found, sending text only: {name}: {text_message}")
                         if text_message.strip():
-                            render_bubble(name, text_message, is_sender=is_sender)
+                            # USE CHARACTER-SPECIFIC AVATAR
+                            character_avatar = get_character_avatar_path(name)
+                            render_bubble(name, text_message, is_sender=is_sender, avatar_path=character_avatar)
                             if render_bubble.timeline:
                                 custom_key = text_message.strip()
                                 duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
@@ -1027,7 +1050,11 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     # Then render the actual message bubble normally
                     custom_key = text_message.strip()
                     duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
-                    render_bubble(name, text_message, is_sender=is_sender)
+                    
+                    # USE CHARACTER-SPECIFIC AVATAR
+                    character_avatar = get_character_avatar_path(name)
+                    render_bubble(name, text_message, is_sender=is_sender, avatar_path=character_avatar)
+                    
                     if render_bubble.timeline:
                         render_bubble.timeline[-1]["duration"] = duration
                         print(f"💬 Message: {name}: {message} (duration: {duration}s, {'custom' if custom_key in custom_durations else 'default'})")
@@ -1261,7 +1288,7 @@ def fix_bg_segments():
         return "⚠️ No BG segments file to fix"
 
 def handle_avatar_upload(avatar_file, username):
-    """Handle avatar uploads for Railway"""
+    """Handle avatar uploads for Railway with better character integration"""
     if not avatar_file or not username:
         return "static/images/contact.png", "⚠️ No avatar or username provided"
     
@@ -1286,6 +1313,14 @@ def handle_avatar_upload(avatar_file, username):
         
         if os.path.exists(dest_path):
             relative_path = f"static/avatars/{dest_filename}"
+            
+            # Update character record if this character exists
+            characters = load_characters()
+            if username in characters:
+                characters[username]["avatar"] = relative_path
+                save_characters(characters)
+                print(f"✅ Updated avatar for character '{username}'")
+            
             return relative_path, f"✅ Avatar uploaded for {username}"
         else:
             return "static/images/contact.png", f"❌ Failed to upload avatar"
@@ -1293,6 +1328,11 @@ def handle_avatar_upload(avatar_file, username):
     except Exception as e:
         print(f"❌ Error uploading avatar: {e}")
         return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
+
+def update_render_bubble_for_characters():
+    """This function ensures that render_bubble calls use character-specific avatars"""
+    # This is already implemented in the modified handle_render function above
+    pass
 
 def handle_file_upload(uploaded_file, target_dir, file_type="file"):
     """Generic file upload handler for Railway"""
