@@ -248,6 +248,13 @@ class WhatsAppRenderer:
             avatar_data = encode_avatar_for_html(avatar_fs)
         except:
             avatar_data = None
+
+        print("==== AVATAR DEBUG ====")
+        print("USERNAME:", username)
+        print("WEB AVATAR PATH:", avatar_web)
+        print("FS AVATAR PATH:", avatar_fs, os.path.exists(avatar_fs))
+        print("==== END DEBUG ====")
+
         
         # ✅ Standardize avatar folder — always static/avatars
         if not avatar_data:
