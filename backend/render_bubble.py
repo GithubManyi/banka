@@ -184,18 +184,10 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
 
 # ---------- CHARACTER AVATAR SYSTEM ---------- #
 # Import the character management functions from web_ui
+# ---------- CHARACTER AVATAR SYSTEM ---------- #
 def get_character_avatar_path(username):
-    """Get the avatar path for a specific character, with fallbacks"""
-    try:
-        # Try to import from web_ui first
-        from web_ui import get_character_avatar_path as web_ui_get_avatar
-        avatar_path = web_ui_get_avatar(username)
-        if avatar_path and os.path.exists(avatar_path):
-            return avatar_path
-    except ImportError:
-        print(f"⚠️ Could not import from web_ui, using fallback for {username}")
-    
-    # Fallback logic
+    """Get the avatar path for a specific character, with fallbacks - NO CIRCULAR IMPORTS"""
+    # Fallback logic - completely self-contained
     CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
     if os.path.exists(CHARACTERS_FILE):
         try:
@@ -204,10 +196,16 @@ def get_character_avatar_path(username):
             
             if username in characters:
                 avatar_path = characters[username].get("avatar", "")
-                if avatar_path and os.path.exists(os.path.join(BASE_DIR, avatar_path)):
-                    return os.path.join(BASE_DIR, avatar_path)
-                elif avatar_path and os.path.exists(avatar_path):
-                    return avatar_path
+                if avatar_path:
+                    # Try multiple possible locations
+                    possible_paths = [
+                        os.path.join(BASE_DIR, avatar_path),
+                        avatar_path,
+                        os.path.join(BASE_DIR, "static", "images", "contact.png")
+                    ]
+                    for path in possible_paths:
+                        if os.path.exists(path):
+                            return path
         except Exception as e:
             print(f"⚠️ Error reading characters file: {e}")
     
@@ -309,10 +307,10 @@ class WhatsAppRenderer:
             ts = datetime.now().strftime("%-I:%M %p").lower()
         except ValueError:
             ts = datetime.now().strftime("%#I:%M %p").lower()
-
+    
         color = name_to_color(username)
         
-        # USE CHARACTER-SPECIFIC AVATAR SYSTEM
+        # USE CHARACTER-SPECIFIC AVATAR SYSTEM (SELF-CONTAINED)
         avatar_path = get_character_avatar_path(username)
         avatar_data = encode_avatar_for_html(avatar_path)
         
@@ -323,6 +321,8 @@ class WhatsAppRenderer:
             if not avatar_data:
                 # Ultimate fallback
                 avatar_data = encode_avatar_for_html(os.path.join(BASE_DIR, "static", "images", "contact.png"))
+    
+        # ... rest of the method remains the same ...
 
         meme_data = None
         if meme_path and os.path.exists(meme_path):
