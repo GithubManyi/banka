@@ -186,8 +186,10 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
 # Import the character management functions from web_ui
 # ---------- CHARACTER AVATAR SYSTEM ---------- #
 def get_character_avatar_path(username):
-    """Get the avatar path for a specific character, with fallbacks - NO CIRCULAR IMPORTS"""
-    # Fallback logic - completely self-contained
+    """Get the avatar path for a specific character, with robust fallbacks - NO CIRCULAR IMPORTS"""
+    print(f"🔍 Looking for avatar for: {username}")
+    
+    # First, try the characters.json file
     CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
     if os.path.exists(CHARACTERS_FILE):
         try:
@@ -196,44 +198,80 @@ def get_character_avatar_path(username):
             
             if username in characters:
                 avatar_path = characters[username].get("avatar", "")
+                print(f"📁 Found character '{username}' in characters.json, avatar path: {avatar_path}")
+                
                 if avatar_path:
-                    # Try multiple possible locations
+                    # Try multiple possible locations in order of priority
                     possible_paths = [
-                        os.path.join(BASE_DIR, avatar_path),
-                        avatar_path,
-                        os.path.join(BASE_DIR, "static", "images", "contact.png")
+                        os.path.join(BASE_DIR, avatar_path),  # Absolute path from project root
+                        avatar_path,                          # Path as stored
+                        os.path.join(BASE_DIR, "static", "avatars", os.path.basename(avatar_path)),  # Avatars directory
+                        os.path.join(BASE_DIR, "static", "images", "contact.png")  # Ultimate fallback
                     ]
+                    
                     for path in possible_paths:
                         if os.path.exists(path):
+                            print(f"✅ Using avatar: {path}")
                             return path
+                        else:
+                            print(f"❌ Path not found: {path}")
+            else:
+                print(f"⚠️ Character '{username}' not found in characters.json")
         except Exception as e:
             print(f"⚠️ Error reading characters file: {e}")
+    else:
+        print(f"⚠️ Characters file not found at: {CHARACTERS_FILE}")
+    
+    # Fallback for "You" (Banka)
+    if username.lower() in ["banka", "you"]:
+        default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
+        if os.path.exists(default_path):
+            print(f"✅ Using Banka default avatar: {default_path}")
+            return default_path
     
     # Ultimate fallback
     default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
     if os.path.exists(default_path):
+        print(f"🔄 Using ultimate fallback avatar: {default_path}")
         return default_path
     
-    return "static/images/contact.png"
+    print(f"❌ No avatar found for {username}, using generic circle")
+    return None
 
 def encode_avatar_for_html(avatar_path):
-    """Convert avatar image to base64 for HTML display"""
-    if not avatar_path or not os.path.exists(avatar_path):
+    """Convert avatar image to base64 for HTML display with better error handling"""
+    if not avatar_path:
+        print("⚠️ No avatar path provided")
+        return None
+    
+    if not os.path.exists(avatar_path):
+        print(f"⚠️ Avatar file does not exist: {avatar_path}")
         return None
     
     try:
+        # Verify it's a valid image file
+        with Image.open(avatar_path) as img:
+            img.verify()  # Verify it's a valid image
+            
+        # Now read and encode the file
         with open(avatar_path, "rb") as f:
             avatar_data = base64.b64encode(f.read()).decode("utf-8")
         
-        mime_type = "image/jpeg"
+        # Determine MIME type
+        mime_type = "image/jpeg"  # default
         if avatar_path.lower().endswith('.png'):
             mime_type = "image/png"
         elif avatar_path.lower().endswith('.gif'):
             mime_type = "image/gif"
+        elif avatar_path.lower().endswith('.webp'):
+            mime_type = "image/webp"
+            
+        result = f"data:{mime_type};base64,{avatar_data}"
+        print(f"✅ Successfully encoded avatar: {avatar_path} -> {mime_type}")
+        return result
         
-        return f"data:{mime_type};base64,{avatar_data}"
     except Exception as e:
-        print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
+        print(f"❌ Failed to encode avatar {avatar_path}: {e}")
         return None
 
 # ---------- HELPERS ---------- # 
@@ -302,7 +340,7 @@ class WhatsAppRenderer:
         self._last_render_time = 0
         self._render_count = 0
     
-    def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
+   def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
         try:
             ts = datetime.now().strftime("%-I:%M %p").lower()
         except ValueError:
@@ -310,19 +348,21 @@ class WhatsAppRenderer:
     
         color = name_to_color(username)
         
-        # USE CHARACTER-SPECIFIC AVATAR SYSTEM (SELF-CONTAINED)
+        # IMPROVED AVATAR HANDLING
         avatar_path = get_character_avatar_path(username)
         avatar_data = encode_avatar_for_html(avatar_path)
         
-        # If avatar encoding failed, use the old system as fallback
+        # If avatar encoding failed, try the contact.png fallback directly
         if not avatar_data:
-            old_avatar_path = get_avatar(username)
-            avatar_data = encode_avatar_for_html(old_avatar_path)
-            if not avatar_data:
-                # Ultimate fallback
-                avatar_data = encode_avatar_for_html(os.path.join(BASE_DIR, "static", "images", "contact.png"))
+            print(f"🔄 Trying contact.png fallback for {username}")
+            contact_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
+            if os.path.exists(contact_path):
+                avatar_data = encode_avatar_for_html(contact_path)
     
-        # ... rest of the method remains the same ...
+        # Log avatar status (reduced frequency)
+        if self._render_count % 10 == 0:
+            avatar_status = "✅" if avatar_data else "❌"
+            print(f"👤 Avatar for {username}: {avatar_status}")
 
         meme_data = None
         if meme_path and os.path.exists(meme_path):
