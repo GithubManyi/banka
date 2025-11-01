@@ -595,14 +595,18 @@
               </div>
             </div>
             {% if is_first_in_group %}
-              <div class="msg-avatar">
-                <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" alt="" class="avatar">
+              <div class="msg-avatar"> 
+                <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" alt="" class="avatar"> 
+                     onerror="this.src='static/images/contact.png'">
+
               </div>
             {% endif %}
           {% else %}
             {% if is_first_in_group %}
               <div class="msg-avatar">
                 <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" alt="" class="avatar">
+                     onerror="this.src='static/images/contact.png'">
+
               </div>
             {% endif %}
             <div class="bubble">
