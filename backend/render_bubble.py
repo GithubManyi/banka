@@ -132,26 +132,6 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
 
 
-def encode_avatar_for_html(avatar_path):
-    """Convert avatar image to base64 for HTML display"""
-    if not avatar_path or not os.path.exists(avatar_path):
-        return None
-    
-    try:
-        with open(avatar_path, "rb") as f:
-            avatar_data = base64.b64encode(f.read()).decode("utf-8")
-        
-        mime_type = "image/jpeg"
-        if avatar_path.lower().endswith('.png'):
-            mime_type = "image/png"
-        elif avatar_path.lower().endswith('.gif'):
-            mime_type = "image/gif"
-        
-        return f"data:{mime_type};base64,{avatar_data}"
-    except Exception as e:
-        print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
-        return None
-
 # ---------- HELPERS ---------- # 
 def encode_meme(path):
     """Encode meme for HTML display"""
