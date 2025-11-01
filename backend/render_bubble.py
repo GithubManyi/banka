@@ -37,6 +37,8 @@ TEMPLATE_FILE = "index.html"
 OUTPUT_HTML = os.path.join(BASE_DIR, "rendered_chat.html")
 FRAMES_DIR = os.path.join(BASE_DIR, "frames")
 TIMELINE_FILE = os.path.join(FRAMES_DIR, "timeline.json")
+AVATAR_DIR = os.path.join(BASE_DIR, "static", "avatars")
+
 
 os.makedirs(FRAMES_DIR, exist_ok=True)
 
@@ -237,17 +239,25 @@ class WhatsAppRenderer:
         
         # USE CHARACTER-SPECIFIC AVATAR SYSTEM (SELF-CONTAINED)
         avatar_path = get_character_avatar_path(username)
-        avatar_data = encode_avatar_for_html(avatar_path)
+
+        try:
+            avatar_data = encode_avatar_for_html(avatar_path)
+        except Exception:
+            avatar_data = None
         
-        # If avatar encoding failed, use fallback
+        # ✅ Standardize avatar folder — always static/avatars
         if not avatar_data:
-            # Ultimate fallback
-            fallback_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
-            avatar_data = encode_avatar_for_html(fallback_path)
-            if not avatar_data:
-                # Empty avatar data
-                avatar_data = ""
-    
+            fallback_path = os.path.join(BASE_DIR, "static", "avatars", f"{username}.png")
+            if os.path.exists(fallback_path):
+                avatar_data = encode_avatar_for_html(fallback_path)
+            else:
+                # ✅ Ultimate fallback placeholder
+                fallback_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
+                avatar_data = encode_avatar_for_html(fallback_path)
+        
+        # Safety guard
+        avatar_data = avatar_data or ""
+
         meme_data = None
         if meme_path and os.path.exists(meme_path):
             try:
@@ -314,6 +324,7 @@ class WhatsAppRenderer:
     
         rendered_html = template.render(
             messages=filtered_messages,
+            static_path="/app/static",  # ✅ critical for headless chrome
             chat_title=getattr(self, "chat_title", None),
             chat_avatar=getattr(self, "chat_avatar", None),
             chat_status=getattr(self, "chat_status", None),
@@ -321,6 +332,7 @@ class WhatsAppRenderer:
             typing_user=typing_user,
             upcoming_text=upcoming_text
         )
+
     
         with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
             f.write(rendered_html)
