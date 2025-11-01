@@ -295,6 +295,10 @@ class WhatsAppRenderer:
         # REDUCED LOGGING: Only log every 5th message
         if self._render_count % 5 == 0:
             print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing} - Avatar: {'✅' if avatar_data else '❌'}")
+            print("WEB AVATAR PATH:", avatar_web)
+            print("FS AVATAR PATH:", avatar_fs, os.path.exists(avatar_fs))
+            print("USERNAME:", username)
+
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
         """
