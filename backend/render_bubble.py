@@ -238,11 +238,15 @@ class WhatsAppRenderer:
         color = name_to_color(username)
         
         # USE CHARACTER-SPECIFIC AVATAR SYSTEM (SELF-CONTAINED)
-        avatar_path = get_character_avatar_path(username)
-
+        avatar_web = get_character_avatar_path(username)
+        
+        # Convert web path -> filesystem path
+        avatar_fs = os.path.join(BASE_DIR, avatar_web)
+        
+        # Try encoding base64
         try:
-            avatar_data = encode_avatar_for_html(avatar_path)
-        except Exception:
+            avatar_data = encode_avatar_for_html(avatar_fs)
+        except:
             avatar_data = None
         
         # ✅ Standardize avatar folder — always static/avatars
