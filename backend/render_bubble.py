@@ -236,6 +236,33 @@ def debug_timeline_entries():
         for i, entry in enumerate(typing_entries[-10:]):  # Show last 10 entries
             print(f"🔍 Entry {i}: text='{entry.get('upcoming_text')}' sound={entry.get('sound')} duration={entry.get('duration')}")
 
+# ---------- VIDEO HELPERS ---------- #
+def add_still_to_concat(concat_lines, frame_file, duration):
+    """Add a still frame to concat file for video generation"""
+    safe_path = frame_file.replace("\\", "/")
+    concat_lines.append(f"file '{safe_path}'")
+    concat_lines.append(f"duration {float(duration):.3f}")
+
+def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
+    """Handle meme image processing for video generation"""
+    if not os.path.exists(meme_path):
+        raise FileNotFoundError(f"Meme not found: {meme_path}")
+
+    img = Image.open(meme_path)
+    img.thumbnail((W, H))
+
+    # Create the output directory if it doesn't exist
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Save a single frame (not multiple frames)
+    frame_path = output_path if output_path.endswith('.png') else output_path + '.png'
+    img.save(frame_path, "PNG")
+    
+    # Return the single frame path and duration
+    return frame_path, duration
+
 # ---------- RENDERER ---------- #
 class WhatsAppRenderer:
     def __init__(self, chat_title="Default Group", chat_avatar=None, chat_status=None):
