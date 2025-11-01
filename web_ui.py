@@ -8,6 +8,17 @@ print("🚀 Application starting...")
 print(f"📁 Current directory: {os.getcwd()}")
 print(f"🐍 Python version: {sys.version}")
 
+# SUPPRESS CHROMIUM ERRORS FOR BETTER PERFORMANCE
+import os
+os.environ['DBUS_SESSION_BUS_ADDRESS'] = '/dev/null'
+os.environ['DISABLE_DEV_SHM'] = 'true'
+os.environ['ENABLE_CRASH_REPORTER'] = 'false'
+os.environ['CHROME_HEADLESS'] = 'true'
+
+# Disable GPU and other unnecessary features
+os.environ['LIBGL_ALWAYS_SOFTWARE'] = '1'
+os.environ['GALLIUM_DRIVER'] = 'llvmpipe'
+
 # SIMPLE FFMPEG CHECK ONLY - NO INSTALLATION
 try:
     result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
