@@ -24,6 +24,7 @@ import traceback
 import psutil
 import gc
 import logging
+from functools import wraps
 
 # Reduce logging verbosity for HTML2Image and other noisy libraries
 logging.getLogger('html2image').setLevel(logging.WARNING)
@@ -81,14 +82,14 @@ import html2image
 HTI = None
 
 def get_html2image():
-    """Get or create HTML2Image instance with optimized Chrome flags to minimize errors"""
+    """Get or create HTML2Image instance with MAXIMUM performance optimizations"""
     global HTI
     if HTI is None:
         try:
             # Try multiple possible Chromium paths
             possible_paths = [
                 '/usr/bin/chromium',
-                '/usr/bin/chromium-browser',
+                '/usr/bin/chromium-browser', 
                 '/usr/bin/google-chrome',
                 '/usr/bin/chrome',
                 '/app/.apt/usr/bin/chromium-browser'
@@ -102,7 +103,7 @@ def get_html2image():
                     break
             
             if chromium_path:
-                # OPTIMIZED CHROME FLAGS TO MINIMIZE ERRORS
+                # MAXIMUM PERFORMANCE CHROME FLAGS
                 chrome_flags = [
                     '--no-sandbox',
                     '--disable-dev-shm-usage',
@@ -128,15 +129,31 @@ def get_html2image():
                     '--disable-in-process-stack-traces',
                     '--disable-logging',
                     '--disable-breakpad',
-                    '--memory-pressure-off'
+                    '--memory-pressure-off',
+                    '--max-old-space-size=4096',
+                    '--single-process',  # CRITICAL FOR PERFORMANCE
+                    '--no-zygote',
+                    '--disable-setuid-sandbox',
+                    '--disable-extensions',
+                    '--disable-plugins',
+                    '--disable-translate',
+                    '--disable-background-networking',
+                    '--safebrowsing-disable-auto-update',
+                    '--disable-sync',
+                    '--metrics-recording-only',
+                    '--disable-default-apps',
+                    '--noerrdialogs',
+                    '--remote-debugging-port=0',
+                    '--disable-component-extensions-with-background-pages'
                 ]
                 
                 HTI = html2image.Html2Image(
                     browser='chromium',
                     browser_executable=chromium_path,
-                    custom_flags=chrome_flags
+                    custom_flags=chrome_flags,
+                    output_path=FRAMES_DIR  # Save directly to frames directory
                 )
-                print("🚀 Created HTML2Image renderer with optimized Chrome flags")
+                print("🚀 Created OPTIMIZED HTML2Image renderer")
             else:
                 print("❌ No Chromium found, will use PIL fallback")
                 HTI = None
@@ -144,6 +161,19 @@ def get_html2image():
             print(f"⚠️ HTML2Image setup failed: {e}")
             HTI = None
     return HTI
+
+def batch_render_frames(frame_requests):
+    """Batch render multiple frames for better performance"""
+    if not frame_requests:
+        return []
+    
+    rendered_frames = []
+    
+    for username, message, meme_path, is_sender in frame_requests:
+        frame_file = render_bubble(username, message, meme_path=meme_path, is_sender=is_sender)
+        rendered_frames.append(frame_file)
+    
+    return rendered_frames
 
 # Update the cleanup function:
 def cleanup_resources():
@@ -571,7 +601,22 @@ class WhatsAppRenderer:
         
         return rendered_html
 
-# ---------- BUBBLE RENDERING ---------- #
+
+
+def timeit(func):
+    @wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        if total_time > 1.0:  # Only log slow operations
+            print(f'⏱️ {func.__name__} took {total_time:.2f} seconds')
+        return result
+    return timeit_wrapper
+
+# Decorate slow functions:
+@timeit
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
     """
     Optimized bubble rendering with performance improvements.
