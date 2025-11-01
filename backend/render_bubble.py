@@ -239,7 +239,11 @@ class WhatsAppRenderer:
 
     def _draw_message_bubble(self, draw, x, y, username, text, timestamp, color, is_sender, is_read=False):
         """Draw a single message bubble with all features"""
+        # WhatsApp-like bubble colors
         bubble_color = (32, 44, 51) if not is_sender else (0, 92, 75)
+        text_color = (233, 237, 239)
+        meta_color = (134, 150, 160)
+        read_color = (83, 189, 235)
         
         # Calculate text dimensions
         display_text = text[:100] + "..." if len(text) > 100 else text
@@ -251,7 +255,7 @@ class WhatsAppRenderer:
         bubble_width = min(600, max(200, text_width))
         bubble_height = text_height
         
-        # Draw bubble background
+        # Draw bubble background with rounded corners effect
         draw.rectangle([x, y, x + bubble_width, y + bubble_height], fill=bubble_color, outline=None)
         
         # Draw username
@@ -259,16 +263,16 @@ class WhatsAppRenderer:
         
         # Draw message text
         if display_text:
-            draw.text((x + 20, y + 45), display_text, fill=(233, 237, 239), font=self._font_medium)
+            draw.text((x + 20, y + 45), display_text, fill=text_color, font=self._font_medium)
         
         # Draw timestamp
-        draw.text((x + 20, y + bubble_height - 30), timestamp, fill=(134, 150, 160), font=self._font_small)
+        draw.text((x + 20, y + bubble_height - 30), timestamp, fill=meta_color, font=self._font_small)
         
         # Draw read receipts for sender
         if is_sender and is_read:
-            draw.text((x + bubble_width - 40, y + bubble_height - 30), "✓✓", fill=(83, 189, 235), font=self._font_small)
+            draw.text((x + bubble_width - 40, y + bubble_height - 30), "✓✓", fill=read_color, font=self._font_small)
         elif is_sender:
-            draw.text((x + bubble_width - 20, y + bubble_height - 30), "✓", fill=(134, 150, 160), font=self._font_small)
+            draw.text((x + bubble_width - 20, y + bubble_height - 30), "✓", fill=meta_color, font=self._font_small)
         
         return bubble_height
 
@@ -276,18 +280,21 @@ class WhatsAppRenderer:
         """Draw typing indicator (three dots)"""
         bubble_color = (32, 44, 51)
         bubble_height = 80
-        bubble_width = 400
+        bubble_width = 120
         
         # Draw bubble
         draw.rectangle([x, y, x + bubble_width, y + bubble_height], fill=bubble_color, outline=None)
         
-        # Draw typing dots
+        # Draw typing dots with animation effect
         dot_y = y + 40
+        current_time = time.time()
+        dot_offset = int((current_time * 2) % 3)
+        
         for i in range(3):
             dot_x = x + 20 + (i * 25)
-            draw.ellipse([dot_x, dot_y, dot_x + 12, dot_y + 12], fill=(134, 150, 160))
-        
-        draw.text((x + 100, y + 35), "typing...", fill=(200, 200, 200), font=self._font_small)
+            alpha = 200 if i == dot_offset else 100
+            dot_color = (134, 150, 160, alpha)
+            draw.ellipse([dot_x, dot_y, dot_x + 12, dot_y + 12], fill=dot_color[:3])
         
         return bubble_height
 
@@ -295,19 +302,20 @@ class WhatsAppRenderer:
         """Draw meme/media indicator"""
         bubble_color = (32, 44, 51) if not is_sender else (0, 92, 75)
         bubble_height = 120
-        bubble_width = 500
+        bubble_width = 300
         
         # Draw bubble
         draw.rectangle([x, y, x + bubble_width, y + bubble_height], fill=bubble_color, outline=None)
         
+        # Draw media icon and text
         draw.text((x + 20, y + 15), username, fill=color, font=self._font_small)
-        draw.text((x + 20, y + 45), "📷 [Media]", fill=(233, 237, 239), font=self._font_medium)
+        draw.text((x + 20, y + 45), "📷 Media", fill=(233, 237, 239), font=self._font_medium)
         draw.text((x + 20, y + 85), timestamp, fill=(134, 150, 160), font=self._font_small)
         
         return bubble_height
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
-        """ULTRA FAST PIL-ONLY RENDERING - Maintains all features"""
+        """ULTRA FAST PIL-ONLY RENDERING - Maintains first version's structure"""
         start_time = time.time()
         self._render_count += 1
         
@@ -327,19 +335,32 @@ class WhatsAppRenderer:
                 return f"CACHED: {cached_frame}"
         
         try:
-            # Create WhatsApp-style background
+            # Create WhatsApp-style background (dark theme)
             img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
             draw = ImageDraw.Draw(img)
             
-            # Draw header
-            header_bg = Image.new('RGB', (1920, 130), color=(17, 27, 33))
+            # Draw header (matches first version's style)
+            header_height = 120
+            header_bg = Image.new('RGB', (1920, header_height), color=(17, 27, 33))
             img.paste(header_bg, (0, 0))
-            draw.text((120, 40), f"💬 {self.chat_title}", fill=(255, 255, 255), font=self._font_large)
-            draw.text((120, 85), f"👥 {self.chat_status}", fill=(134, 150, 160), font=self._font_small)
             
-            # Draw messages - last 10 messages
-            y_pos = 150
-            messages_to_show = self.message_history[-10:]
+            # Draw back button and menu dots (like first version)
+            draw.text((40, 45), "←", fill=(233, 237, 239), font=self._font_large)
+            draw.text((1860, 45), "⋮", fill=(233, 237, 239), font=self._font_large)
+            
+            # Draw chat title and status (centered like first version)
+            title_width = draw.textbbox((0, 0), self.chat_title, font=self._font_medium)[2]
+            status_width = draw.textbbox((0, 0), self.chat_status, font=self._font_small)[2]
+            
+            title_x = (1920 - title_width) // 2
+            status_x = (1920 - status_width) // 2
+            
+            draw.text((title_x, 35), self.chat_title, fill=(233, 237, 239), font=self._font_medium)
+            draw.text((status_x, 75), self.chat_status, fill=(134, 150, 160), font=self._font_small)
+            
+            # Draw messages - last 8 messages (like first version's layout)
+            y_pos = header_height + 20
+            messages_to_show = self.message_history[-8:]  # Show last 8 messages like first version
             
             for msg in messages_to_show:
                 is_sender = msg.get('is_sender', False)
@@ -351,47 +372,50 @@ class WhatsAppRenderer:
                 has_meme = msg.get('meme') is not None
                 is_read = msg.get('is_read', False)
                 
-                bubble_x = 120 if not is_sender else 1000
+                # Position bubbles like first version (left for others, right for sender)
+                bubble_x = 100 if not is_sender else 1920 - 700  # Right-aligned for sender
                 
                 if is_typing and not is_sender:
-                    # TYPING INDICATOR (receiver only)
+                    # TYPING INDICATOR (receiver only) - matches first version behavior
                     height = self._draw_typing_indicator(draw, bubble_x, y_pos)
-                    y_pos += height + 20
+                    y_pos += height + 15
                     
                 elif has_meme:
-                    # MEME MESSAGE
+                    # MEME MESSAGE - compact indicator like first version
                     height = self._draw_meme_indicator(draw, bubble_x, y_pos, username, timestamp, color, is_sender)
-                    y_pos += height + 20
+                    y_pos += height + 15
                     
                 else:
-                    # REGULAR TEXT MESSAGE
+                    # REGULAR TEXT MESSAGE - proper bubble styling
                     height = self._draw_message_bubble(draw, bubble_x, y_pos, username, text, timestamp, color, is_sender, is_read)
-                    y_pos += height + 20
+                    y_pos += height + 15
                 
-                # Stop if we run out of space
+                # Stop if we run out of space (like first version)
                 if y_pos > 900:
                     break
             
-            # Draw typing bar if active (sender typing)
+            # Draw typing bar if active (sender typing) - matches first version's typing bar
             if show_typing_bar and typing_user:
-                typing_bg = Image.new('RGB', (1920, 80), color=(17, 27, 33))
-                img.paste(typing_bg, (0, 1000))
+                # Typing bar at bottom (like first version)
+                typing_bar_height = 80
+                typing_bg = Image.new('RGB', (1920, typing_bar_height), color=(17, 27, 33))
+                img.paste(typing_bg, (0, 1080 - typing_bar_height))
                 
-                input_bg = Image.new('RGB', (1600, 60), color=(32, 44, 51))
-                img.paste(input_bg, (160, 1010))
+                # Input field (like first version)
+                input_height = 50
+                input_bg = Image.new('RGB', (1600, input_height), color=(42, 57, 66))
+                img.paste(input_bg, (100, 1080 - typing_bar_height + 15))
                 
-                typing_text = f"{upcoming_text[:60]}|" if upcoming_text else "Message"
+                # Typing text with cursor
+                typing_display = upcoming_text[:80] + "|" if upcoming_text else "Type a message..."
                 text_color = (233, 237, 239) if upcoming_text else (134, 150, 160)
                 
-                draw.text((180, 1025), typing_text, fill=text_color, font=self._font_medium)
+                draw.text((120, 1080 - typing_bar_height + 30), typing_display, fill=text_color, font=self._font_medium)
                 
-                # Draw icons
-                draw.text((1780, 1020), "📎", fill=(134, 150, 160), font=self._font_medium)
-                draw.text((1820, 1020), "📷", fill=(134, 150, 160), font=self._font_medium)
-                if upcoming_text:
-                    draw.text((1860, 1020), "📩", fill=(83, 189, 235), font=self._font_medium)
-                else:
-                    draw.text((1860, 1020), "🎤", fill=(134, 150, 160), font=self._font_medium)
+                # Action buttons (like first version)
+                draw.text((1720, 1080 - typing_bar_height + 25), "📎", fill=(134, 150, 160), font=self._font_medium)
+                draw.text((1770, 1080 - typing_bar_height + 25), "📷", fill=(134, 150, 160), font=self._font_medium)
+                draw.text((1820, 1080 - typing_bar_height + 25), "🎤", fill=(134, 150, 160), font=self._font_medium)
             
             # Save optimized for speed
             img.save(frame_file, 'PNG', optimize=True)
@@ -402,16 +426,18 @@ class WhatsAppRenderer:
                 
         except Exception as e:
             print(f"⚠️ PIL rendering failed: {e}")
-            # Ultimate fallback
+            # Ultimate fallback - simple frame
             try:
                 img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
                 draw = ImageDraw.Draw(img)
-                draw.text((100, 100), f"Chat: {self.chat_title}", fill=(255, 255, 255))
-                draw.text((100, 150), f"Messages: {len(self.message_history)}", fill=(255, 255, 255))
+                draw.text((100, 100), f"Chat: {self.chat_title}", fill=(255, 255, 255), font=self._font_medium)
+                draw.text((100, 150), f"Messages: {len(self.message_history)}", fill=(255, 255, 255), font=self._font_medium)
                 if show_typing_bar:
-                    draw.text((100, 200), f"Typing: {typing_user}", fill=(100, 255, 100))
+                    draw.text((100, 200), f"Typing: {typing_user}", fill=(100, 255, 100), font=self._font_medium)
+                    draw.text((100, 250), f"Text: {upcoming_text}", fill=(200, 200, 200), font=self._font_medium)
                 img.save(frame_file)
             except:
+                # Absolute minimum fallback
                 Image.new('RGB', (1920, 1080), color=(11, 20, 26)).save(frame_file)
         
         # Cache frame for maximum speed
@@ -422,7 +448,10 @@ class WhatsAppRenderer:
 
 # ---------- BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
-    """Optimized bubble rendering with performance improvements"""
+    """Optimized bubble rendering with performance improvements.
+    KEEPS THE EXACT SAME NUMBER OF FRAMES FOR TYPING ANIMATIONS.
+    """
+    # initialize renderer state once
     if not hasattr(render_bubble, 'renderer'):
         render_bubble.renderer = WhatsAppRenderer(
             chat_title="BANKA TOUR GROUP",
@@ -432,9 +461,11 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         render_bubble.frame_count = 0
         render_bubble.timeline = []
 
+    # decide sender side if not provided
     if is_sender is None:
         is_sender = (username.strip().lower() == MAIN_USER.lower())
 
+    # small helpers
     def _text_duration(text: str, typing_flag: bool) -> float:
         if typing_flag:
             return 1.5
@@ -454,13 +485,15 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         except Exception:
             return 3.0
 
-    # Handle typing differently based on sender vs receiver
+    # 🔹 FIXED: Handle typing differently based on sender vs receiver
     if typing:
         if is_sender:
+            # For sender (Banka) - show typing bar, NOT typing indicator bubble
             if render_bubble.frame_count % 20 == 0:
                 print(f"⌨️ Sender {username} typing - using typing bar instead of bubble")
             return render_typing_bar_frame(username, upcoming_text=message if message else "", duration=1.5)
         else:
+            # For receiver - show typing indicator bubble
             if render_bubble.frame_count % 20 == 0:
                 print(f"⌨️ Receiver {username} typing - showing typing bubble")
             original_history = render_bubble.renderer.message_history.copy()
@@ -490,13 +523,15 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
     render_bubble.renderer.add_message(username, message, meme_path=meme_path, is_read=is_read, typing=False)
     frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
     
+    # Use short wait for better performance
     is_typing_bar = (username.strip().lower() == MAIN_USER.lower() and not message)
     render_bubble.renderer.render_frame(frame_file, show_typing_bar=False, short_wait=is_typing_bar)
 
-    # Compute durations
+    # compute durations:
     text_dur = _text_duration(message, False)
     meme_dur = _meme_duration(meme_path) if meme_path else 0.0
 
+    # If there's a meme, let the meme duration dominate so next message waits.
     if meme_path:
         duration = max(text_dur, meme_dur)
     else:
@@ -513,6 +548,7 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         "typing": False
     }
 
+    # attach meme base64 & mime info for video builder if available
     if meme_path and os.path.exists(meme_path):
         try:
             meme_info = encode_meme(meme_path)
@@ -523,11 +559,14 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
         except Exception as e:
             print(f"⚠️ render_bubble: failed to encode meme {meme_path}: {e}")
 
+    # append timeline and persist
     render_bubble.timeline.append(entry)
     with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
         json.dump(render_bubble.timeline, tf, indent=2)
 
     render_bubble.frame_count += 1
+    if render_bubble.frame_count % 20 == 0:
+        print(f"✅ Regular frame {render_bubble.frame_count}: {frame_file} ({duration}s)")
     return frame_file
 
 def render_meme(username, meme_path):
@@ -548,17 +587,25 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
     if is_sender is None:
         is_sender = (username.strip().lower() == MAIN_USER.lower())
 
+    # 🔹 FIXED: Don't show typing bubbles for sender
     if is_sender:
         if render_bubble.frame_count % 20 == 0:
             print(f"⌨️ Skipping typing bubble for sender {username} - using typing bar instead")
         return render_typing_bar_frame(username, "", duration=1.5)
 
+    # Use the MAIN renderer, but temporarily add typing message
     original_history = render_bubble.renderer.message_history.copy()
+    
+    # Add typing indicator to main renderer temporarily
     render_bubble.renderer.add_message(username, None, typing=True)
+    
     frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
     render_bubble.renderer.render_frame(frame_file, short_wait=True)
+    
+    # Restore original history (remove the typing message)
     render_bubble.renderer.message_history = original_history
 
+    # Use custom duration if available, else default to 1.5
     typing_key = f"typing:{username}"
     duration = custom_durations.get(typing_key, 1.5) if custom_durations else 1.5
     if duration <= 0:
@@ -578,6 +625,7 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
     }
 
     render_bubble.timeline.append(entry)
+    
     with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
         json.dump(render_bubble.timeline, tf, indent=2)
 
@@ -609,7 +657,7 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
     return frame_path, duration
 
 def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duration=None, is_character_typing=True):
-    """Render typing bar frames with CONTINUOUS sound logic"""
+    """SIMPLIFIED: Render typing bar frames with CONTINUOUS sound logic."""
     if render_bubble.frame_count % 50 == 0:
         debug_caller()
         print(f"🔍 CALLED WITH: '{upcoming_text}', duration={duration}, is_character_typing={is_character_typing}")
@@ -626,12 +674,16 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
     if not frame_path:
         frame_path = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
 
+    # Skip typing bar for non-sender
     if username.strip().lower() != MAIN_USER.lower():
         if render_bubble.frame_count % 20 == 0:
             print(f"⌨️ Non-sender '{username}' - using typing bubble instead of typing bar")
         return render_typing_bubble(username, custom_durations={})
 
+    # Save current history
     original_history = render_bubble.renderer.message_history.copy()
+
+    # Use short_wait=True for typing frames
     render_bubble.renderer.render_frame(
         frame_file=frame_path,
         show_typing_bar=True,
@@ -639,47 +691,64 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         upcoming_text=upcoming_text,
         short_wait=True
     )
+
+    # Restore original history
     render_bubble.renderer.message_history = original_history
 
+    # SIMPLE duration handling
     if duration is None or duration <= 0:
         if not is_character_typing or upcoming_text.endswith('|'):
-            frame_duration = 0.8
+            frame_duration = 0.8  # Longer for cursor blinks
         else:
-            frame_duration = 0.4
+            frame_duration = 0.4  # Shorter for actual typing
     else:
         frame_duration = duration
     
+    # ✅ SIMPLIFIED SOUND LOGIC: Continuous sound during active typing
     current_text = upcoming_text.replace("|", "").strip()
+    
+    # Get previous frame's text for comparison
     prev_text = ""
     if render_bubble.timeline:
+        # Look backwards for the most recent typing bar entry
         for entry in reversed(render_bubble.timeline):
             if entry.get("typing_bar"):
                 prev_text = entry.get("upcoming_text", "").replace("|", "").strip()
                 break
     
+    # ✅ NEW RULES FOR CONTINUOUS SOUND:
+    # 1. Play sound during ACTIVE typing (is_character_typing=True)
+    # 2. Stop sound during cursor blinks (is_character_typing=False)  
+    # 3. Stop sound when text is complete (no cursor) and we're in the last 3 frames
     should_play_sound = is_character_typing
+    
+    # Check if this is one of the last 3 frames (no cursor, complete text)
     is_final_frame = (not upcoming_text.endswith('|') and current_text)
     if is_final_frame:
-        should_play_sound = False
+        should_play_sound = False  # No sound in final frames
         if render_bubble.frame_count % 20 == 0:
             print(f"🎹 FINAL FRAME DETECTED: '{upcoming_text}' - NO SOUND")
 
     if render_bubble.frame_count % 50 == 0:
         print(f"🎹 SIMPLE SOUND: is_typing={is_character_typing} -> sound={should_play_sound}")
 
+    # Generate session ID for continuous sound grouping
     if not hasattr(render_bubble, 'current_typing_session'):
         render_bubble.current_typing_session = None
     
+    # Start new session when we begin typing after not typing
     if is_character_typing and not prev_text and current_text:
         render_bubble.current_typing_session = f"session_{render_bubble.frame_count}"
         if render_bubble.frame_count % 20 == 0:
             print(f"🎹 🆕 STARTING NEW TYPING SESSION: {render_bubble.current_typing_session}")
     
+    # End session when we stop typing
     if not is_character_typing and render_bubble.current_typing_session:
         if render_bubble.frame_count % 20 == 0:
             print(f"🎹 🛑 ENDING TYPING SESSION: {render_bubble.current_typing_session}")
         render_bubble.current_typing_session = None
 
+    # SIMPLE timeline entry
     entry = {
         "frame": os.path.abspath(frame_path),
         "duration": frame_duration,
@@ -698,6 +767,7 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         print(f"🎹 Frame {render_bubble.frame_count}: '{upcoming_text}' - Sound: {should_play_sound}")
 
     render_bubble.timeline.append(entry)
+
     with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
         json.dump(render_bubble.timeline, tf, indent=2)
 
@@ -705,7 +775,7 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
     return frame_path
 
 def generate_beluga_typing_sequence(real_message):
-    """Generate typing sequence with CONTINUOUS sound control"""
+    """FIXED: Actually renders typing frames with CONTINUOUS sound control"""
     if not real_message:
         return []
 
@@ -731,42 +801,50 @@ def generate_beluga_typing_sequence(real_message):
         return base * SPEED_MULTIPLIER
 
     def blink_frame(text, blinks=1):
+        """Adds cursor blinks - NO SOUND during blinks"""
         for _ in range(blinks):
-            sequence.append((text + "|", 0.25, False))
-            sequence.append((text, 0.25, False))
+            sequence.append((text + "|", 0.25, False))  # False = no typing activity (NO SOUND)
+            sequence.append((text, 0.25, False))        # False = no typing activity (NO SOUND)
 
+    # CONTROLLED fake typing (1-2 times per video, not per message)
     if not hasattr(render_bubble, 'fake_typing_count'):
         render_bubble.fake_typing_count = 0
-        render_bubble.max_fakes_per_video = random.randint(1, 2)
+        render_bubble.max_fakes_per_video = random.randint(1, 2)  # 1-2 fakes total
 
     if (render_bubble.fake_typing_count < render_bubble.max_fakes_per_video and 
-        random.random() < 0.4):
+        random.random() < 0.4):  # 40% chance per message
         
         fake = random.choice(fake_phrases)
         render_bubble.fake_typing_count += 1
         print(f"🎲 FAKE TYPING {render_bubble.fake_typing_count}/{render_bubble.max_fakes_per_video}: '{fake}'")
         
+        # Type fake text WITH SOUND (continuous)
         buf = ""
         for ch in fake:
             buf += ch
             sequence.append((buf + "|", typing_speed_for(ch), True))
         
+        # Blink cursor - NO SOUND
         blink_frame(buf, blinks=1)
         
+        # Delete fake text - NO SOUND
         for i in range(len(fake) - 1, -1, -1):
             buf = fake[:i]
             sequence.append((buf + "|", random.uniform(0.15, 0.25), False))
         
+        # Pause - NO SOUND
         sequence.append(("", 0.5, False))
     else:
         if random.random() < 0.05:
             print("🎲 No fake typing this message")
 
+    # Type actual message WITH SOUND (continuous)
     buf = ""
     for i, ch in enumerate(real_message):
         buf += ch
         is_active_typing = True
         
+        # Last 3 characters should have no sound
         if i >= len(real_message) - 3:
             is_active_typing = False
             if random.random() < 0.05:
@@ -774,6 +852,7 @@ def generate_beluga_typing_sequence(real_message):
             
         sequence.append((buf + "|", typing_speed_for(ch), is_active_typing))
 
+    # Final cursor blinks and stable frame - NO SOUND
     blink_frame(real_message, blinks=2)
     sequence.append((real_message, 0.8, False))
 
@@ -782,7 +861,7 @@ def generate_beluga_typing_sequence(real_message):
     return sequence
 
 def render_typing_sequence(username, real_message):
-    """Render typing sequence frames with sound"""
+    """FIXED: Actually renders the typing sequence frames with sound"""
     if random.random() < 0.05:
         debug_timeline_entries()
     
@@ -795,11 +874,12 @@ def render_typing_sequence(username, real_message):
         if i % 20 == 0:
             print(f"🎬 Rendering typing frame {i}: '{text}' - duration: {duration}s - sound: {has_sound}")
         
+        # Actually render the frame with sound information
         frame_path = render_typing_bar_frame(
             username=username,
             upcoming_text=text,
             duration=duration,
-            is_character_typing=has_sound
+            is_character_typing=has_sound  # This controls the sound!
         )
         rendered_frames.append(frame_path)
     
@@ -815,7 +895,7 @@ def cleanup_resources():
     print("🧹 Cleaned up rendering resources")
 
 def reset_typing_sessions():
-    """Reset typing session tracking"""
+    """Reset typing session tracking - call this when starting a new video"""
     if hasattr(render_bubble, 'typing_session_active'):
         render_bubble.typing_session_active = False
         render_bubble.typing_session_start = 0
@@ -857,6 +937,7 @@ if __name__ == "__main__":
                 print(f"✅ Matched meme '{meme_desc}' → {meme_file}")
                 frame_file = render_meme(MAIN_USER, meme_file)
 
+                # Add timeline entry with base64
                 render_bubble.timeline[-1]["is_meme"] = True
                 meme_info = encode_meme(meme_file)
                 render_bubble.timeline[-1]["meme_type"] = meme_info["meme_type"]
@@ -885,21 +966,28 @@ if __name__ == "__main__":
                 is_sender = (name.lower() == MAIN_USER.lower())
                 is_read = False
 
+                # 🔥 FIX: If it's Banka typing, render the typing sequence first
                 if is_sender and message:
                     print(f"🎬 Banka is typing: '{message}' - rendering typing sequence...")
+                    # Render the typing sequence with sound
                     render_typing_sequence(name, message)
+                    # Now render the final message bubble
                     print(f"🎬 Rendering final message after typing...")
                 
+                # Check if this message contains a meme reference
                 if "[MEME]" in message:
+                    # COMBINE: Send text + meme in the SAME bubble
                     text_part, meme_desc = message.split("[MEME]", 1)
                     text_message = text_part.strip()
                     meme_desc = meme_desc.strip()
 
                     print(f"🔎 Found meme in message: {name}: '{text_message}' + [MEME:{meme_desc}]")
                     
+                    # Look for meme file
                     meme_file = find_meme(meme_desc, assets_dir=os.path.join("assets", "memes", "auto"))
                     
                     if not meme_file:
+                        # Fallback to random meme
                         auto_dir = os.path.join("assets", "memes", "auto")
                         files = [f for f in os.listdir(auto_dir) if os.path.isfile(os.path.join(auto_dir, f))]
                         if files:
@@ -907,12 +995,15 @@ if __name__ == "__main__":
                             print(f"⚠️ No exact match for '{meme_desc}', using random: {meme_file}")
 
                     if meme_file and os.path.exists(meme_file):
+                        # Send text + meme in the SAME bubble
                         render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender, is_read=is_read)
                         print(f"✅ Combined message: {name}: '{text_message}' + meme")
                     else:
+                        # Fallback: just send text
                         render_bubble(name, text_message, is_sender=is_sender, is_read=is_read)
                         print(f"💬 Text only: {name}: {text_message} (meme not found)")
                 else:
+                    # Regular text message
                     if not is_sender:
                         for msg in render_bubble.renderer.message_history:
                             if msg["is_sender"]:
