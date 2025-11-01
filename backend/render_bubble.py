@@ -182,6 +182,62 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     }
     return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
 
+# ---------- CHARACTER AVATAR SYSTEM ---------- #
+# Import the character management functions from web_ui
+def get_character_avatar_path(username):
+    """Get the avatar path for a specific character, with fallbacks"""
+    try:
+        # Try to import from web_ui first
+        from web_ui import get_character_avatar_path as web_ui_get_avatar
+        avatar_path = web_ui_get_avatar(username)
+        if avatar_path and os.path.exists(avatar_path):
+            return avatar_path
+    except ImportError:
+        print(f"⚠️ Could not import from web_ui, using fallback for {username}")
+    
+    # Fallback logic
+    CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
+    if os.path.exists(CHARACTERS_FILE):
+        try:
+            with open(CHARACTERS_FILE, "r", encoding="utf-8") as f:
+                characters = json.load(f)
+            
+            if username in characters:
+                avatar_path = characters[username].get("avatar", "")
+                if avatar_path and os.path.exists(os.path.join(BASE_DIR, avatar_path)):
+                    return os.path.join(BASE_DIR, avatar_path)
+                elif avatar_path and os.path.exists(avatar_path):
+                    return avatar_path
+        except Exception as e:
+            print(f"⚠️ Error reading characters file: {e}")
+    
+    # Ultimate fallback
+    default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
+    if os.path.exists(default_path):
+        return default_path
+    
+    return "static/images/contact.png"
+
+def encode_avatar_for_html(avatar_path):
+    """Convert avatar image to base64 for HTML display"""
+    if not avatar_path or not os.path.exists(avatar_path):
+        return None
+    
+    try:
+        with open(avatar_path, "rb") as f:
+            avatar_data = base64.b64encode(f.read()).decode("utf-8")
+        
+        mime_type = "image/jpeg"
+        if avatar_path.lower().endswith('.png'):
+            mime_type = "image/png"
+        elif avatar_path.lower().endswith('.gif'):
+            mime_type = "image/gif"
+        
+        return f"data:{mime_type};base64,{avatar_data}"
+    except Exception as e:
+        print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
+        return None
+
 # ---------- HELPERS ---------- # 
 def encode_meme(path):
     if not path or not isinstance(path, str) or not os.path.exists(path):
@@ -255,7 +311,18 @@ class WhatsAppRenderer:
             ts = datetime.now().strftime("%#I:%M %p").lower()
 
         color = name_to_color(username)
-        avatar_path = get_avatar(username)
+        
+        # USE CHARACTER-SPECIFIC AVATAR SYSTEM
+        avatar_path = get_character_avatar_path(username)
+        avatar_data = encode_avatar_for_html(avatar_path)
+        
+        # If avatar encoding failed, use the old system as fallback
+        if not avatar_data:
+            old_avatar_path = get_avatar(username)
+            avatar_data = encode_avatar_for_html(old_avatar_path)
+            if not avatar_data:
+                # Ultimate fallback
+                avatar_data = encode_avatar_for_html(os.path.join(BASE_DIR, "static", "images", "contact.png"))
 
         meme_data = None
         if meme_path and os.path.exists(meme_path):
@@ -277,7 +344,7 @@ class WhatsAppRenderer:
             "is_read": is_read,
             "timestamp": ts,
             "color": color,
-            "avatar": os.path.basename(avatar_path)
+            "avatar": avatar_data  # Now using base64 encoded avatar
         }
     
         # Add meme data to the same message if present
@@ -289,7 +356,7 @@ class WhatsAppRenderer:
         self.message_history.append(message_entry)
         # REDUCED LOGGING: Only log every 5th message
         if self._render_count % 5 == 0:
-            print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing}")
+            print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing} - Avatar: {'✅' if avatar_data else '❌'}")
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", driver=None, short_wait=False):
         """
