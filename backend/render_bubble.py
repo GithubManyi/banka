@@ -183,9 +183,19 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
 
 # ---------- CHARACTER AVATAR SYSTEM ---------- #
+# Import the character management functions from web_ui
 def get_character_avatar_path(username):
-    """Get the avatar path for a specific character, with fallbacks - NO CIRCULAR IMPORTS"""
-    # Fallback logic - completely self-contained
+    """Get the avatar path for a specific character, with fallbacks"""
+    try:
+        # Try to import from web_ui first
+        from web_ui import get_character_avatar_path as web_ui_get_avatar
+        avatar_path = web_ui_get_avatar(username)
+        if avatar_path and os.path.exists(avatar_path):
+            return avatar_path
+    except ImportError:
+        print(f"⚠️ Could not import from web_ui, using fallback for {username}")
+    
+    # Fallback logic
     CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
     if os.path.exists(CHARACTERS_FILE):
         try:
@@ -194,16 +204,10 @@ def get_character_avatar_path(username):
             
             if username in characters:
                 avatar_path = characters[username].get("avatar", "")
-                if avatar_path:
-                    # Try multiple possible locations
-                    possible_paths = [
-                        os.path.join(BASE_DIR, avatar_path),
-                        avatar_path,
-                        os.path.join(BASE_DIR, "static", "images", "contact.png")
-                    ]
-                    for path in possible_paths:
-                        if os.path.exists(path):
-                            return path
+                if avatar_path and os.path.exists(os.path.join(BASE_DIR, avatar_path)):
+                    return os.path.join(BASE_DIR, avatar_path)
+                elif avatar_path and os.path.exists(avatar_path):
+                    return avatar_path
         except Exception as e:
             print(f"⚠️ Error reading characters file: {e}")
     
