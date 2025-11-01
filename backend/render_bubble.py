@@ -339,8 +339,8 @@ class WhatsAppRenderer:
         self.chat_status = chat_status
         self._last_render_time = 0
         self._render_count = 0
-    
-   def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
+
+    def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
         try:
             ts = datetime.now().strftime("%-I:%M %p").lower()
         except ValueError:
@@ -348,22 +348,18 @@ class WhatsAppRenderer:
     
         color = name_to_color(username)
         
-        # IMPROVED AVATAR HANDLING
+        # USE CHARACTER-SPECIFIC AVATAR SYSTEM (SELF-CONTAINED)
         avatar_path = get_character_avatar_path(username)
         avatar_data = encode_avatar_for_html(avatar_path)
         
-        # If avatar encoding failed, try the contact.png fallback directly
+        # If avatar encoding failed, use the old system as fallback
         if not avatar_data:
-            print(f"🔄 Trying contact.png fallback for {username}")
-            contact_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
-            if os.path.exists(contact_path):
-                avatar_data = encode_avatar_for_html(contact_path)
+            old_avatar_path = get_avatar(username)
+            avatar_data = encode_avatar_for_html(old_avatar_path)
+            if not avatar_data:
+                # Ultimate fallback
+                avatar_data = encode_avatar_for_html(os.path.join(BASE_DIR, "static", "images", "contact.png"))
     
-        # Log avatar status (reduced frequency)
-        if self._render_count % 10 == 0:
-            avatar_status = "✅" if avatar_data else "❌"
-            print(f"👤 Avatar for {username}: {avatar_status}")
-
         meme_data = None
         if meme_path and os.path.exists(meme_path):
             try:
@@ -374,7 +370,7 @@ class WhatsAppRenderer:
                     print(f"✅ add_message: meme encoded {meme_path} size={size_kb}KB mime={meme_data['mime']}")
             except Exception as e:
                 print(f"⚠️ add_message: failed to encode meme {meme_path}: {e}")
-
+    
         # Create single message entry with both text and meme
         message_entry = {
             "username": username,
