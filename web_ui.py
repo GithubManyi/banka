@@ -950,12 +950,11 @@ def handle_manual_script(script_text):
 def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, chat_title, chat_status, chat_avatar, moral_text):
     global latest_generated_script, rendering_in_progress
     
-    # LAZY IMPORT to avoid circular dependency
+    # LAZY IMPORT to avoid circular dependency - IMPORT ALL FUNCTIONS
     from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
     
     reset_typing_sessions()
 
-    # ADD DEBUG HERE
     print(f"🎬 DEBUG handle_render: moral_text = '{moral_text}'")
     print(f"🎬 DEBUG moral_text type: {type(moral_text)}")
     print(f"🎬 DEBUG moral_text is None: {moral_text is None}")
@@ -998,6 +997,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
             shutil.rmtree(frames_dir)
         os.makedirs(frames_dir, exist_ok=True)
 
+        # Initialize renderer using the imported WhatsAppRenderer
         render_bubble.frame_count = 0
         render_bubble.timeline = []
         render_bubble.renderer = WhatsAppRenderer()
@@ -1018,7 +1018,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
         render_bubble.renderer.chat_title = chat_title or "Banka😎"
         render_bubble.renderer.chat_status = dynamic_chat_status
         
-        # FIXED: Handle chat_avatar properly (it might be a list)
+        # Handle chat_avatar properly
         if chat_avatar:
             if isinstance(chat_avatar, list) and chat_avatar:
                 render_bubble.renderer.chat_avatar = chat_avatar[0].name if hasattr(chat_avatar[0], 'name') else str(chat_avatar[0])
@@ -1055,9 +1055,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                 
                 meme_file = fetch_meme_from_giphy(meme_desc)
                 if meme_file:
-                    # USE CHARACTER-SPECIFIC AVATAR FOR MEME SENDER
-                    character_avatar = get_character_avatar_path(meme_sender)
-                    # FIXED: Use the correct parameter name for render_bubble
+                    # Use the imported render_bubble function
                     render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
                     if render_bubble.timeline:
                         custom_key = ""
@@ -1087,9 +1085,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
 
                     meme_file = fetch_meme_from_giphy(meme_desc)
                     if meme_file:
-                        # USE CHARACTER-SPECIFIC AVATAR
-                        character_avatar = get_character_avatar_path(name)
-                        # FIXED: Use the correct parameter name for render_bubble
+                        # Use the imported render_bubble function
                         render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
                         if render_bubble.timeline:
                             custom_key = text_message.strip() if text_message.strip() else ""
@@ -1099,9 +1095,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     else:
                         print(f"⚠️ Meme not found, sending text only: {name}: {text_message}")
                         if text_message.strip():
-                            # USE CHARACTER-SPECIFIC AVATAR
-                            character_avatar = get_character_avatar_path(name)
-                            # FIXED: Use the correct parameter name for render_bubble
+                            # Use the imported render_bubble function
                             render_bubble(name, text_message, is_sender=is_sender)
                             if render_bubble.timeline:
                                 custom_key = text_message.strip()
@@ -1138,9 +1132,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     custom_key = text_message.strip()
                     duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
                     
-                    # USE CHARACTER-SPECIFIC AVATAR
-                    character_avatar = get_character_avatar_path(name)
-                    # FIXED: Use the correct parameter name for render_bubble
+                    # Use the imported render_bubble function
                     render_bubble(name, text_message, is_sender=is_sender)
                     
                     if render_bubble.timeline:
@@ -1151,7 +1143,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
             json.dump(render_bubble.timeline, f, indent=2)
         print(f"✅ Saved timeline with {len(render_bubble.timeline)} entries")
 
-        # FIXED: Use the safe file path function
+        # Get file paths
         bg_path = get_file_path(bg_upload, bg_choice, DEFAULT_BG)
         send_path = get_file_path(send_upload, send_choice, DEFAULT_SEND)
         recv_path = get_file_path(recv_upload, recv_choice, DEFAULT_RECV)
@@ -1166,18 +1158,20 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
         if use_segments and os.path.exists(BG_TIMELINE_FILE):
             with open(BG_TIMELINE_FILE, "r", encoding="utf-8") as f:
                 bg_segments = json.load(f)
-        
 
         try:
+            # Import video builder here to avoid circular imports
+            from backend.generate_video import build_video_from_timeline
+            
             video_path = build_video_from_timeline(
                 bg_audio=bg_path, 
                 send_audio=send_path, 
                 recv_audio=recv_path, 
                 typing_audio=typing_path,
-                typing_bar_audio=typing_bar_path,  # Add typing bar audio
-                use_segments=use_segments,  # Use segments if BG timeline file exists
-                bg_segments=bg_segments if use_segments else None,  # Pass segments data
-                moral_text=moral_text  # ADD THIS LINE - pass moral text
+                typing_bar_audio=typing_bar_path,
+                use_segments=use_segments,
+                bg_segments=bg_segments if use_segments else None,
+                moral_text=moral_text
             )
             if video_path:
                 optimized_path = video_path.replace('.mp4', '_optimized.mp4')
@@ -1204,7 +1198,6 @@ def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, t
     
     rendering_in_progress = True
 
-    # ADD DEBUG HERE
     print(f"🎬 DEBUG handle_timeline_render: moral_text = '{moral_text}'")
     print(f"🎬 DEBUG moral_text type: {type(moral_text)}")
     print(f"🎬 DEBUG moral_text is None: {moral_text is None}")
