@@ -80,19 +80,7 @@ try:
 except ImportError as e:
     print(f"⚠️ Could not import avatar_handler: {e}")
 
-try:
-    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
-    print("✅ Render bubble modules imported")
-    
-    # Initialize renderer state (fresh each session)
-    render_bubble.frame_count = 0
-    render_bubble.timeline = []
-    render_bubble.renderer = WhatsAppRenderer()
-    print("✅ Renderer initialized")
-    
-except ImportError as e:
-    print(f"❌ Failed to import render_bubble modules: {e}")
-    # Create dummy functions to prevent crashes
+    # Dummy render_bubble functions to prevent crashes (will be replaced by lazy imports)
     class WhatsAppRenderer:
         def __init__(self, *args, **kwargs):
             pass
@@ -106,11 +94,11 @@ except ImportError as e:
         return []
     def reset_typing_sessions():
         pass
-    
-    # Set up the global variables your code expects
-    render_bubble.frame_count = 0
-    render_bubble.timeline = []
-    render_bubble.renderer = WhatsAppRenderer()
+
+# Set up the global variables your code expects
+render_bubble.frame_count = 0
+render_bubble.timeline = []
+render_bubble.renderer = WhatsAppRenderer()
 
 try:
     from groq import Groq
@@ -947,6 +935,10 @@ def handle_manual_script(script_text):
 
 def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, chat_title, chat_status, chat_avatar, moral_text):
     global latest_generated_script, rendering_in_progress
+    
+    # LAZY IMPORT to avoid circular dependency
+    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
+    
     reset_typing_sessions()
 
     # ADD DEBUG HERE
@@ -1192,6 +1184,10 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
 
 def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
     global rendering_in_progress
+    
+    # LAZY IMPORT to avoid circular dependency
+    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
+    
     rendering_in_progress = True
 
     # ADD DEBUG HERE
@@ -1199,6 +1195,7 @@ def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, t
     print(f"🎬 DEBUG moral_text type: {type(moral_text)}")
     print(f"🎬 DEBUG moral_text is None: {moral_text is None}")
     print(f"🎬 DEBUG moral_text is empty string: {moral_text == ''}")
+    
     
     try:
         print("🎬 ===== TIMELINE RENDER DEBUGGING =====")
