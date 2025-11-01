@@ -80,7 +80,19 @@ try:
 except ImportError as e:
     print(f"⚠️ Could not import avatar_handler: {e}")
 
-    # Dummy render_bubble functions to prevent crashes (will be replaced by lazy imports)
+try:
+    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
+    print("✅ Render bubble modules imported")
+    
+    # Initialize renderer state (fresh each session)
+    render_bubble.frame_count = 0
+    render_bubble.timeline = []
+    render_bubble.renderer = WhatsAppRenderer()
+    print("✅ Renderer initialized")
+    
+except ImportError as e:
+    print(f"❌ Failed to import render_bubble modules: {e}")
+    # Create dummy functions to prevent crashes
     class WhatsAppRenderer:
         def __init__(self, *args, **kwargs):
             pass
@@ -94,11 +106,13 @@ except ImportError as e:
         return []
     def reset_typing_sessions():
         pass
+    
+    # Set up the global variables your code expects
+    render_bubble.frame_count = 0
+    render_bubble.timeline = []
+    render_bubble.renderer = WhatsAppRenderer()
 
-# Set up the global variables your code expects
-render_bubble.frame_count = 0
-render_bubble.timeline = []
-render_bubble.renderer = WhatsAppRenderer()
+    
 
 try:
     from groq import Groq
