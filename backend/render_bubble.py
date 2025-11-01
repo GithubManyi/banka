@@ -131,37 +131,6 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     }
     return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
 
-# ---------- CHARACTER AVATAR SYSTEM ---------- #
-def get_character_avatar_path(username):
-    """Get the avatar path for a specific character, with fallbacks - NO CIRCULAR IMPORTS"""
-    # Fallback logic - completely self-contained
-    CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
-    if os.path.exists(CHARACTERS_FILE):
-        try:
-            with open(CHARACTERS_FILE, "r", encoding="utf-8") as f:
-                characters = json.load(f)
-            
-            if username in characters:
-                avatar_path = characters[username].get("avatar", "")
-                if avatar_path:
-                    # Try multiple possible locations
-                    possible_paths = [
-                        os.path.join(BASE_DIR, avatar_path),
-                        avatar_path,
-                        os.path.join(BASE_DIR, "static", "images", "contact.png")
-                    ]
-                    for path in possible_paths:
-                        if os.path.exists(path):
-                            return path
-        except Exception as e:
-            print(f"⚠️ Error reading characters file: {e}")
-    
-    # Ultimate fallback
-    default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
-    if os.path.exists(default_path):
-        return default_path
-    
-    return "static/images/contact.png"
 
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display"""
