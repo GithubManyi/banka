@@ -236,51 +236,37 @@ class WhatsAppRenderer:
             ts = datetime.now().strftime("%#I:%M %p").lower()
     
         color = name_to_color(username)
-        
-        # USE CHARACTER-SPECIFIC AVATAR SYSTEM (SELF-CONTAINED)
-        avatar_web = get_character_avatar_path(username)
-        
-        # Convert web path -> filesystem path
-        avatar_fs = os.path.join(BASE_DIR, avatar_web)
-        
-        # Try encoding base64
+    
+        # --- AVATAR RESOLUTION SYSTEM ---
+        avatar_web = get_character_avatar_path(username)  # static/avatars/Name.png
+        avatar_fs = os.path.join(BASE_DIR, avatar_web)    # real file path
+    
+        # Try to load avatar
+        if os.path.exists(avatar_fs):
+            avatar_path = avatar_fs
+        else:
+            # fallback
+            avatar_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
+    
+        # Determine mime
+        mime = "image/png" if avatar_path.endswith(".png") else "image/jpeg"
+    
+        # Encode avatar
         try:
-            avatar_data = encode_avatar_for_html(avatar_fs)
+            with open(avatar_path, "rb") as f:
+                avatar_data = base64.b64encode(f.read()).decode("utf-8")
         except:
-            avatar_data = None
-
-        print("==== AVATAR DEBUG ====")
-        print("USERNAME:", username)
-        print("WEB AVATAR PATH:", avatar_web)
-        print("FS AVATAR PATH:", avatar_fs, os.path.exists(avatar_fs))
-        print("==== END DEBUG ====")
-
-        
-        # ✅ Standardize avatar folder — always static/avatars
-        if not avatar_data:
-            fallback_path = os.path.join(BASE_DIR, "static", "avatars", f"{username}.png")
-            if os.path.exists(fallback_path):
-                avatar_data = encode_avatar_for_html(fallback_path)
-            else:
-                # ✅ Ultimate fallback placeholder
-                fallback_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
-                avatar_data = encode_avatar_for_html(fallback_path)
-        
-        # Safety guard
-        avatar_data = avatar_data or ""
-
+            avatar_data = ""
+    
+        # --- MEME HANDLING ---
         meme_data = None
         if meme_path and os.path.exists(meme_path):
             try:
                 meme_data = encode_meme(meme_path)
-                size_kb = os.path.getsize(meme_path) // 1024
-                # REDUCED LOGGING: Only log every 10th meme
-                if self._render_count % 10 == 0:
-                    print(f"✅ add_message: meme encoded {meme_path} size={size_kb}KB mime={meme_data['mime']}")
             except Exception as e:
-                print(f"⚠️ add_message: failed to encode meme {meme_path}: {e}")
-
-        # Create single message entry with both text and meme
+                print(f"⚠️ Meme encode failed: {e}")
+    
+        # --- BUILD MESSAGE ENTRY ---
         message_entry = {
             "username": username,
             "text": message if not typing else "",
@@ -289,22 +275,17 @@ class WhatsAppRenderer:
             "is_read": is_read,
             "timestamp": ts,
             "color": color,
-            "avatar": avatar_data  # Now using base64 encoded avatar
+            "avatar": avatar_data,
+            "avatar_format": mime
         }
     
-        # Add meme data to the same message if present
         if meme_data:
             message_entry["meme"] = meme_data["meme"]
             message_entry["meme_type"] = meme_data["meme_type"]
             message_entry["mime"] = meme_data["mime"]
     
         self.message_history.append(message_entry)
-        # REDUCED LOGGING: Only log every 5th message
-        if self._render_count % 5 == 0:
-            print(f"✅ Added message: {username} - Text: '{message}' - Has meme: {bool(meme_data)} - Typing: {typing} - Avatar: {'✅' if avatar_data else '❌'}")
-            print("WEB AVATAR PATH:", avatar_web)
-            print("FS AVATAR PATH:", avatar_fs, os.path.exists(avatar_fs))
-            print("USERNAME:", username)
+
 
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
@@ -329,7 +310,7 @@ class WhatsAppRenderer:
                 return f"CACHED: {cached_frame}"
         
         template = self.jinja_env.get_template(TEMPLATE_FILE)
-    
+      
         # Filter typing bubbles for sender
         filtered_messages = []
         for msg in self.message_history:
