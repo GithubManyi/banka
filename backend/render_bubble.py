@@ -13,6 +13,9 @@ import random
 import traceback
 import gc
 import logging
+from web_ui import get_character_avatar_path
+from web_ui import encode_avatar_for_html 
+
 
 # Reduce logging verbosity
 logging.getLogger('html2image').setLevel(logging.WARNING)
