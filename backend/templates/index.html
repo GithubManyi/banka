@@ -593,13 +593,13 @@
             </div>
             {% if is_first_in_group %}
               <div class="msg-avatar">
-                <img src="static/images/{{ msg.avatar }}" alt="">
+                <img src="data:image/png;base64,{{ msg.avatar }}" alt="" class="avatar">
               </div>
             {% endif %}
           {% else %}
             {% if is_first_in_group %}
               <div class="msg-avatar">
-                <img src="static/images/{{ msg.avatar }}" alt="">
+                <img src="data:image/png;base64,{{ msg.avatar }}" alt="" class="avatar">
               </div>
             {% endif %}
             <div class="bubble">
