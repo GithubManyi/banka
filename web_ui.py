@@ -286,32 +286,30 @@ def get_character_details(name):
         return {"avatar": "static/images/contact.png", "personality": ""}
         
 def get_character_avatar_path(username):
-    """Get the avatar path for a specific character, with fallbacks"""
+    """Return the web path (not filesystem path) for avatars"""
     characters = load_characters()
-    
-    # Check if this is a known character
+
+    # Default fallback avatar (web path)
+    default_web = "static/images/contact.png"
+    default_fs = os.path.join(PROJECT_ROOT, default_web)
+
+    # If character exists and has avatar set
     if username in characters:
-        avatar_path = characters[username].get("avatar", "")
-        if avatar_path and os.path.exists(os.path.join(PROJECT_ROOT, avatar_path)):
-            return os.path.join(PROJECT_ROOT, avatar_path)
-        elif avatar_path:
-            # Try relative path
-            if os.path.exists(avatar_path):
-                return avatar_path
-    
-    # Fallback for "You" (Banka)
-    if username.lower() == "banka" or username.lower() == "you":
-        default_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
-        if os.path.exists(default_path):
-            return default_path
-    
-    # Fallback for other characters
-    default_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
-    if os.path.exists(default_path):
-        return default_path
-    
-    # Ultimate fallback
-    return "static/images/contact.png"
+        avatar_web = characters[username].get("avatar", default_web)
+        avatar_fs = os.path.join(PROJECT_ROOT, avatar_web)
+
+        # If actual file exists → return web path
+        if os.path.exists(avatar_fs):
+            return avatar_web
+
+    # Special case for 'you' / Banka
+    if username.lower() in ["banka", "you"]:
+        if os.path.exists(default_fs):
+            return default_web
+
+    # Fallback
+    return default_web
+
 
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display"""
