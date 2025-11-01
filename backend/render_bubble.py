@@ -24,7 +24,6 @@ import traceback
 import psutil
 import gc
 import logging
-from functools import wraps
 
 # Reduce logging verbosity for HTML2Image and other noisy libraries
 logging.getLogger('html2image').setLevel(logging.WARNING)
@@ -82,14 +81,14 @@ import html2image
 HTI = None
 
 def get_html2image():
-    """Get or create HTML2Image instance with MAXIMUM performance optimizations"""
+    """Get or create HTML2Image instance with optimized Chrome flags to minimize errors"""
     global HTI
     if HTI is None:
         try:
             # Try multiple possible Chromium paths
             possible_paths = [
                 '/usr/bin/chromium',
-                '/usr/bin/chromium-browser', 
+                '/usr/bin/chromium-browser',
                 '/usr/bin/google-chrome',
                 '/usr/bin/chrome',
                 '/app/.apt/usr/bin/chromium-browser'
@@ -103,7 +102,7 @@ def get_html2image():
                     break
             
             if chromium_path:
-                # MAXIMUM PERFORMANCE CHROME FLAGS
+                # OPTIMIZED CHROME FLAGS TO MINIMIZE ERRORS
                 chrome_flags = [
                     '--no-sandbox',
                     '--disable-dev-shm-usage',
@@ -129,31 +128,15 @@ def get_html2image():
                     '--disable-in-process-stack-traces',
                     '--disable-logging',
                     '--disable-breakpad',
-                    '--memory-pressure-off',
-                    '--max-old-space-size=4096',
-                    '--single-process',  # CRITICAL FOR PERFORMANCE
-                    '--no-zygote',
-                    '--disable-setuid-sandbox',
-                    '--disable-extensions',
-                    '--disable-plugins',
-                    '--disable-translate',
-                    '--disable-background-networking',
-                    '--safebrowsing-disable-auto-update',
-                    '--disable-sync',
-                    '--metrics-recording-only',
-                    '--disable-default-apps',
-                    '--noerrdialogs',
-                    '--remote-debugging-port=0',
-                    '--disable-component-extensions-with-background-pages'
+                    '--memory-pressure-off'
                 ]
                 
                 HTI = html2image.Html2Image(
                     browser='chromium',
                     browser_executable=chromium_path,
-                    custom_flags=chrome_flags,
-                    output_path=FRAMES_DIR  # Save directly to frames directory
+                    custom_flags=chrome_flags
                 )
-                print("🚀 Created OPTIMIZED HTML2Image renderer")
+                print("🚀 Created HTML2Image renderer with optimized Chrome flags")
             else:
                 print("❌ No Chromium found, will use PIL fallback")
                 HTI = None
@@ -161,19 +144,6 @@ def get_html2image():
             print(f"⚠️ HTML2Image setup failed: {e}")
             HTI = None
     return HTI
-
-def batch_render_frames(frame_requests):
-    """Batch render multiple frames for better performance"""
-    if not frame_requests:
-        return []
-    
-    rendered_frames = []
-    
-    for username, message, meme_path, is_sender in frame_requests:
-        frame_file = render_bubble(username, message, meme_path=meme_path, is_sender=is_sender)
-        rendered_frames.append(frame_file)
-    
-    return rendered_frames
 
 # Update the cleanup function:
 def cleanup_resources():
@@ -213,13 +183,9 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
 
 # ---------- CHARACTER AVATAR SYSTEM ---------- #
-# Import the character management functions from web_ui
-# ---------- CHARACTER AVATAR SYSTEM ---------- #
 def get_character_avatar_path(username):
-    """Get the avatar path for a specific character, with robust fallbacks - NO CIRCULAR IMPORTS"""
-    print(f"🔍 Looking for avatar for: {username}")
-    
-    # First, try the characters.json file
+    """Get the avatar path for a specific character, with fallbacks - NO CIRCULAR IMPORTS"""
+    # Fallback logic - completely self-contained
     CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
     if os.path.exists(CHARACTERS_FILE):
         try:
@@ -228,80 +194,44 @@ def get_character_avatar_path(username):
             
             if username in characters:
                 avatar_path = characters[username].get("avatar", "")
-                print(f"📁 Found character '{username}' in characters.json, avatar path: {avatar_path}")
-                
                 if avatar_path:
-                    # Try multiple possible locations in order of priority
+                    # Try multiple possible locations
                     possible_paths = [
-                        os.path.join(BASE_DIR, avatar_path),  # Absolute path from project root
-                        avatar_path,                          # Path as stored
-                        os.path.join(BASE_DIR, "static", "avatars", os.path.basename(avatar_path)),  # Avatars directory
-                        os.path.join(BASE_DIR, "static", "images", "contact.png")  # Ultimate fallback
+                        os.path.join(BASE_DIR, avatar_path),
+                        avatar_path,
+                        os.path.join(BASE_DIR, "static", "images", "contact.png")
                     ]
-                    
                     for path in possible_paths:
                         if os.path.exists(path):
-                            print(f"✅ Using avatar: {path}")
                             return path
-                        else:
-                            print(f"❌ Path not found: {path}")
-            else:
-                print(f"⚠️ Character '{username}' not found in characters.json")
         except Exception as e:
             print(f"⚠️ Error reading characters file: {e}")
-    else:
-        print(f"⚠️ Characters file not found at: {CHARACTERS_FILE}")
-    
-    # Fallback for "You" (Banka)
-    if username.lower() in ["banka", "you"]:
-        default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
-        if os.path.exists(default_path):
-            print(f"✅ Using Banka default avatar: {default_path}")
-            return default_path
     
     # Ultimate fallback
     default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
     if os.path.exists(default_path):
-        print(f"🔄 Using ultimate fallback avatar: {default_path}")
         return default_path
     
-    print(f"❌ No avatar found for {username}, using generic circle")
-    return None
+    return "static/images/contact.png"
 
 def encode_avatar_for_html(avatar_path):
-    """Convert avatar image to base64 for HTML display with better error handling"""
-    if not avatar_path:
-        print("⚠️ No avatar path provided")
-        return None
-    
-    if not os.path.exists(avatar_path):
-        print(f"⚠️ Avatar file does not exist: {avatar_path}")
+    """Convert avatar image to base64 for HTML display"""
+    if not avatar_path or not os.path.exists(avatar_path):
         return None
     
     try:
-        # Verify it's a valid image file
-        with Image.open(avatar_path) as img:
-            img.verify()  # Verify it's a valid image
-            
-        # Now read and encode the file
         with open(avatar_path, "rb") as f:
             avatar_data = base64.b64encode(f.read()).decode("utf-8")
         
-        # Determine MIME type
-        mime_type = "image/jpeg"  # default
+        mime_type = "image/jpeg"
         if avatar_path.lower().endswith('.png'):
             mime_type = "image/png"
         elif avatar_path.lower().endswith('.gif'):
             mime_type = "image/gif"
-        elif avatar_path.lower().endswith('.webp'):
-            mime_type = "image/webp"
-            
-        result = f"data:{mime_type};base64,{avatar_data}"
-        print(f"✅ Successfully encoded avatar: {avatar_path} -> {mime_type}")
-        return result
         
+        return f"data:{mime_type};base64,{avatar_data}"
     except Exception as e:
-        print(f"❌ Failed to encode avatar {avatar_path}: {e}")
+        print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
         return None
 
 # ---------- HELPERS ---------- # 
@@ -369,16 +299,16 @@ class WhatsAppRenderer:
         self.chat_status = chat_status
         self._last_render_time = 0
         self._render_count = 0
-
+    
     def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
         try:
             ts = datetime.now().strftime("%-I:%M %p").lower()
         except ValueError:
             ts = datetime.now().strftime("%#I:%M %p").lower()
-    
+
         color = name_to_color(username)
         
-        # USE CHARACTER-SPECIFIC AVATAR SYSTEM (SELF-CONTAINED)
+        # USE CHARACTER-SPECIFIC AVATAR SYSTEM
         avatar_path = get_character_avatar_path(username)
         avatar_data = encode_avatar_for_html(avatar_path)
         
@@ -389,7 +319,7 @@ class WhatsAppRenderer:
             if not avatar_data:
                 # Ultimate fallback
                 avatar_data = encode_avatar_for_html(os.path.join(BASE_DIR, "static", "images", "contact.png"))
-    
+
         meme_data = None
         if meme_path and os.path.exists(meme_path):
             try:
@@ -400,7 +330,7 @@ class WhatsAppRenderer:
                     print(f"✅ add_message: meme encoded {meme_path} size={size_kb}KB mime={meme_data['mime']}")
             except Exception as e:
                 print(f"⚠️ add_message: failed to encode meme {meme_path}: {e}")
-    
+
         # Create single message entry with both text and meme
         message_entry = {
             "username": username,
@@ -601,22 +531,7 @@ class WhatsAppRenderer:
         
         return rendered_html
 
-
-
-def timeit(func):
-    @wraps(func)
-    def timeit_wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        if total_time > 1.0:  # Only log slow operations
-            print(f'⏱️ {func.__name__} took {total_time:.2f} seconds')
-        return result
-    return timeit_wrapper
-
-# Decorate slow functions:
-@timeit
+# ---------- BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
     """
     Optimized bubble rendering with performance improvements.
