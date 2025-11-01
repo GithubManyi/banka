@@ -286,29 +286,44 @@ def get_character_details(name):
         return {"avatar": "static/images/contact.png", "personality": ""}
         
 def get_character_avatar_path(username):
-    """Return the web path (not filesystem path) for avatars"""
+    """Return web path for avatar in this order:
+       1) User-saved avatar from JSON 
+       2) static/avatars/<name>.(png/jpg)
+       3) default contact icon
+    """
+
     characters = load_characters()
 
-    # Default fallback avatar (web path)
+    # Default fallback avatar
     default_web = "static/images/contact.png"
     default_fs = os.path.join(PROJECT_ROOT, default_web)
 
-    # If character exists and has avatar set
-    if username in characters:
-        avatar_web = characters[username].get("avatar", default_web)
-        avatar_fs = os.path.join(PROJECT_ROOT, avatar_web)
+    username_clean = username.strip()
+    avatar_candidates = []
 
-        # If actual file exists → return web path
-        if os.path.exists(avatar_fs):
-            return avatar_web
+    # 1) Avatar from character JSON
+    if username_clean in characters:
+        avatar_web = characters[username_clean].get("avatar", "")
+        if avatar_web:
+            avatar_candidates.append(avatar_web)
 
-    # Special case for 'you' / Banka
-    if username.lower() in ["banka", "you"]:
-        if os.path.exists(default_fs):
-            return default_web
+    # 2) Avatar from avatars folder — PNG & JPG support
+    png_path = f"static/avatars/{username_clean}.png"
+    jpg_path = f"static/avatars/{username_clean}.jpg"
 
-    # Fallback
+    avatar_candidates.extend([png_path, jpg_path])
+
+    # 3) Final fallback
+    avatar_candidates.append(default_web)
+
+    # Resolve first valid path
+    for candidate in avatar_candidates:
+        full_path = os.path.join(PROJECT_ROOT, candidate)
+        if os.path.exists(full_path):
+            return candidate
+
     return default_web
+
 
 
 def encode_avatar_for_html(avatar_path):
