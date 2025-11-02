@@ -324,8 +324,6 @@ def get_character_avatar_path(username):
 
     return default_web
 
-
-
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display"""
     if not avatar_path or not os.path.exists(avatar_path):
@@ -402,7 +400,6 @@ def handle_character_avatar_upload(avatar_file, character_name):
         import traceback
         traceback.print_exc()
         return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
-
 
 # =============================================
 # FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
@@ -2078,6 +2075,65 @@ def test_bg_music_system():
     print("🔊 ===== TEST COMPLETE =====")
     return "✅ System test complete. Check console for details."
 
+# =============================================
+# DEBUG AVATAR PATHS FUNCTION
+# =============================================
+
+def debug_avatar_paths():
+    """Debug function to check avatar paths for all characters"""
+    characters = load_characters()
+    results = []
+    
+    for char_name, char_data in characters.items():
+        avatar_path = char_data.get("avatar", "")
+        full_path = os.path.join(PROJECT_ROOT, avatar_path) if avatar_path else ""
+        exists = os.path.exists(full_path) if full_path else False
+        
+        results.append({
+            "character": char_name,
+            "avatar_path": avatar_path,
+            "full_path": full_path,
+            "exists": exists
+        })
+        
+        print(f"🔍 {char_name}: {avatar_path} -> {full_path} -> {'✅ EXISTS' if exists else '❌ MISSING'}")
+    
+    # Also check avatars directory
+    avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+    if os.path.exists(avatars_dir):
+        avatar_files = os.listdir(avatars_dir)
+        print(f"📁 Avatars directory: {avatars_dir}")
+        print(f"📁 Files in avatars: {avatar_files}")
+    
+    return f"✅ Debug complete. Check console for details. Found {len(characters)} characters."
+
+def force_avatar_update():
+    """Force update all character avatars to use the new system"""
+    characters = load_characters()
+    updated_count = 0
+    
+    for char_name, char_data in characters.items():
+        avatar_path = char_data.get("avatar", "")
+        if avatar_path and avatar_path.startswith("static/avatars/"):
+            # Already correct format
+            continue
+        
+        # Check if avatar exists in avatars directory
+        avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+        for ext in ['.png', '.jpg', '.jpeg']:
+            possible_path = os.path.join(avatars_dir, f"{char_name}{ext}")
+            if os.path.exists(possible_path):
+                relative_path = f"static/avatars/{char_name}{ext}"
+                characters[char_name]["avatar"] = relative_path
+                updated_count += 1
+                print(f"✅ Updated {char_name} -> {relative_path}")
+                break
+    
+    if updated_count > 0:
+        save_characters(characters)
+        return f"✅ Updated {updated_count} character avatars"
+    else:
+        return "✅ No updates needed"
 
 # =============================================
 # GRADIO UI WITH CHARACTER MANAGEMENT
@@ -2090,9 +2146,6 @@ with gr.Blocks() as demo:
     with gr.Tabs() as tabs:
         # ====================================
         # TAB 1: Character Management
-        # ====================================
-                # ====================================
-        # TAB 1: Character Management (FIXED)
         # ====================================
         with gr.TabItem("👥 Character Management", id="characters_tab"):
             gr.Markdown("### Manage Characters for Your Stories")
@@ -2129,6 +2182,8 @@ with gr.Blocks() as demo:
                     with gr.Row():
                         refresh_chars_btn = gr.Button("🔄 Refresh List")
                         use_chars_btn = gr.Button("🎭 Use in Script")
+                        debug_avatar_btn = gr.Button("🐛 Debug Avatar Paths")
+                        force_avatar_btn = gr.Button("🔧 Force Avatar Update")
             
             # FIXED Character management event handlers
             def refresh_characters():
@@ -2243,6 +2298,16 @@ with gr.Blocks() as demo:
             use_chars_btn.click(
                 fn=use_characters_in_script,
                 outputs=[character_name]
+            )
+            
+            debug_avatar_btn.click(
+                fn=debug_avatar_paths,
+                outputs=[char_status]
+            )
+            
+            force_avatar_btn.click(
+                fn=force_avatar_update,
+                outputs=[char_status]
             )
 
         # ====================================
