@@ -367,9 +367,9 @@ def get_character_avatar_path(username):
         if os.path.exists(avatar_path):
             return f"static/avatars/{username_clean}{ext}"
     
-    # 3) Final fallback to default
-    print(f"⚠️ Using default avatar for {username_clean}")
-    return default_web
+    # 3) Return special value to indicate we should use initials
+    print(f"⚠️ No avatar found for {username_clean}, will use initials")
+    return "INITIALS"
 
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display"""
@@ -453,6 +453,11 @@ def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_re
     try:
         # Ensure avatar exists before calling render_bubble
         avatar_path = get_character_avatar_path(username)
+        
+        # If no avatar found, create one with initials
+        if avatar_path == "INITIALS":
+            avatar_path = get_or_create_initial_avatar(username)
+        
         full_avatar_path = os.path.join(PROJECT_ROOT, avatar_path)
         
         if not os.path.exists(full_avatar_path):
@@ -471,6 +476,106 @@ def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_re
     except Exception as e:
         print(f"❌ Error in safe_render_bubble for {username}: {e}")
         raise
+
+
+def generate_avatar_with_initials(username, size=200):
+    """Generate a WhatsApp-style avatar with initials"""
+    # Generate initials from name (like WhatsApp does)
+    def get_initials(name):
+        # Remove extra spaces and split into words
+        words = name.strip().split()
+        if len(words) == 0:
+            return "?"
+        elif len(words) == 1:
+            # Single word - take first character only (like real WhatsApp)
+            return name[:1].upper()
+        else:
+            # Multiple words - take first letter of first and last word
+            return (words[0][0] + words[-1][0]).upper()
+    
+    initials = get_initials(username)
+    
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import random
+        
+        # WhatsApp-like colors (similar to their color palette)
+        colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+            '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
+        ]
+        
+        # Pick a consistent color based on username hash
+        color_index = hash(username) % len(colors)
+        background_color = colors[color_index]
+        
+        # Create image
+        img = Image.new('RGB', (size, size), color=background_color)
+        draw = ImageDraw.Draw(img)
+        
+        # Try to use a nice font, fallback to default
+        try:
+            # Try to use a bold font - larger size for single letters
+            if len(initials) == 1:
+                font_size = size // 2  # Bigger for single letters
+            else:
+                font_size = size // 3  # Smaller for two letters
+            
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+        except:
+            try:
+                # Fallback to any available font
+                font = ImageFont.load_default()
+            except:
+                font = None
+        
+        # Calculate text position (centered)
+        if font:
+            # Get text bounding box
+            bbox = draw.textbbox((0, 0), initials, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            x = (size - text_width) // 2
+            y = (size - text_height) // 2
+        else:
+            # Fallback positioning
+            x = size // 3
+            y = size // 3
+        
+        # Draw the text
+        draw.text((x, y), initials, fill='white', font=font)
+        
+        return img
+        
+    except ImportError:
+        print("⚠️ PIL not available, cannot generate avatar with initials")
+        return None
+    except Exception as e:
+        print(f"⚠️ Error generating avatar with initials: {e}")
+        return None
+
+def get_or_create_initial_avatar(username):
+    """Get or create an avatar with initials for a username"""
+    avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+    os.makedirs(avatars_dir, exist_ok=True)
+    
+    # Check if we already created an initial avatar for this user
+    avatar_filename = f"{username}_initials.png"
+    avatar_path = os.path.join(avatars_dir, avatar_filename)
+    
+    if os.path.exists(avatar_path):
+        return f"static/avatars/{avatar_filename}"
+    
+    # Generate new avatar with initials
+    avatar_image = generate_avatar_with_initials(username)
+    if avatar_image:
+        avatar_image.save(avatar_path, 'PNG')
+        print(f"✅ Created initial avatar for {username}: {initials} -> {avatar_path}")
+        return f"static/avatars/{avatar_filename}"
+    else:
+        # Fallback to default contact image
+        return "static/images/contact.png"
 
 # =============================================
 # FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
