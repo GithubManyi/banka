@@ -13,9 +13,6 @@ import random
 import traceback
 import gc
 import logging
-from web_ui import get_character_avatar_path
-from web_ui import encode_avatar_for_html 
-
 
 # Reduce logging verbosity
 logging.getLogger('html2image').setLevel(logging.WARNING)
@@ -38,12 +35,94 @@ OUTPUT_HTML = os.path.join(BASE_DIR, "rendered_chat.html")
 FRAMES_DIR = os.path.join(BASE_DIR, "frames")
 TIMELINE_FILE = os.path.join(FRAMES_DIR, "timeline.json")
 AVATAR_DIR = os.path.join(BASE_DIR, "static", "avatars")
-
+CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
 
 os.makedirs(FRAMES_DIR, exist_ok=True)
 
 MAIN_USER = "Banka"  # right-side sender
 W, H = 1904, 934  # match video size
+
+# ---------- AVATAR MANAGEMENT SYSTEM ---------- #
+def load_characters():
+    """Load characters from JSON file - SELF CONTAINED"""
+    if os.path.exists(CHARACTERS_FILE):
+        try:
+            with open(CHARACTERS_FILE, "r", encoding="utf-8") as f:
+                characters = json.load(f)
+            return characters
+        except Exception as e:
+            print(f"❌ Error loading characters: {e}")
+            return {}
+    return {}
+
+def get_character_avatar_path(username):
+    """Get the correct avatar path for a character - SELF CONTAINED"""
+    characters = load_characters()
+    
+    # Default fallback
+    default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
+    
+    # Clean username
+    username_clean = username.strip()
+    
+    # 1) Check character JSON first
+    if username_clean in characters:
+        avatar_path = characters[username_clean].get("avatar", "")
+        if avatar_path:
+            # Convert relative path to absolute path
+            if not os.path.isabs(avatar_path):
+                full_path = os.path.join(BASE_DIR, avatar_path)
+            else:
+                full_path = avatar_path
+            
+            if os.path.exists(full_path):
+                print(f"✅ Found avatar for {username_clean}: {full_path}")
+                return full_path
+            else:
+                print(f"⚠️ Avatar path in JSON doesn't exist: {full_path}")
+    
+    # 2) Check avatars directory directly
+    avatars_dir = os.path.join(BASE_DIR, "static", "avatars")
+    if os.path.exists(avatars_dir):
+        # Try different filename variations
+        possible_filenames = [
+            f"{username_clean}.png",
+            f"{username_clean}.jpg", 
+            f"{username_clean}.jpeg",
+            username_clean.replace(' ', '_') + ".png",
+            username_clean.replace(' ', '_') + ".jpg",
+            username_clean.replace(' ', '_') + ".jpeg"
+        ]
+        
+        for filename in possible_filenames:
+            possible_path = os.path.join(avatars_dir, filename)
+            if os.path.exists(possible_path):
+                print(f"✅ Found avatar in avatars dir: {possible_path}")
+                return possible_path
+    
+    # 3) Final fallback
+    print(f"⚠️ Using default avatar for {username_clean}")
+    return default_path
+
+def encode_avatar_for_html(avatar_path):
+    """Convert avatar image to base64 for HTML display - SELF CONTAINED"""
+    if not avatar_path or not os.path.exists(avatar_path):
+        return ""
+    
+    try:
+        with open(avatar_path, "rb") as f:
+            avatar_data = base64.b64encode(f.read()).decode("utf-8")
+        
+        mime_type = "image/jpeg"
+        if avatar_path.lower().endswith('.png'):
+            mime_type = "image/png"
+        elif avatar_path.lower().endswith('.gif'):
+            mime_type = "image/gif"
+        
+        return f"data:{mime_type};base64,{avatar_data}"
+    except Exception as e:
+        print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
+        return ""
 
 # ---------- PERFORMANCE OPTIMIZATIONS ---------- #
 # Global HTML2Image instance
@@ -229,7 +308,7 @@ class WhatsAppRenderer:
         self._render_count = 0
     
     def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
-        """COMPLETE METHOD - Add message to history"""
+        """COMPLETE METHOD - Add message to history with FIXED AVATAR SYSTEM"""
         try:
             ts = datetime.now().strftime("%-I:%M %p").lower()
         except ValueError:
@@ -237,26 +316,26 @@ class WhatsAppRenderer:
     
         color = name_to_color(username)
     
-        # --- AVATAR RESOLUTION SYSTEM ---
-        avatar_web = get_character_avatar_path(username)  # static/avatars/Name.png
-        avatar_fs = os.path.join(BASE_DIR, avatar_web)    # real file path
-    
-        # Try to load avatar
-        if os.path.exists(avatar_fs):
-            avatar_path = avatar_fs
+        # --- FIXED AVATAR RESOLUTION SYSTEM ---
+        avatar_path = get_character_avatar_path(username)
+        
+        # Determine mime type
+        if avatar_path.lower().endswith('.png'):
+            mime = "image/png"
         else:
-            # fallback
-            avatar_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
-    
-        # Determine mime
-        mime = "image/png" if avatar_path.endswith(".png") else "image/jpeg"
+            mime = "image/jpeg"
     
         # Encode avatar
         try:
             with open(avatar_path, "rb") as f:
                 avatar_data = base64.b64encode(f.read()).decode("utf-8")
-        except:
-            avatar_data = ""
+        except Exception as e:
+            print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
+            # Fallback to default avatar
+            default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
+            with open(default_path, "rb") as f:
+                avatar_data = base64.b64encode(f.read()).decode("utf-8")
+            mime = "image/png"
     
         # --- MEME HANDLING ---
         meme_data = None
