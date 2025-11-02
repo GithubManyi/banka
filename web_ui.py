@@ -392,62 +392,6 @@ def encode_avatar_for_html(avatar_path):
         print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
         return None
 
-# IMPROVED AVATAR UPLOAD FUNCTION
-def handle_character_avatar_upload(avatar_file, character_name):
-    """Handle avatar uploads for specific characters with better file management"""
-    if not avatar_file or not character_name:
-        return "static/images/contact.png", "⚠️ No avatar or character name provided"
-    
-    try:
-        avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
-        os.makedirs(avatars_dir, exist_ok=True)
-        
-        print(f"🎯 Uploading avatar for character: {character_name}")
-        
-        # Get file extension
-        if hasattr(avatar_file, 'name'):
-            source_path = avatar_file.name
-            ext = os.path.splitext(avatar_file.name)[1]
-        else:
-            source_path = str(avatar_file)
-            ext = os.path.splitext(str(avatar_file))[1]
-        
-        # Create unique filename for this character
-        safe_name = "".join(c for c in character_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        dest_filename = f"{safe_name}{ext}"
-        dest_path = os.path.join(avatars_dir, dest_filename)
-        
-        # Copy file
-        shutil.copy2(source_path, dest_path)
-        
-        if os.path.exists(dest_path):
-            relative_path = f"static/avatars/{dest_filename}"
-            
-            # Update character record
-            characters = load_characters()
-            if character_name in characters:
-                characters[character_name]["avatar"] = relative_path
-                save_characters(characters)
-                print(f"✅ Updated avatar for character '{character_name}' -> {relative_path}")
-            else:
-                # If character doesn't exist, create it
-                characters[character_name] = {
-                    "avatar": relative_path,
-                    "personality": "New character"
-                }
-                save_characters(characters)
-                print(f"✅ Created new character '{character_name}' with avatar")
-            
-            return relative_path, f"✅ Avatar uploaded for {character_name}"
-        else:
-            print(f"❌ Failed to copy avatar file to {dest_path}")
-            return "static/images/contact.png", f"❌ Failed to upload avatar for {character_name}"
-            
-    except Exception as e:
-        print(f"❌ Error uploading avatar for {character_name}: {e}")
-        import traceback
-        traceback.print_exc()
-        return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
 
 # =============================================
 # WHATSAPP-STYLE AVATAR GENERATION SYSTEM
@@ -706,8 +650,10 @@ def check_gradio_file_object(file_input):
     print("🎯 ===== GRADIO FILE CHECK COMPLETE =====")
     return "✅ Gradio file check complete - check console"
 
+# Replace the handle_audio_upload_fixed function with this improved version:
+
 def handle_audio_upload_fixed(audio_file, audio_type):
-    """FIXED VERSION for Railway - with comprehensive debugging"""
+    """FIXED VERSION for Railway - with comprehensive debugging and better error handling"""
     print(f"🎵 ===== ENTERING handle_audio_upload for {audio_type} =====")
     print(f"🎵 Input type: {type(audio_file)}")
     print(f"🎵 Input value: {audio_file}")
@@ -803,10 +749,43 @@ def handle_audio_upload_fixed(audio_file, audio_type):
                 statuses.append(f"❌ {filename} (directory not writable)")
                 continue
             
-            # Copy file with error handling
+            # Copy file with error handling and timeout protection
             print(f"🎵 Starting file copy...")
             try:
-                shutil.copy2(source_path, dest_path)
+                # Use shutil.copy2 with timeout protection
+                import threading
+                import time
+                
+                copy_success = [False]
+                copy_error = [None]
+                
+                def copy_with_timeout():
+                    try:
+                        shutil.copy2(source_path, dest_path)
+                        copy_success[0] = True
+                    except Exception as e:
+                        copy_error[0] = e
+                
+                # Start copy in a thread with timeout
+                copy_thread = threading.Thread(target=copy_with_timeout)
+                copy_thread.daemon = True
+                copy_thread.start()
+                copy_thread.join(timeout=30)  # 30 second timeout
+                
+                if copy_thread.is_alive():
+                    print(f"❌ File copy timed out: {filename}")
+                    statuses.append(f"❌ {filename} (copy timed out)")
+                    continue
+                
+                if not copy_success[0]:
+                    if copy_error[0]:
+                        print(f"❌ Error copying {filename}: {copy_error[0]}")
+                        statuses.append(f"❌ {filename} (error: {str(copy_error[0])})")
+                    else:
+                        print(f"❌ File copy failed: {filename}")
+                        statuses.append(f"❌ {filename} (copy failed)")
+                    continue
+                    
                 print(f"🎵 File copy completed")
                 
                 # Verify the file was copied
@@ -875,6 +854,120 @@ def handle_audio_upload_fixed(audio_file, audio_type):
     
     finally:
         print(f"🎵 ===== EXITING handle_audio_upload for {audio_type} =====")
+
+# Also add this function to handle large file uploads better:
+def optimize_upload_settings():
+    """Optimize settings for better file upload handling"""
+    # Increase Gradio file upload limits
+    os.environ["GRADIO_MAX_FILE_SIZE"] = "100mb"
+    os.environ["GRADIO_TEMP_DIR"] = "/tmp"
+    
+    # Set timeout settings
+    os.environ["GRADIO_QUEUE_TIMEOUT"] = "300"  # 5 minutes
+    os.environ["GRADIO_QUEUE_DEFAULT_CONCURRENCY"] = "1"
+    
+    print("✅ Upload settings optimized for large files")
+
+# Call this function at startup
+optimize_upload_settings()
+
+# Also add a simple file size checker:
+def check_file_size(file_path, max_size_mb=50):
+    """Check if file size is within limits"""
+    try:
+        file_size = os.path.getsize(file_path)
+        file_size_mb = file_size / (1024 * 1024)
+        if file_size_mb > max_size_mb:
+            return False, f"File too large: {file_size_mb:.2f}MB (max {max_size_mb}MB)"
+        return True, f"File size OK: {file_size_mb:.2f}MB"
+    except Exception as e:
+        return False, f"Error checking file size: {e}"
+
+# Update the character avatar upload function too:
+def handle_character_avatar_upload(avatar_file, character_name):
+    """Handle avatar uploads for specific characters with better file management"""
+    if not avatar_file or not character_name:
+        return "static/images/contact.png", "⚠️ No avatar or character name provided"
+    
+    try:
+        avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+        os.makedirs(avatars_dir, exist_ok=True)
+        
+        print(f"🎯 Uploading avatar for character: {character_name}")
+        
+        # Get file extension
+        if hasattr(avatar_file, 'name'):
+            source_path = avatar_file.name
+            ext = os.path.splitext(avatar_file.name)[1]
+        else:
+            source_path = str(avatar_file)
+            ext = os.path.splitext(str(avatar_file))[1]
+        
+        # Check file size for avatars (max 5MB)
+        size_ok, size_msg = check_file_size(source_path, max_size_mb=5)
+        if not size_ok:
+            return "static/images/contact.png", f"❌ {size_msg}"
+        
+        # Create unique filename for this character
+        safe_name = "".join(c for c in character_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        dest_filename = f"{safe_name}{ext}"
+        dest_path = os.path.join(avatars_dir, dest_filename)
+        
+        # Copy file with timeout protection
+        import threading
+        
+        copy_success = [False]
+        copy_error = [None]
+        
+        def copy_with_timeout():
+            try:
+                shutil.copy2(source_path, dest_path)
+                copy_success[0] = True
+            except Exception as e:
+                copy_error[0] = e
+        
+        copy_thread = threading.Thread(target=copy_with_timeout)
+        copy_thread.daemon = True
+        copy_thread.start()
+        copy_thread.join(timeout=10)  # 10 second timeout for avatars
+        
+        if copy_thread.is_alive():
+            return "static/images/contact.png", f"❌ Avatar upload timed out for {character_name}"
+        
+        if not copy_success[0]:
+            if copy_error[0]:
+                return "static/images/contact.png", f"❌ Error uploading avatar: {str(copy_error[0])}"
+            else:
+                return "static/images/contact.png", f"❌ Failed to upload avatar for {character_name}"
+        
+        if os.path.exists(dest_path):
+            relative_path = f"static/avatars/{dest_filename}"
+            
+            # Update character record
+            characters = load_characters()
+            if character_name in characters:
+                characters[character_name]["avatar"] = relative_path
+                save_characters(characters)
+                print(f"✅ Updated avatar for character '{character_name}' -> {relative_path}")
+            else:
+                # If character doesn't exist, create it
+                characters[character_name] = {
+                    "avatar": relative_path,
+                    "personality": "New character"
+                }
+                save_characters(characters)
+                print(f"✅ Created new character '{character_name}' with avatar")
+            
+            return relative_path, f"✅ Avatar uploaded for {character_name}"
+        else:
+            print(f"❌ Failed to copy avatar file to {dest_path}")
+            return "static/images/contact.png", f"❌ Failed to upload avatar for {character_name}"
+            
+    except Exception as e:
+        print(f"❌ Error uploading avatar for {character_name}: {e}")
+        import traceback
+        traceback.print_exc()
+        return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
 
 # =============================================
 # FIXED FILE HANDLING FUNCTIONS
@@ -2358,6 +2451,162 @@ def force_avatar_update():
     else:
         return "✅ No updates needed"
 
+
+def generate_avatar_with_initials(username, size=200):
+    """Generate a WhatsApp-style avatar with initials"""
+    # Generate initials from name (like WhatsApp does)
+    def get_initials(name):
+        # Remove extra spaces and split into words
+        words = name.strip().split()
+        if len(words) == 0:
+            return "?"
+        elif len(words) == 1:
+            # Single word - take first character only (like real WhatsApp)
+            return name[:1].upper()
+        else:
+            # Multiple words - take first letter of first and last word
+            return (words[0][0] + words[-1][0]).upper()
+    
+    initials = get_initials(username)
+    
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        
+        # WhatsApp-like colors (similar to their color palette)
+        colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+            '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
+        ]
+        
+        # Pick a consistent color based on username hash
+        color_index = hash(username) % len(colors)
+        background_color = colors[color_index]
+        
+        # Create image
+        img = Image.new('RGB', (size, size), color=background_color)
+        draw = ImageDraw.Draw(img)
+        
+        # Try to use a nice font, fallback to default
+        try:
+            # Try to use a bold font - larger size for single letters
+            if len(initials) == 1:
+                font_size = size // 2  # Bigger for single letters
+            else:
+                font_size = size // 3  # Smaller for two letters
+            
+            # Try multiple font paths
+            font_paths = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
+                "/System/Library/Fonts/Helvetica.ttc",
+                "Arial"
+            ]
+            
+            font = None
+            for font_path in font_paths:
+                try:
+                    font = ImageFont.truetype(font_path, font_size)
+                    break
+                except:
+                    continue
+            
+            if font is None:
+                # Final fallback to default font
+                font = ImageFont.load_default()
+                
+        except:
+            try:
+                # Fallback to any available font
+                font = ImageFont.load_default()
+            except:
+                font = None
+        
+        # Calculate text position (centered)
+        if font:
+            # Get text bounding box
+            bbox = draw.textbbox((0, 0), initials, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            x = (size - text_width) // 2
+            y = (size - text_height) // 2
+        else:
+            # Fallback positioning
+            x = size // 3
+            y = size // 3
+        
+        # Draw the text
+        draw.text((x, y), initials, fill='white', font=font)
+        
+        return img
+        
+    except ImportError:
+        print("⚠️ PIL not available, cannot generate avatar with initials")
+        # Create a simple fallback using command line
+        return create_fallback_avatar(username, size)
+    except Exception as e:
+        print(f"⚠️ Error generating avatar with initials: {e}")
+        # Create a simple fallback
+        return create_fallback_avatar(username, size)
+
+def create_fallback_avatar(username, size=200):
+    """Create a fallback avatar using command line tools if PIL fails"""
+    try:
+        # Generate initials
+        def get_initials(name):
+            words = name.strip().split()
+            if len(words) == 0:
+                return "?"
+            elif len(words) == 1:
+                return name[:1].upper()
+            else:
+                return (words[0][0] + words[-1][0]).upper()
+        
+        initials = get_initials(username)
+        
+        # Create a simple colored square using ImageMagick or convert
+        avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+        os.makedirs(avatars_dir, exist_ok=True)
+        
+        temp_path = os.path.join(avatars_dir, f"temp_{username}.png")
+        
+        # Colors for fallback
+        colors = ['red', 'blue', 'green', 'purple', 'orange', 'teal']
+        color_index = hash(username) % len(colors)
+        color = colors[color_index]
+        
+        # Try to create using ImageMagick
+        try:
+            subprocess.run([
+                'convert', '-size', f'{size}x{size}', 
+                f'xc:{color}',
+                '-gravity', 'center',
+                '-fill', 'white',
+                '-pointsize', str(size // 3),
+                '-annotate', '0', initials,
+                temp_path
+            ], check=True, capture_output=True)
+            
+            if os.path.exists(temp_path):
+                # Load the image to return it
+                from PIL import Image
+                img = Image.open(temp_path)
+                os.remove(temp_path)  # Clean up temp file
+                return img
+        except:
+            pass
+        
+        # If ImageMagick fails, try using a simple solid color image
+        from PIL import Image, ImageDraw
+        img = Image.new('RGB', (size, size), color=color)
+        draw = ImageDraw.Draw(img)
+        # Draw simple text
+        draw.text((size//3, size//3), initials, fill='white')
+        return img
+        
+    except Exception as e:
+        print(f"⚠️ Fallback avatar creation also failed: {e}")
+        return None
 # =============================================
 # GRADIO UI WITH CHARACTER MANAGEMENT
 # =============================================
