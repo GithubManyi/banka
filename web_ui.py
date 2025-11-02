@@ -38,52 +38,7 @@ import shutil
 from pathlib import Path
 
 
-# Add asset creation function
-def create_default_assets():
-    """Create default assets if they don't exist"""
-    # Create static directories
-    static_dirs = [
-        "static/images",
-        "static/avatars", 
-        "static/audio",
-        "frames"
-    ]
-    
-    for dir_path in static_dirs:
-        full_path = os.path.join(PROJECT_ROOT, dir_path)
-        os.makedirs(full_path, exist_ok=True)
-        print(f"✅ Created directory: {full_path}")
-    
-    # Create default contact.png if it doesn't exist
-    contact_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
-    if not os.path.exists(contact_path):
-        try:
-            # Create a simple default avatar using PIL
-            from PIL import Image, ImageDraw
-            
-            # Create a 200x200 blue circle as default avatar
-            img = Image.new('RGB', (200, 200), color='lightblue')
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([20, 20, 180, 180], fill='blue', outline='darkblue')
-            
-            # Draw a simple smile
-            draw.arc([50, 60, 150, 120], start=0, end=180, fill='white', width=8)
-            draw.ellipse([70, 80, 90, 100], fill='white')  # Left eye
-            draw.ellipse([110, 80, 130, 100], fill='white')  # Right eye
-            
-            img.save(contact_path, 'PNG')
-            print(f"✅ Created default avatar: {contact_path}")
-        except ImportError:
-            print("⚠️ PIL not available, cannot create default avatar")
-            # Create empty file as fallback
-            open(contact_path, 'a').close()
-        except Exception as e:
-            print(f"⚠️ Could not create default avatar: {e}")
-            # Create empty file as fallback
-            open(contact_path, 'a').close()
 
-# Call this function to ensure assets exist
-create_default_assets()
 
 # Add after your existing imports, around line 45-55
 try:
@@ -228,6 +183,54 @@ if sys.platform.startswith("win"):
 
 print("✅ Configuration loaded successfully")
 
+
+# Add asset creation function
+def create_default_assets():
+    """Create default assets if they don't exist"""
+    # Create static directories
+    static_dirs = [
+        "static/images",
+        "static/avatars", 
+        "static/audio",
+        "frames"
+    ]
+    
+    for dir_path in static_dirs:
+        full_path = os.path.join(PROJECT_ROOT, dir_path)
+        os.makedirs(full_path, exist_ok=True)
+        print(f"✅ Created directory: {full_path}")
+    
+    # Create default contact.png if it doesn't exist
+    contact_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+    if not os.path.exists(contact_path):
+        try:
+            # Create a simple default avatar using PIL
+            from PIL import Image, ImageDraw
+            
+            # Create a 200x200 blue circle as default avatar
+            img = Image.new('RGB', (200, 200), color='lightblue')
+            draw = ImageDraw.Draw(img)
+            draw.ellipse([20, 20, 180, 180], fill='blue', outline='darkblue')
+            
+            # Draw a simple smile
+            draw.arc([50, 60, 150, 120], start=0, end=180, fill='white', width=8)
+            draw.ellipse([70, 80, 90, 100], fill='white')  # Left eye
+            draw.ellipse([110, 80, 130, 100], fill='white')  # Right eye
+            
+            img.save(contact_path, 'PNG')
+            print(f"✅ Created default avatar: {contact_path}")
+        except ImportError:
+            print("⚠️ PIL not available, cannot create default avatar")
+            # Create empty file as fallback
+            open(contact_path, 'a').close()
+        except Exception as e:
+            print(f"⚠️ Could not create default avatar: {e}")
+            # Create empty file as fallback
+            open(contact_path, 'a').close()
+
+# Call this function to ensure assets exist
+create_default_assets()
+
 # =============================================
 # CHARACTER MANAGEMENT SYSTEM
 # =============================================
@@ -368,30 +371,6 @@ def get_character_avatar_path(username):
     print(f"⚠️ Using default avatar for {username_clean}")
     return default_web
 
-def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_read=True):
-    """Wrapper around render_bubble with proper error handling for avatars"""
-    try:
-        # Ensure avatar exists before calling render_bubble
-        avatar_path = get_character_avatar_path(username)
-        full_avatar_path = os.path.join(PROJECT_ROOT, avatar_path)
-        
-        if not os.path.exists(full_avatar_path):
-            print(f"⚠️ Avatar not found for {username}: {full_avatar_path}")
-            # Create default avatar if missing
-            create_default_assets()
-        
-        # Now call the original function
-        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
-        
-    except FileNotFoundError as e:
-        print(f"❌ Avatar file error for {username}: {e}")
-        # Try one more time with forced default
-        create_default_assets()
-        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
-    except Exception as e:
-        print(f"❌ Error in safe_render_bubble for {username}: {e}")
-        raise
-
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display"""
     if not avatar_path or not os.path.exists(avatar_path):
@@ -468,6 +447,30 @@ def handle_character_avatar_upload(avatar_file, character_name):
         import traceback
         traceback.print_exc()
         return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
+
+def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_read=True):
+    """Wrapper around render_bubble with proper error handling for avatars"""
+    try:
+        # Ensure avatar exists before calling render_bubble
+        avatar_path = get_character_avatar_path(username)
+        full_avatar_path = os.path.join(PROJECT_ROOT, avatar_path)
+        
+        if not os.path.exists(full_avatar_path):
+            print(f"⚠️ Avatar not found for {username}: {full_avatar_path}")
+            # Create default avatar if missing
+            create_default_assets()
+        
+        # Now call the original function
+        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
+        
+    except FileNotFoundError as e:
+        print(f"❌ Avatar file error for {username}: {e}")
+        # Try one more time with forced default
+        create_default_assets()
+        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
+    except Exception as e:
+        print(f"❌ Error in safe_render_bubble for {username}: {e}")
+        raise
 
 # =============================================
 # FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
