@@ -37,6 +37,54 @@ import tempfile
 import shutil
 from pathlib import Path
 
+
+# Add asset creation function
+def create_default_assets():
+    """Create default assets if they don't exist"""
+    # Create static directories
+    static_dirs = [
+        "static/images",
+        "static/avatars", 
+        "static/audio",
+        "frames"
+    ]
+    
+    for dir_path in static_dirs:
+        full_path = os.path.join(PROJECT_ROOT, dir_path)
+        os.makedirs(full_path, exist_ok=True)
+        print(f"✅ Created directory: {full_path}")
+    
+    # Create default contact.png if it doesn't exist
+    contact_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+    if not os.path.exists(contact_path):
+        try:
+            # Create a simple default avatar using PIL
+            from PIL import Image, ImageDraw
+            
+            # Create a 200x200 blue circle as default avatar
+            img = Image.new('RGB', (200, 200), color='lightblue')
+            draw = ImageDraw.Draw(img)
+            draw.ellipse([20, 20, 180, 180], fill='blue', outline='darkblue')
+            
+            # Draw a simple smile
+            draw.arc([50, 60, 150, 120], start=0, end=180, fill='white', width=8)
+            draw.ellipse([70, 80, 90, 100], fill='white')  # Left eye
+            draw.ellipse([110, 80, 130, 100], fill='white')  # Right eye
+            
+            img.save(contact_path, 'PNG')
+            print(f"✅ Created default avatar: {contact_path}")
+        except ImportError:
+            print("⚠️ PIL not available, cannot create default avatar")
+            # Create empty file as fallback
+            open(contact_path, 'a').close()
+        except Exception as e:
+            print(f"⚠️ Could not create default avatar: {e}")
+            # Create empty file as fallback
+            open(contact_path, 'a').close()
+
+# Call this function to ensure assets exist
+create_default_assets()
+
 # Add after your existing imports, around line 45-55
 try:
     from static_server import get_static_path, get_avatar_path
@@ -286,43 +334,63 @@ def get_character_details(name):
         return {"avatar": "static/images/contact.png", "personality": ""}
         
 def get_character_avatar_path(username):
-    """Return web path for avatar in this order:
-       1) User-saved avatar from JSON 
-       2) static/avatars/<name>.(png/jpg)
-       3) default contact icon
-    """
-
-    characters = load_characters()
-
+    """Return web path for avatar with better error handling"""
+    
     # Default fallback avatar
     default_web = "static/images/contact.png"
     default_fs = os.path.join(PROJECT_ROOT, default_web)
-
+    
+    # Ensure default exists
+    if not os.path.exists(default_fs):
+        create_default_assets()
+    
     username_clean = username.strip()
-    avatar_candidates = []
-
-    # 1) Avatar from character JSON
+    
+    # 1) Check character JSON first
+    characters = load_characters()
     if username_clean in characters:
         avatar_web = characters[username_clean].get("avatar", "")
         if avatar_web:
-            avatar_candidates.append(avatar_web)
-
-    # 2) Avatar from avatars folder — PNG & JPG support
-    png_path = f"static/avatars/{username_clean}.png"
-    jpg_path = f"static/avatars/{username_clean}.jpg"
-
-    avatar_candidates.extend([png_path, jpg_path])
-
-    # 3) Final fallback
-    avatar_candidates.append(default_web)
-
-    # Resolve first valid path
-    for candidate in avatar_candidates:
-        full_path = os.path.join(PROJECT_ROOT, candidate)
-        if os.path.exists(full_path):
-            return candidate
-
+            avatar_fs = os.path.join(PROJECT_ROOT, avatar_web)
+            if os.path.exists(avatar_fs):
+                return avatar_web
+            else:
+                print(f"⚠️ Avatar from JSON not found: {avatar_fs}")
+    
+    # 2) Check avatars directory
+    avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+    for ext in ['.png', '.jpg', '.jpeg', '.gif']:
+        avatar_path = os.path.join(avatars_dir, f"{username_clean}{ext}")
+        if os.path.exists(avatar_path):
+            return f"static/avatars/{username_clean}{ext}"
+    
+    # 3) Final fallback to default
+    print(f"⚠️ Using default avatar for {username_clean}")
     return default_web
+
+def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_read=True):
+    """Wrapper around render_bubble with proper error handling for avatars"""
+    try:
+        # Ensure avatar exists before calling render_bubble
+        avatar_path = get_character_avatar_path(username)
+        full_avatar_path = os.path.join(PROJECT_ROOT, avatar_path)
+        
+        if not os.path.exists(full_avatar_path):
+            print(f"⚠️ Avatar not found for {username}: {full_avatar_path}")
+            # Create default avatar if missing
+            create_default_assets()
+        
+        # Now call the original function
+        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
+        
+    except FileNotFoundError as e:
+        print(f"❌ Avatar file error for {username}: {e}")
+        # Try one more time with forced default
+        create_default_assets()
+        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
+    except Exception as e:
+        print(f"❌ Error in safe_render_bubble for {username}: {e}")
+        raise
 
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display"""
@@ -963,6 +1031,26 @@ def debug_timeline_durations():
     else:
         return "No timeline file found"
 
+def emergency_fix_assets():
+    """Emergency function to fix missing assets"""
+    try:
+        create_default_assets()
+        
+        # Also create default audio files if needed
+        audio_dir = os.path.join(PROJECT_ROOT, "static", "audio")
+        if not os.listdir(audio_dir):
+            print("⚠️ No audio files found, creating silent placeholder")
+            # Create a silent audio file
+            silent_audio = os.path.join(audio_dir, "silent.mp3")
+            subprocess.run([
+                'ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+                '-t', '1', '-q:a', '9', '-y', silent_audio
+            ], capture_output=True)
+        
+        return "✅ Emergency asset fix completed"
+    except Exception as e:
+        return f"❌ Emergency fix failed: {e}"
+
 def handle_generate(characters, topic, mood, length, title, avatar_upload, manual_script):
     global latest_generated_script
 
@@ -1127,7 +1215,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     meme_file = fetch_meme_from_giphy(meme_desc)
                     if meme_file:
                         # Use the imported render_bubble function
-                        render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
+                        safe_render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
                         if render_bubble.timeline:
                             custom_key = text_message.strip() if text_message.strip() else ""
                             duration = custom_durations.get(custom_key, 4.0 if not text_message.strip() else max(3.0, len(text_message) / 8))
@@ -2184,6 +2272,7 @@ with gr.Blocks() as demo:
                         use_chars_btn = gr.Button("🎭 Use in Script")
                         debug_avatar_btn = gr.Button("🐛 Debug Avatar Paths")
                         force_avatar_btn = gr.Button("🔧 Force Avatar Update")
+                        emergency_fix_btn = gr.Button("🚨 Fix Missing Assets", size="sm", variant="stop")
             
             # FIXED Character management event handlers
             def refresh_characters():
@@ -2308,6 +2397,10 @@ with gr.Blocks() as demo:
             force_avatar_btn.click(
                 fn=force_avatar_update,
                 outputs=[char_status]
+            )
+            emergency_fix_btn.click(
+                fn=emergency_fix_assets,
+                outputs=[status]  # or [bg_status] depending on which tab
             )
 
         # ====================================
