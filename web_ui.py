@@ -2275,7 +2275,7 @@ with gr.Blocks() as demo:
                         use_chars_btn = gr.Button("🎭 Use in Script")
                         debug_avatar_btn = gr.Button("🐛 Debug Avatar Paths")
                         force_avatar_btn = gr.Button("🔧 Force Avatar Update")
-                        emergency_fix_btn = gr.Button("🚨 Fix Missing Assets", size="sm", variant="stop")
+                       
             
             # FIXED Character management event handlers
             def refresh_characters():
@@ -2401,10 +2401,7 @@ with gr.Blocks() as demo:
                 fn=force_avatar_update,
                 outputs=[char_status]
             )
-            emergency_fix_btn.click(
-                fn=emergency_fix_assets,
-                outputs=[status]  # or [bg_status] depending on which tab
-            )
+            
 
         # ====================================
         # TAB 2: Script & Video Generator
@@ -2442,6 +2439,7 @@ with gr.Blocks() as demo:
                 debug_upload_btn = gr.Button("🐛 Debug Upload Issue", size="sm")
                 test_file_btn = gr.Button("🔧 Test File Ops", size="sm")
                 check_gradio_btn = gr.Button("🎯 Check Gradio File", size="sm")
+                emergency_fix_btn = gr.Button("🚨 Fix Missing Assets", size="sm", variant="stop")
                 
                 send_choice = gr.Dropdown(
                     choices=AUDIO_FILES + [""],
@@ -2542,6 +2540,11 @@ with gr.Blocks() as demo:
             check_gradio_btn.click(
                 fn=lambda: check_gradio_file_object(bg_upload.value),
                 outputs=[status]
+            )
+            
+            emergency_fix_btn.click(
+                fn=emergency_fix_assets,
+                outputs=[status]  # or [bg_status] depending on which tab
             )
 
             render_btn.click(
