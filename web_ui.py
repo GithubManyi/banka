@@ -449,36 +449,6 @@ def handle_character_avatar_upload(avatar_file, character_name):
         traceback.print_exc()
         return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
 
-def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_read=True):
-    """Wrapper around render_bubble with proper error handling for avatars"""
-    try:
-        # Ensure avatar exists before calling render_bubble
-        avatar_path = get_character_avatar_path(username)
-        
-        # If no avatar found, create one with initials
-        if avatar_path == "INITIALS":
-            avatar_path = get_or_create_initial_avatar(username)
-        
-        full_avatar_path = os.path.join(PROJECT_ROOT, avatar_path)
-        
-        if not os.path.exists(full_avatar_path):
-            print(f"⚠️ Avatar not found for {username}: {full_avatar_path}")
-            # Create default avatar if missing
-            create_default_assets()
-        
-        # Now call the original function
-        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
-        
-    except FileNotFoundError as e:
-        print(f"❌ Avatar file error for {username}: {e}")
-        # Try one more time with forced default
-        create_default_assets()
-        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
-    except Exception as e:
-        print(f"❌ Error in safe_render_bubble for {username}: {e}")
-        raise
-
-
 # =============================================
 # WHATSAPP-STYLE AVATAR GENERATION SYSTEM
 # =============================================
@@ -582,6 +552,7 @@ def get_or_create_initial_avatar(username):
     avatar_path = os.path.join(avatars_dir, avatar_filename)
     
     if os.path.exists(avatar_path):
+        print(f"✅ Using existing initial avatar for {username}: {initials}")
         return f"static/avatars/{avatar_filename}"
     
     # Generate new avatar with initials
@@ -592,7 +563,41 @@ def get_or_create_initial_avatar(username):
         return f"static/avatars/{avatar_filename}"
     else:
         # Fallback to default contact image
+        print(f"⚠️ Could not generate initial avatar for {username}, using default")
         return "static/images/contact.png"
+
+def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_read=True):
+    """Wrapper around render_bubble with proper error handling for avatars"""
+    try:
+        # Ensure avatar exists before calling render_bubble
+        avatar_path = get_character_avatar_path(username)
+        
+        print(f"🎯 Avatar path for {username}: {avatar_path}")
+        
+        # If no avatar found, create one with initials
+        if avatar_path == "INITIALS":
+            avatar_path = get_or_create_initial_avatar(username)
+            print(f"🎯 Generated initial avatar for {username}: {avatar_path}")
+        
+        full_avatar_path = os.path.join(PROJECT_ROOT, avatar_path)
+        
+        if not os.path.exists(full_avatar_path):
+            print(f"⚠️ Avatar not found for {username}: {full_avatar_path}")
+            # Create default avatar if missing
+            create_default_assets()
+        
+        # Now call the original function with the ensured avatar path
+        print(f"🎯 Calling render_bubble for {username} with avatar: {avatar_path}")
+        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
+        
+    except FileNotFoundError as e:
+        print(f"❌ Avatar file error for {username}: {e}")
+        # Try one more time with forced default
+        create_default_assets()
+        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
+    except Exception as e:
+        print(f"❌ Error in safe_render_bubble for {username}: {e}")
+        raise
 
 # =============================================
 # FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
@@ -709,7 +714,7 @@ def handle_audio_upload_fixed(audio_file, audio_type):
     
     if not audio_file:
         print(f"🎵 No file provided, returning early")
-        return AUDIO_FILES, f"⚠️ No {audio_type} audio uploaded."
+        return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"⚠️ No {audio_type} audio uploaded."
     
     print(f"🎵 Starting {audio_type} audio upload processing...")
     
@@ -851,17 +856,22 @@ def handle_audio_upload_fixed(audio_file, audio_type):
             
             # Return updated dropdown choices
             unique_files = list(dict.fromkeys(AUDIO_FILES))
-            return gr.Dropdown(choices=unique_files + [""]), status_msg
+            current_choices = unique_files + [""]
+            
+            # Set the value to the first successful upload or empty
+            new_value = successful_uploads[0] if successful_uploads else ""
+            
+            return gr.Dropdown(choices=current_choices, value=new_value), status_msg
         else:
             error_msg = f"❌ Failed to upload {audio_type} audio. Check console for details."
             print(f"🎵 Returning error: {error_msg}")
-            return gr.Dropdown(choices=AUDIO_FILES + [""]), error_msg
+            return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), error_msg
             
     except Exception as e:
         error_msg = f"❌ Error in handle_audio_upload: {e}"
         print(error_msg)
         traceback.print_exc()
-        return gr.Dropdown(choices=AUDIO_FILES + [""]), f"❌ Error uploading {audio_type} audio: {str(e)}"
+        return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"❌ Error uploading {audio_type} audio: {str(e)}"
     
     finally:
         print(f"🎵 ===== EXITING handle_audio_upload for {audio_type} =====")
@@ -1185,7 +1195,7 @@ def handle_generate(characters, topic, mood, length, title, avatar_upload, manua
         char_list = [c.strip() for c in characters.split(",") if c.strip()]
         if avatar_upload and char_list:
             # Use new avatar handling - ADD THIS LINE
-            avatar_path, avatar_status = handle_avatar_upload(avatar_upload, char_list[0])
+            avatar_path, avatar_status = handle_character_avatar_upload(avatar_upload, char_list[0])
             print(avatar_status)
         latest_generated_script = generate_script_with_groq(char_list, topic, mood, length, title)
 
@@ -2075,11 +2085,11 @@ def save_bg_segments(segments, timeline_table):
         with open(BG_TIMELINE_FILE, "w", encoding="utf-8") as f:
             json.dump(segments_to_save, f, indent=2)
             
-        return AUDIO_FILES + [""], f"✅ Saved {len(segments_to_save)} BG segments"
+        return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"✅ Saved {len(segments_to_save)} BG segments"
         
     except Exception as e:
         print(f"❌ Error saving BG segments: {e}")
-        return None, f"❌ Error saving BG segments: {str(e)}"
+        return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"❌ Error saving BG segments: {str(e)}"
 
 def generate_suggestion(prompt):
     try:
@@ -2403,7 +2413,7 @@ with gr.Blocks() as demo:
             def refresh_characters():
                 """Refresh the character list and clear the form"""
                 characters = get_character_names()
-                return gr.Dropdown(choices=characters, value=""), "", "static/images/contact.png", "", None
+                return gr.Dropdown(choices=characters, value=characters[0] if characters else ""), "", "static/images/contact.png", "", None
             
             def load_character_details(name):
                 """Load character details when selected from dropdown"""
@@ -2415,7 +2425,7 @@ with gr.Blocks() as demo:
             def add_character_handler(name, personality, avatar):
                 """Add a new character with avatar"""
                 if not name:
-                    return "❌ Please enter a character name", "", "static/images/contact.png", "", None
+                    return "❌ Please enter a character name", gr.Dropdown(choices=get_character_names(), value=""), "static/images/contact.png", "", None
                 
                 avatar_path = "static/images/contact.png"
                 
@@ -2432,12 +2442,12 @@ with gr.Blocks() as demo:
                     details = get_character_details(name)
                     return message, gr.Dropdown(choices=characters, value=name), details["avatar"], details["personality"], None
                 else:
-                    return message, gr.Dropdown(choices=characters), "static/images/contact.png", "", None
+                    return message, gr.Dropdown(choices=characters, value=""), "static/images/contact.png", "", None
             
             def update_character_handler(name, personality, avatar):
                 """Update an existing character with new avatar"""
                 if not name:
-                    return "❌ Please select a character to update", "", "static/images/contact.png", "", None
+                    return "❌ Please select a character to update", gr.Dropdown(choices=get_character_names(), value=""), "static/images/contact.png", "", None
                 
                 # Get current avatar path
                 current_details = get_character_details(name)
@@ -2456,19 +2466,20 @@ with gr.Blocks() as demo:
                     details = get_character_details(name)
                     return message, gr.Dropdown(choices=characters, value=name), details["avatar"], details["personality"], None
                 else:
-                    return message, gr.Dropdown(choices=characters), current_details["avatar"], personality, None
+                    return message, gr.Dropdown(choices=characters, value=name if name in characters else ""), current_details["avatar"], personality, None
             
             def delete_character_handler(name):
                 """Delete a character"""
                 if not name:
-                    return "❌ Please select a character to delete", "", "static/images/contact.png", "", None
+                    return "❌ Please select a character to delete", gr.Dropdown(choices=get_character_names(), value=""), "static/images/contact.png", "", None
                 
                 success, message = delete_character(name)
                 characters = get_character_names()
                 if success:
-                    return message, gr.Dropdown(choices=characters, value=""), "static/images/contact.png", "", None
+                    new_value = characters[0] if characters else ""
+                    return message, gr.Dropdown(choices=characters, value=new_value), "static/images/contact.png", "", None
                 else:
-                    return message, gr.Dropdown(choices=characters), "static/images/contact.png", "", None
+                    return message, gr.Dropdown(choices=characters, value=name if name in characters else ""), "static/images/contact.png", "", None
             
             def use_characters_in_script():
                 """Use all characters in script tab"""
@@ -2930,15 +2941,21 @@ with gr.Blocks() as demo:
     def initialize_audio_values():
         """Set initial audio values after the UI loads"""
         if AUDIO_FILES:
+            # Return only values that exist in AUDIO_FILES or empty strings
+            bg_val = AUDIO_FILES[0] if AUDIO_FILES else ""
+            send_val = AUDIO_FILES[0] if AUDIO_FILES else ""
+            recv_val = AUDIO_FILES[0] if AUDIO_FILES else ""
+            typing_val = ""  # Keep typing empty by default
+            
             return [
-                AUDIO_FILES[0],  # bg_choice
-                AUDIO_FILES[0],  # send_choice
-                AUDIO_FILES[0],  # recv_choice
-                "",              # typing_choice
-                AUDIO_FILES[0],  # bg_choice_timeline
-                AUDIO_FILES[0],  # send_choice_timeline
-                AUDIO_FILES[0],  # recv_choice_timeline
-                ""               # typing_choice_timeline
+                bg_val,      # bg_choice
+                send_val,    # send_choice  
+                recv_val,    # recv_choice
+                typing_val,  # typing_choice
+                bg_val,      # bg_choice_timeline
+                send_val,    # send_choice_timeline
+                recv_val,    # recv_choice_timeline
+                typing_val   # typing_choice_timeline
             ]
         return ["", "", "", "", "", "", "", ""]
 
