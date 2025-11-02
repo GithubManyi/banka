@@ -36,6 +36,7 @@ print("📦 Importing dependencies...")
 import tempfile
 import shutil
 from pathlib import Path
+import base64  # Add this import for avatar encoding
 
 
 
@@ -478,6 +479,10 @@ def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_re
         raise
 
 
+# =============================================
+# WHATSAPP-STYLE AVATAR GENERATION SYSTEM
+# =============================================
+
 def generate_avatar_with_initials(username, size=200):
     """Generate a WhatsApp-style avatar with initials"""
     # Generate initials from name (like WhatsApp does)
@@ -559,6 +564,18 @@ def get_or_create_initial_avatar(username):
     """Get or create an avatar with initials for a username"""
     avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
     os.makedirs(avatars_dir, exist_ok=True)
+    
+    # Generate initials for filename
+    def get_initials(name):
+        words = name.strip().split()
+        if len(words) == 0:
+            return "?"
+        elif len(words) == 1:
+            return name[:1].upper()
+        else:
+            return (words[0][0] + words[-1][0]).upper()
+    
+    initials = get_initials(username)
     
     # Check if we already created an initial avatar for this user
     avatar_filename = f"{username}_initials.png"
@@ -1292,8 +1309,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                 
                 meme_file = fetch_meme_from_giphy(meme_desc)
                 if meme_file:
-                    # Use the imported render_bubble function
-                    render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
+                    # Use the safe_render_bubble function that handles avatar generation
+                    safe_render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
                     if render_bubble.timeline:
                         custom_key = ""
                         duration = custom_durations.get(custom_key, 4.0)
@@ -1322,7 +1339,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
 
                     meme_file = fetch_meme_from_giphy(meme_desc)
                     if meme_file:
-                        # Use the imported render_bubble function
+                        # Use the safe_render_bubble function that handles avatar generation
                         safe_render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
                         if render_bubble.timeline:
                             custom_key = text_message.strip() if text_message.strip() else ""
@@ -1332,8 +1349,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     else:
                         print(f"⚠️ Meme not found, sending text only: {name}: {text_message}")
                         if text_message.strip():
-                            # Use the imported render_bubble function
-                            render_bubble(name, text_message, is_sender=is_sender)
+                            # Use the safe_render_bubble function that handles avatar generation
+                            safe_render_bubble(name, text_message, is_sender=is_sender)
                             if render_bubble.timeline:
                                 custom_key = text_message.strip()
                                 duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
@@ -1369,8 +1386,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     custom_key = text_message.strip()
                     duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
                     
-                    # Use the imported render_bubble function
-                    render_bubble(name, text_message, is_sender=is_sender)
+                    # Use the safe_render_bubble function that handles avatar generation
+                    safe_render_bubble(name, text_message, is_sender=is_sender)
                     
                     if render_bubble.timeline:
                         render_bubble.timeline[-1]["duration"] = duration
@@ -2283,7 +2300,7 @@ def debug_avatar_paths():
     for char_name, char_data in characters.items():
         avatar_path = char_data.get("avatar", "")
         full_path = os.path.join(PROJECT_ROOT, avatar_path) if avatar_path else ""
-        exists = os.path.exists(full_path) if full_path else False
+        exists = os.path.exists(full_path) if avatar_path else False
         
         results.append({
             "character": char_name,
