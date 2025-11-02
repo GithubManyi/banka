@@ -532,7 +532,7 @@ def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_re
         
         # Now call the original function with the ensured avatar path
         print(f"🎯 Calling render_bubble for {username} with avatar: {avatar_path}")
-        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read, avatar_path=avatar_path )
+        return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
         
     except FileNotFoundError as e:
         print(f"❌ Avatar file error for {username}: {e}")
