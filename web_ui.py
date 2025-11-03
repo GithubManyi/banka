@@ -544,6 +544,56 @@ def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_re
         raise
 
 # =============================================
+# FIXED CHARACTER AVATAR PREVIEW SYSTEM
+# =============================================
+
+def get_character_avatar_preview(character_name):
+    """Get avatar preview for character management - FIXED to show initials"""
+    if not character_name:
+        return "static/images/contact.png"
+    
+    # Get the current avatar path
+    avatar_path = get_character_avatar_path(character_name)
+    
+    # If no avatar found or it's the default, generate one with initials
+    if avatar_path == "INITIALS" or avatar_path == "static/images/contact.png":
+        # Generate initial avatar for preview
+        initial_avatar_path = get_or_create_initial_avatar(character_name)
+        if initial_avatar_path and os.path.exists(os.path.join(PROJECT_ROOT, initial_avatar_path)):
+            return initial_avatar_path
+    
+    # Return the existing avatar if it exists
+    if avatar_path and os.path.exists(os.path.join(PROJECT_ROOT, avatar_path)):
+        return avatar_path
+    
+    # Final fallback
+    return "static/images/contact.png"
+
+def load_character_details(name):
+    """Load character details when selected from dropdown - FIXED to show initials"""
+    if not name:
+        return "static/images/contact.png", "", None
+    
+    details = get_character_details(name)
+    
+    # Use the fixed preview function that shows initials
+    avatar_preview = get_character_avatar_preview(name)
+    
+    return avatar_preview, details["personality"], None
+
+def refresh_characters():
+    """Refresh the character list and clear the form - FIXED"""
+    characters = get_character_names()
+    if characters:
+        # Load details for the first character to show proper preview
+        first_char = characters[0]
+        avatar_preview = get_character_avatar_preview(first_char)
+        details = get_character_details(first_char)
+        return gr.Dropdown(choices=characters, value=first_char), "", avatar_preview, details["personality"], None
+    else:
+        return gr.Dropdown(choices=characters, value=""), "", "static/images/contact.png", "", None
+
+# =============================================
 # FIXED FILE UPLOAD FUNCTIONS FOR RAILWAY
 # =============================================
 
@@ -2662,14 +2712,26 @@ with gr.Blocks() as demo:
             def refresh_characters():
                 """Refresh the character list and clear the form"""
                 characters = get_character_names()
-                return gr.Dropdown(choices=characters, value=characters[0] if characters else ""), "", "static/images/contact.png", "", None
+                if characters:
+                    # Load details for the first character to show proper preview
+                    first_char = characters[0]
+                    avatar_preview = get_character_avatar_preview(first_char)
+                    details = get_character_details(first_char)
+                    return gr.Dropdown(choices=characters, value=first_char), "", avatar_preview, details["personality"], None
+                else:
+                    return gr.Dropdown(choices=characters, value=""), "", "static/images/contact.png", "", None
             
             def load_character_details(name):
-                """Load character details when selected from dropdown"""
+                """Load character details when selected from dropdown - FIXED to show initials"""
                 if not name:
                     return "static/images/contact.png", "", None
+                
                 details = get_character_details(name)
-                return details["avatar"], details["personality"], None
+                
+                # Use the fixed preview function that shows initials
+                avatar_preview = get_character_avatar_preview(name)
+                
+                return avatar_preview, details["personality"], None
             
             def add_character_handler(name, personality, avatar):
                 """Add a new character with avatar"""
@@ -2689,7 +2751,8 @@ with gr.Blocks() as demo:
                 if success:
                     # After adding, automatically select the new character and load its details
                     details = get_character_details(name)
-                    return message, gr.Dropdown(choices=characters, value=name), details["avatar"], details["personality"], None
+                    avatar_preview = get_character_avatar_preview(name)  # Use fixed preview
+                    return message, gr.Dropdown(choices=characters, value=name), avatar_preview, details["personality"], None
                 else:
                     return message, gr.Dropdown(choices=characters, value=""), "static/images/contact.png", "", None
             
@@ -2713,7 +2776,8 @@ with gr.Blocks() as demo:
                 if success:
                     # After updating, reload the character details
                     details = get_character_details(name)
-                    return message, gr.Dropdown(choices=characters, value=name), details["avatar"], details["personality"], None
+                    avatar_preview = get_character_avatar_preview(name)  # Use fixed preview
+                    return message, gr.Dropdown(choices=characters, value=name), avatar_preview, details["personality"], None
                 else:
                     return message, gr.Dropdown(choices=characters, value=name if name in characters else ""), current_details["avatar"], personality, None
             
