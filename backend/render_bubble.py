@@ -4,7 +4,7 @@ import sys
 import time
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import base64
 import hashlib
 import colorsys
@@ -59,8 +59,8 @@ def get_character_avatar_path(username):
     """Get the correct avatar path for a character - SELF CONTAINED"""
     characters = load_characters()
     
-    # Default fallback
-    default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
+    # Default fallback - now returns None to trigger initial generation
+    default_path = None
     
     # Clean username
     username_clean = username.strip()
@@ -100,28 +100,74 @@ def get_character_avatar_path(username):
                 print(f"✅ Found avatar in avatars dir: {possible_path}")
                 return possible_path
     
-    # 3) Final fallback
-    print(f"⚠️ Using default avatar for {username_clean}")
+    # 3) Return None to trigger initial generation
+    print(f"🔄 No avatar found for {username_clean}, will generate initial")
     return default_path
 
-def encode_avatar_for_html(avatar_path):
-    """Convert avatar image to base64 for HTML display - SELF CONTAINED"""
-    if not avatar_path or not os.path.exists(avatar_path):
-        return ""
+def generate_initial_avatar(username, size=64):
+    """Generate an avatar with the person's initial and background color"""
+    # Get deterministic color from username
+    color = name_to_color(username)
+    
+    # Create image with background color
+    img = Image.new('RGB', (size, size), color=color)
+    draw = ImageDraw.Draw(img)
+    
+    # Get the first character of the username as initial
+    initial = username.strip()[0].upper() if username.strip() else "?"
     
     try:
-        with open(avatar_path, "rb") as f:
-            avatar_data = base64.b64encode(f.read()).decode("utf-8")
+        # Try to load a font
+        font_size = size // 2
+        try:
+            font = ImageFont.truetype("Arial", font_size)
+        except:
+            # Fallback to default font
+            font = ImageFont.load_default()
         
-        mime_type = "image/jpeg"
-        if avatar_path.lower().endswith('.png'):
-            mime_type = "image/png"
-        elif avatar_path.lower().endswith('.gif'):
-            mime_type = "image/gif"
+        # Calculate text position (centered)
+        bbox = draw.textbbox((0, 0), initial, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        x = (size - text_width) // 2
+        y = (size - text_height) // 2
         
-        return f"data:{mime_type};base64,{avatar_data}"
+        # Draw the initial in white
+        draw.text((x, y), initial, fill=(255, 255, 255), font=font)
     except Exception as e:
-        print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
+        print(f"⚠️ Failed to draw initial: {e}")
+        # Draw simple circle as fallback
+        draw.ellipse([5, 5, size-5, size-5], fill=(255, 255, 255))
+    
+    return img
+
+def encode_avatar_for_html(avatar_path, username):
+    """Convert avatar image to base64 for HTML display - with initial fallback"""
+    avatar_img = None
+    
+    # If avatar path exists, use it
+    if avatar_path and os.path.exists(avatar_path):
+        try:
+            avatar_img = Image.open(avatar_path)
+            # Resize to standard size
+            avatar_img = avatar_img.resize((64, 64))
+        except Exception as e:
+            print(f"⚠️ Failed to load avatar {avatar_path}: {e}")
+            avatar_img = None
+    
+    # If no valid avatar, generate initial avatar
+    if avatar_img is None:
+        avatar_img = generate_initial_avatar(username)
+    
+    # Convert to base64
+    try:
+        from io import BytesIO
+        buffer = BytesIO()
+        avatar_img.save(buffer, format="PNG")
+        avatar_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        return f"data:image/png;base64,{avatar_data}"
+    except Exception as e:
+        print(f"⚠️ Failed to encode avatar: {e}")
         return ""
 
 # ---------- PERFORMANCE OPTIMIZATIONS ---------- #
@@ -319,23 +365,8 @@ class WhatsAppRenderer:
         # --- FIXED AVATAR RESOLUTION SYSTEM ---
         avatar_path = get_character_avatar_path(username)
         
-        # Determine mime type
-        if avatar_path.lower().endswith('.png'):
-            mime = "image/png"
-        else:
-            mime = "image/jpeg"
-    
-        # Encode avatar
-        try:
-            with open(avatar_path, "rb") as f:
-                avatar_data = base64.b64encode(f.read()).decode("utf-8")
-        except Exception as e:
-            print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
-            # Fallback to default avatar
-            default_path = os.path.join(BASE_DIR, "static", "images", "contact.png")
-            with open(default_path, "rb") as f:
-                avatar_data = base64.b64encode(f.read()).decode("utf-8")
-            mime = "image/png"
+        # Use the new avatar encoding system that generates initials
+        avatar_data = encode_avatar_for_html(avatar_path, username)
     
         # --- MEME HANDLING ---
         meme_data = None
@@ -354,8 +385,7 @@ class WhatsAppRenderer:
             "is_read": is_read,
             "timestamp": ts,
             "color": color,
-            "avatar": avatar_data,
-            "avatar_format": mime
+            "avatar": avatar_data
         }
     
         if meme_data:
