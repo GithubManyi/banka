@@ -2524,102 +2524,102 @@ def force_avatar_update():
         return "✅ No updates needed"
 
 
-def generate_avatar_with_initials(username, size=200):
-    """Generate a WhatsApp-style avatar with initials"""
-    # Generate initials from name (like WhatsApp does)
-    def get_initials(name):
-        # Remove extra spaces and split into words
-        words = name.strip().split()
-        if len(words) == 0:
-            return "?"
-        elif len(words) == 1:
-            # Single word - take first character only (like real WhatsApp)
-            return name[:1].upper()
-        else:
-            # Multiple words - take first letter of first and last word
-            return (words[0][0] + words[-1][0]).upper()
+# def generate_avatar_with_initials(username, size=200):
+#     """Generate a WhatsApp-style avatar with initials"""
+#     # Generate initials from name (like WhatsApp does)
+#     def get_initials(name):
+#         # Remove extra spaces and split into words
+#         words = name.strip().split()
+#         if len(words) == 0:
+#             return "?"
+#         elif len(words) == 1:
+#             # Single word - take first character only (like real WhatsApp)
+#             return name[:1].upper()
+#         else:
+#             # Multiple words - take first letter of first and last word
+#             return (words[0][0] + words[-1][0]).upper()
     
-    initials = get_initials(username)
+#     initials = get_initials(username)
     
-    try:
-        from PIL import Image, ImageDraw, ImageFont
+#     try:
+#         from PIL import Image, ImageDraw, ImageFont
         
-        # WhatsApp-like colors (similar to their color palette)
-        colors = [
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-            '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
-        ]
+#         # WhatsApp-like colors (similar to their color palette)
+#         colors = [
+#             '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+#             '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+#             '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
+#         ]
         
-        # Pick a consistent color based on username hash
-        color_index = hash(username) % len(colors)
-        background_color = colors[color_index]
+#         # Pick a consistent color based on username hash
+#         color_index = hash(username) % len(colors)
+#         background_color = colors[color_index]
         
-        # Create image
-        img = Image.new('RGB', (size, size), color=background_color)
-        draw = ImageDraw.Draw(img)
+#         # Create image
+#         img = Image.new('RGB', (size, size), color=background_color)
+#         draw = ImageDraw.Draw(img)
         
-        # Try to use a nice font, fallback to default
-        try:
-            # Try to use a bold font - larger size for single letters
-            if len(initials) == 1:
-                font_size = size // 2  # Bigger for single letters
-            else:
-                font_size = size // 3  # Smaller for two letters
+#         # Try to use a nice font, fallback to default
+#         try:
+#             # Try to use a bold font - larger size for single letters
+#             if len(initials) == 1:
+#                 font_size = size // 2  # Bigger for single letters
+#             else:
+#                 font_size = size // 3  # Smaller for two letters
             
-            # Try multiple font paths
-            font_paths = [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
-                "/System/Library/Fonts/Helvetica.ttc",
-                "Arial"
-            ]
+#             # Try multiple font paths
+#             font_paths = [
+#                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+#                 "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
+#                 "/System/Library/Fonts/Helvetica.ttc",
+#                 "Arial"
+#             ]
             
-            font = None
-            for font_path in font_paths:
-                try:
-                    font = ImageFont.truetype(font_path, font_size)
-                    break
-                except:
-                    continue
+#             font = None
+#             for font_path in font_paths:
+#                 try:
+#                     font = ImageFont.truetype(font_path, font_size)
+#                     break
+#                 except:
+#                     continue
             
-            if font is None:
-                # Final fallback to default font
-                font = ImageFont.load_default()
+#             if font is None:
+#                 # Final fallback to default font
+#                 font = ImageFont.load_default()
                 
-        except:
-            try:
-                # Fallback to any available font
-                font = ImageFont.load_default()
-            except:
-                font = None
+#         except:
+#             try:
+#                 # Fallback to any available font
+#                 font = ImageFont.load_default()
+#             except:
+#                 font = None
         
-        # Calculate text position (centered)
-        if font:
-            # Get text bounding box
-            bbox = draw.textbbox((0, 0), initials, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            x = (size - text_width) // 2
-            y = (size - text_height) // 2
-        else:
-            # Fallback positioning
-            x = size // 3
-            y = size // 3
+#         # Calculate text position (centered)
+#         if font:
+#             # Get text bounding box
+#             bbox = draw.textbbox((0, 0), initials, font=font)
+#             text_width = bbox[2] - bbox[0]
+#             text_height = bbox[3] - bbox[1]
+#             x = (size - text_width) // 2
+#             y = (size - text_height) // 2
+#         else:
+#             # Fallback positioning
+#             x = size // 3
+#             y = size // 3
         
-        # Draw the text
-        draw.text((x, y), initials, fill='white', font=font)
+#         # Draw the text
+#         draw.text((x, y), initials, fill='white', font=font)
         
-        return img
+#         return img
         
-    except ImportError:
-        print("⚠️ PIL not available, cannot generate avatar with initials")
-        # Create a simple fallback using command line
-        return create_fallback_avatar(username, size)
-    except Exception as e:
-        print(f"⚠️ Error generating avatar with initials: {e}")
-        # Create a simple fallback
-        return create_fallback_avatar(username, size)
+#     except ImportError:
+#         print("⚠️ PIL not available, cannot generate avatar with initials")
+#         # Create a simple fallback using command line
+#         return create_fallback_avatar(username, size)
+#     except Exception as e:
+#         print(f"⚠️ Error generating avatar with initials: {e}")
+#         # Create a simple fallback
+#         return create_fallback_avatar(username, size)
 
 def create_fallback_avatar(username, size=200):
     """Create a fallback avatar using command line tools if PIL fails"""
