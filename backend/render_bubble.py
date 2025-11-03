@@ -13,7 +13,9 @@ import random
 import traceback
 import gc
 import logging
+import emoji
 from io import BytesIO
+
 # Reduce logging verbosity
 logging.getLogger('html2image').setLevel(logging.WARNING)
 logging.getLogger('PIL').setLevel(logging.WARNING)
@@ -21,10 +23,12 @@ logging.getLogger('selenium').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 # Suppress Chrome/Chromium specific warnings
 logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.ERROR)
+
 os.environ['DBUS_SESSION_BUS_ADDRESS'] = ''
 os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = ''
 os.environ['DISABLE_DEV_SHM'] = 'true'
 os.environ['ENABLE_CRASH_REPORTER'] = 'false'
+
 # ---------- CONFIG ---------- #
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "backend", "templates")
@@ -35,8 +39,10 @@ TIMELINE_FILE = os.path.join(FRAMES_DIR, "timeline.json")
 AVATAR_DIR = os.path.join(BASE_DIR, "static", "avatars")
 CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
 os.makedirs(FRAMES_DIR, exist_ok=True)
+
 MAIN_USER = "Banka" # right-side sender
 W, H = 1904, 934 # match video size
+
 # ---------- AVATAR MANAGEMENT SYSTEM ---------- #
 def load_characters():
     """Load characters from JSON file - SELF CONTAINED"""
@@ -49,6 +55,7 @@ def load_characters():
             print(f"❌ Error loading characters: {e}")
             return {}
     return {}
+
 def get_character_avatar_path(username):
     """Get the correct avatar path for a character - SELF CONTAINED"""
     characters = load_characters()
@@ -94,6 +101,7 @@ def get_character_avatar_path(username):
     # 3) No avatar found, return empty string to trigger initial generation
     print(f"⚠️ No avatar found for {username_clean}, will generate initial")
     return ""
+
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display - SELF CONTAINED"""
     if not avatar_path or not os.path.exists(avatar_path):
@@ -113,11 +121,13 @@ def encode_avatar_for_html(avatar_path):
     except Exception as e:
         print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
         return ""
+
 # ---------- PERFORMANCE OPTIMIZATIONS ---------- #
 # Global HTML2Image instance
 HTI = None
 FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
+
 def get_html2image():
     """Get or create HTML2Image instance with optimized Chrome flags"""
     global HTI
@@ -182,6 +192,7 @@ def get_html2image():
             print(f"⚠️ HTML2Image setup failed: {e}")
             HTI = None
     return HTI
+
 def cleanup_resources():
     """Clean up all resources when done"""
     global HTI
@@ -190,6 +201,7 @@ def cleanup_resources():
     FRAME_CACHE.clear()
     gc.collect()
     print("🧹 Cleaned up rendering resources")
+
 def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     """Generate a cache key for frame rendering"""
     key_data = {
@@ -200,6 +212,7 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
         'upcoming_text': upcoming_text
     }
     return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
+
 # ---------- HELPERS ---------- #
 def encode_meme(path):
     """Encode meme for HTML display"""
@@ -218,6 +231,7 @@ def encode_meme(path):
         "meme_type": ext, # ".jpg", ".png", ".mp4", etc.
         "mime": mime # "image/png", "image/jpeg", "video/mp4"
     }
+
 def name_to_color(username: str) -> str:
     """Readable deterministic color from username, with better spread."""
     h = hashlib.md5(username.strip().lower().encode("utf-8")).hexdigest()
@@ -227,6 +241,7 @@ def name_to_color(username: str) -> str:
     lightness = 0.55
     r, g, b = colorsys.hls_to_rgb(hue/360, lightness, saturation)
     return f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+
 def calculate_typing_duration(text):
     """Calculate realistic typing duration based on text length"""
     chars = len(text.strip())
@@ -235,6 +250,7 @@ def calculate_typing_duration(text):
    
     typing_time = base_duration + (chars * char_duration)
     return min(typing_time, 4.0) # Cap at 4 seconds max
+
 def debug_timeline_entries():
     """Debug function to check what's in the timeline"""
     if hasattr(render_bubble, 'timeline') and render_bubble.timeline:
@@ -244,12 +260,14 @@ def debug_timeline_entries():
        
         for i, entry in enumerate(typing_entries[-10:]): # Show last 10 entries
             print(f"🔍 Entry {i}: text='{entry.get('upcoming_text')}' sound={entry.get('sound')} duration={entry.get('duration')}")
+
 # ---------- VIDEO HELPERS ---------- #
 def add_still_to_concat(concat_lines, frame_file, duration):
     """Add a still frame to concat file for video generation"""
     safe_path = frame_file.replace("\\", "/")
     concat_lines.append(f"file '{safe_path}'")
     concat_lines.append(f"duration {float(duration):.3f}")
+
 def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
     """Handle meme image processing for video generation"""
     if not os.path.exists(meme_path):
@@ -266,6 +284,7 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
    
     # Return the single frame path and duration
     return frame_path, duration
+
 # ---------- RENDERER ---------- #
 class WhatsAppRenderer:
     def __init__(self, chat_title="Default Group", chat_avatar=None, chat_status=None):
@@ -277,6 +296,85 @@ class WhatsAppRenderer:
         self._last_render_time = 0
         self._render_count = 0
    
+    def draw_text_with_emoji_support(self, draw, text, x, y, max_width, font, fill_color):
+        """Draw text with basic emoji support - handles emojis mixed with regular text"""
+        try:
+            current_x = x
+            current_y = y
+            line_height = 25  # Adjust based on your font size
+            
+            for char in text:
+                try:
+                    # Check if character is an emoji
+                    if emoji.is_emoji(char):
+                        # Try to use a larger font for emojis for better visibility
+                        try:
+                            emoji_font = ImageFont.truetype("Arial", 22)  # Slightly larger for emojis
+                        except:
+                            emoji_font = font
+                        
+                        # Draw the emoji character
+                        draw.text((current_x, current_y), char, fill=fill_color, font=emoji_font)
+                        
+                        # Move cursor - emojis are typically wider
+                        current_x += 25  # Fixed width for emojis
+                        
+                    else:
+                        # Regular character
+                        draw.text((current_x, current_y), char, fill=fill_color, font=font)
+                        
+                        # Estimate character width
+                        try:
+                            bbox = draw.textbbox((0, 0), char, font=font)
+                            char_width = bbox[2] - bbox[0]
+                            current_x += char_width + 1  # Small spacing
+                        except:
+                            current_x += 10  # Fallback width
+                    
+                    # Line wrapping
+                    if current_x > (x + max_width):
+                        current_x = x
+                        current_y += line_height
+                        
+                except Exception as char_error:
+                    # If we can't draw this character, skip it but continue
+                    print(f"⚠️ Could not draw character '{char}': {char_error}")
+                    current_x += 10  # Advance anyway
+                    continue
+                    
+        except Exception as e:
+            # Fallback: draw the entire text normally
+            print(f"⚠️ Emoji text rendering failed, using fallback: {e}")
+            draw.text((x, y), text, fill=fill_color, font=font)
+
+    def calculate_text_lines(self, text, max_width, font):
+        """Calculate how many lines the text will take"""
+        from PIL import Image, ImageDraw
+        try:
+            # Create a temporary image to measure text
+            temp_img = Image.new('RGB', (1, 1))
+            temp_draw = ImageDraw.Draw(temp_img)
+            
+            lines = 1
+            current_width = 0
+            
+            for char in text:
+                try:
+                    bbox = temp_draw.textbbox((0, 0), char, font=font)
+                    char_width = bbox[2] - bbox[0]
+                    current_width += char_width
+                    
+                    if current_width > max_width:
+                        lines += 1
+                        current_width = char_width
+                except:
+                    current_width += 10  # Fallback width
+                    
+            return max(1, lines)
+            
+        except:
+            return len(text) // 50 + 1  # Very rough estimate
+
     def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
         """COMPLETE METHOD - Add message to history with FIXED AVATAR SYSTEM"""
         try:
@@ -354,6 +452,7 @@ class WhatsAppRenderer:
             message_entry["mime"] = meme_data["mime"]
    
         self.message_history.append(message_entry)
+
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
         """
         Optimized frame rendering with HTML2Image fallback to PIL
@@ -442,7 +541,7 @@ class WhatsAppRenderer:
                 print(f"❌ HTML2Image failed: {e}")
                 print("🔄 Falling back to PIL rendering...")
            
-            # PIL FALLBACK - Create a visual chat frame
+            # PIL FALLBACK - Create a visual chat frame WITH EMOJI SUPPORT
             from PIL import Image, ImageDraw, ImageFont
            
             # Create background
@@ -450,12 +549,14 @@ class WhatsAppRenderer:
             draw = ImageDraw.Draw(img)
            
             try:
-                # Try to use a font (fallback to default if not available)
+                # Try to use fonts that support emojis
                 try:
+                    # Try system fonts that might have emoji support
                     font_large = ImageFont.truetype("Arial", 24)
                     font_medium = ImageFont.truetype("Arial", 18)
                     font_small = ImageFont.truetype("Arial", 14)
                 except:
+                    # Fallback to default fonts
                     font_large = ImageFont.load_default()
                     font_medium = ImageFont.load_default()
                     font_small = ImageFont.load_default()
@@ -473,7 +574,7 @@ class WhatsAppRenderer:
                     draw.text((100, y_pos), f"⌨️ {typing_user} is typing: {upcoming_text}", fill=(100, 255, 100), font=font_medium)
                     y_pos += 40
                
-                # Draw message bubbles
+                # Draw message bubbles WITH EMOJI SUPPORT
                 for msg in filtered_messages[-8:]: # Show last 8 messages
                     # Message bubble
                     bubble_x = 100 if not msg['is_sender'] else 1000
@@ -484,22 +585,15 @@ class WhatsAppRenderer:
                     draw.text((bubble_x, y_pos), user_text, fill=msg['color'], font=font_small)
                     y_pos += 25
                    
-                    # Message text
-                    message_lines = []
-                    current_line = ""
-                    for word in msg['text'].split():
-                        test_line = current_line + word + " "
-                        if len(test_line) > 50: # Wrap at 50 chars
-                            message_lines.append(current_line)
-                            current_line = word + " "
-                        else:
-                            current_line = test_line
-                    if current_line:
-                        message_lines.append(current_line)
-                   
-                    for line in message_lines:
-                        draw.text((bubble_x, y_pos), line, fill=(255, 255, 255), font=font_medium)
-                        y_pos += 25
+                    # MESSAGE TEXT WITH EMOJI SUPPORT
+                    message_text = msg['text']
+                    if message_text:
+                        # Use a function that handles emojis properly
+                        self.draw_text_with_emoji_support(draw, message_text, bubble_x, y_pos, 800, font_medium, (255, 255, 255))
+                       
+                        # Calculate how many lines we need to advance
+                        lines_needed = self.calculate_text_lines(message_text, 800, font_medium)
+                        y_pos += (lines_needed * 25)
                    
                     # Typing indicator for receiver bubbles
                     if msg.get('typing'):
@@ -531,6 +625,7 @@ class WhatsAppRenderer:
             print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
        
         return rendered_html
+
 # ---------- BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
     """
@@ -644,8 +739,10 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
     if render_bubble.frame_count % 20 == 0:
         print(f"✅ Regular frame {render_bubble.frame_count}: {frame_file} ({duration}s)")
     return frame_file
+
 def render_meme(username, meme_path):
     return render_bubble(username, "", meme_path=meme_path)
+
 def render_typing_bubble(username, duration=None, is_sender=None, custom_durations=None):
     custom_durations = custom_durations or {} # ✅ prevents NoneType errors
     """Optimized typing bubble rendering"""
@@ -703,6 +800,7 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
     if render_bubble.frame_count % 20 == 0:
         print(f"⌨️ Typing indicator for {username} (duration: {duration}s)")
     return frame_file
+
 def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duration=None, is_character_typing=True):
     """
     SIMPLIFIED: Render typing bar frames with CONTINUOUS sound logic.
@@ -803,6 +901,7 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         json.dump(render_bubble.timeline, tf, indent=2)
     render_bubble.frame_count += 1
     return frame_path
+
 def generate_beluga_typing_sequence(real_message):
     """
     FIXED: Actually renders typing frames with CONTINUOUS sound control
@@ -884,6 +983,7 @@ def generate_beluga_typing_sequence(real_message):
     print(f"⌨️ Generated {len(sequence)} typing frames for '{real_message[:50]}...'")
    
     return sequence
+
 def render_typing_sequence(username, real_message):
     """
     FIXED: Actually renders the typing sequence frames with sound
@@ -909,6 +1009,7 @@ def render_typing_sequence(username, real_message):
    
     print(f"🎬 Completed typing sequence: {len(rendered_frames)} frames rendered")
     return rendered_frames
+
 def reset_typing_sessions():
     """Reset typing session tracking - call this when starting a new video"""
     if hasattr(render_bubble, 'typing_session_active'):
@@ -918,6 +1019,7 @@ def reset_typing_sessions():
         render_bubble.prev_typing_text = ""
         render_bubble.fake_typing_count = 0
         print("🔄 Reset typing session tracking")
+
 # ---------- MAIN SCRIPT ---------- #
 if __name__ == "__main__":
     try:
