@@ -616,7 +616,7 @@
                    <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" class="avatar"
                         onerror="this.style.display='none'">
                {% else %}
-                   <div class="avatar-fallback" style=">
+                   <div class="avatar-fallback">
                        {{ msg.username[:1] }}{{ msg.username.split(' ')[1][:1] if msg.username.split(' ')|length > 1 else '' }}
                    </div>
                {% endif %}
@@ -630,7 +630,7 @@
                    <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" class="avatar"
                         onerror="this.style.display='none'">
                {% else %}
-                   <div class="avatar-fallback" style=">
+                   <div class="avatar-fallback">
                        {{ msg.username[:1] }}{{ msg.username.split(' ')[1][:1] if msg.username.split(' ')|length > 1 else '' }}
                    </div>
                {% endif %}
