@@ -494,21 +494,59 @@ def generate_avatar_with_initials(username, size=200):
         return img
         
     except ImportError:
-        print("⚠️ PIL not available, cannot generate avatar with initials")
-        # Create a simple fallback using command line
+        print("⚠️ PIL not available, using simple fallback avatar")
+        # Return a simple colored image as fallback
         return create_fallback_avatar(username, size)
     except Exception as e:
         print(f"⚠️ Error generating avatar with initials: {e}")
-        # Create a simple fallback
+        # Return a simple colored image as fallback
         return create_fallback_avatar(username, size)
 
 def create_fallback_avatar(username, size=200):
-    """Create a simple fallback avatar when PIL is not available"""
-    # This is a simple fallback - you might want to implement something basic
-    # that doesn't require PIL, or return a default image
-    print(f"Fallback avatar for: {username}")
-    # Return a simple colored block or handle as needed
-    return None
+    """Create a simple fallback avatar that always returns an image"""
+    try:
+        from PIL import Image, ImageDraw
+        
+        # Use a default background color
+        background_color = '#4ECDC4'
+        
+        # Create image
+        img = Image.new('RGB', (size, size), color=background_color)
+        draw = ImageDraw.Draw(img)
+        
+        # Get initials for fallback
+        def get_initials(name):
+            words = name.strip().split()
+            if len(words) == 0:
+                return "?"
+            elif len(words) == 1:
+                return name[:1].upper()
+            else:
+                return (words[0][0] + words[-1][0]).upper()
+        
+        initials = get_initials(username)
+        
+        # Draw simple text (no font, just basic drawing)
+        # Calculate rough position
+        text_width = len(initials) * size // 3
+        x = (size - text_width) // 2
+        y = size // 3
+        
+        # Draw the text
+        draw.text((x, y), initials, fill='white')
+        
+        return img
+        
+    except Exception as e:
+        print(f"⚠️ Even fallback avatar failed: {e}")
+        # Ultimate fallback - create a basic colored image
+        try:
+            from PIL import Image
+            img = Image.new('RGB', (size, size), color='#4ECDC4')
+            return img
+        except:
+            # If everything fails, we can't return an image
+            raise Exception("Cannot generate avatar - PIL may not be properly installed")
 
 
 def get_or_create_initial_avatar(username):
