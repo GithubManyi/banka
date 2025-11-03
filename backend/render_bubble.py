@@ -55,12 +55,51 @@ def load_characters():
             return {}
     return {}
 
-def get_character_avatar_path(username):
-    """Get the correct avatar path for a character - SELF CONTAINED"""
-    characters = load_characters()
+def generate_initial_avatar(username, size=200):
+    """Generate an avatar with the user's initial"""
+    # Get first letter of username
+    initial = username.strip()[0].upper() if username.strip() else "?"
     
-    # Default fallback - now returns None to trigger initial generation
-    default_path = None
+    # Generate color from username
+    color_hex = name_to_color(username)
+    # Convert hex to RGB
+    color_rgb = tuple(int(color_hex[i:i+2], 16) for i in (1, 3, 5))
+    
+    # Create circular avatar
+    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    
+    # Draw circle background
+    draw.ellipse([0, 0, size, size], fill=color_rgb)
+    
+    # Draw initial
+    try:
+        # Try to load a nice font
+        font_size = int(size * 0.5)
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+        except:
+            try:
+                font = ImageFont.truetype("Arial.ttf", font_size)
+            except:
+                font = ImageFont.load_default()
+    except:
+        font = ImageFont.load_default()
+    
+    # Calculate text position to center it
+    bbox = draw.textbbox((0, 0), initial, font=font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    position = ((size - text_width) // 2, (size - text_height) // 2 - int(size * 0.05))
+    
+    # Draw white text
+    draw.text(position, initial, fill=(255, 255, 255), font=font)
+    
+    return img
+
+def get_character_avatar_path(username):
+    """Get the correct avatar path for a character - returns path or generates initial avatar"""
+    characters = load_characters()
     
     # Clean username
     username_clean = username.strip()
@@ -101,74 +140,47 @@ def get_character_avatar_path(username):
                 return possible_path
     
     # 3) Return None to trigger initial generation
-    print(f"🔄 No avatar found for {username_clean}, will generate initial")
-    return default_path
+    print(f"⚠️ No avatar found for {username_clean}, will generate initial")
+    return None
 
-def generate_initial_avatar(username, size=64):
-    """Generate an avatar with the person's initial and background color"""
-    # Get deterministic color from username
-    color = name_to_color(username)
+def encode_avatar_for_html(username):
+    """Convert avatar image to base64 for HTML display - generates initial if no avatar exists"""
+    avatar_path = get_character_avatar_path(username)
     
-    # Create image with background color
-    img = Image.new('RGB', (size, size), color=color)
-    draw = ImageDraw.Draw(img)
-    
-    # Get the first character of the username as initial
-    initial = username.strip()[0].upper() if username.strip() else "?"
-    
-    try:
-        # Try to load a font
-        font_size = size // 2
-        try:
-            font = ImageFont.truetype("Arial", font_size)
-        except:
-            # Fallback to default font
-            font = ImageFont.load_default()
-        
-        # Calculate text position (centered)
-        bbox = draw.textbbox((0, 0), initial, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        x = (size - text_width) // 2
-        y = (size - text_height) // 2
-        
-        # Draw the initial in white
-        draw.text((x, y), initial, fill=(255, 255, 255), font=font)
-    except Exception as e:
-        print(f"⚠️ Failed to draw initial: {e}")
-        # Draw simple circle as fallback
-        draw.ellipse([5, 5, size-5, size-5], fill=(255, 255, 255))
-    
-    return img
-
-def encode_avatar_for_html(avatar_path, username):
-    """Convert avatar image to base64 for HTML display - with initial fallback"""
-    avatar_img = None
-    
-    # If avatar path exists, use it
-    if avatar_path and os.path.exists(avatar_path):
-        try:
-            avatar_img = Image.open(avatar_path)
-            # Resize to standard size
-            avatar_img = avatar_img.resize((64, 64))
-        except Exception as e:
-            print(f"⚠️ Failed to load avatar {avatar_path}: {e}")
-            avatar_img = None
-    
-    # If no valid avatar, generate initial avatar
-    if avatar_img is None:
+    # If no avatar found, generate initial avatar
+    if not avatar_path or not os.path.exists(avatar_path):
+        print(f"🎨 Generating initial avatar for {username}")
         avatar_img = generate_initial_avatar(username)
-    
-    # Convert to base64
-    try:
+        
+        # Convert to base64
         from io import BytesIO
         buffer = BytesIO()
-        avatar_img.save(buffer, format="PNG")
+        avatar_img.save(buffer, format='PNG')
+        avatar_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        
+        return f"data:image/png;base64,{avatar_data}"
+    
+    # If avatar exists, encode it
+    try:
+        with open(avatar_path, "rb") as f:
+            avatar_data = base64.b64encode(f.read()).decode("utf-8")
+        
+        mime_type = "image/jpeg"
+        if avatar_path.lower().endswith('.png'):
+            mime_type = "image/png"
+        elif avatar_path.lower().endswith('.gif'):
+            mime_type = "image/gif"
+        
+        return f"data:{mime_type};base64,{avatar_data}"
+    except Exception as e:
+        print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
+        # Fallback to generating initial
+        avatar_img = generate_initial_avatar(username)
+        from io import BytesIO
+        buffer = BytesIO()
+        avatar_img.save(buffer, format='PNG')
         avatar_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
         return f"data:image/png;base64,{avatar_data}"
-    except Exception as e:
-        print(f"⚠️ Failed to encode avatar: {e}")
-        return ""
 
 # ---------- PERFORMANCE OPTIMIZATIONS ---------- #
 # Global HTML2Image instance
@@ -354,7 +366,7 @@ class WhatsAppRenderer:
         self._render_count = 0
     
     def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
-        """COMPLETE METHOD - Add message to history with FIXED AVATAR SYSTEM"""
+        """Add message to history with FIXED AVATAR SYSTEM"""
         try:
             ts = datetime.now().strftime("%-I:%M %p").lower()
         except ValueError:
@@ -363,11 +375,9 @@ class WhatsAppRenderer:
         color = name_to_color(username)
     
         # --- FIXED AVATAR RESOLUTION SYSTEM ---
-        avatar_path = get_character_avatar_path(username)
+        # This now returns base64 encoded data URL directly
+        avatar_data_url = encode_avatar_for_html(username)
         
-        # Use the new avatar encoding system that generates initials
-        avatar_data = encode_avatar_for_html(avatar_path, username)
-    
         # --- MEME HANDLING ---
         meme_data = None
         if meme_path and os.path.exists(meme_path):
@@ -385,7 +395,7 @@ class WhatsAppRenderer:
             "is_read": is_read,
             "timestamp": ts,
             "color": color,
-            "avatar": avatar_data
+            "avatar": avatar_data_url  # Now contains full data URL with base64
         }
     
         if meme_data:
@@ -394,8 +404,6 @@ class WhatsAppRenderer:
             message_entry["mime"] = meme_data["mime"]
     
         self.message_history.append(message_entry)
-
-
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
         """
@@ -517,11 +525,27 @@ class WhatsAppRenderer:
                     draw.text((100, y_pos), f"⌨️ {typing_user} is typing: {upcoming_text}", fill=(100, 255, 100), font=font_medium)
                     y_pos += 40
                 
-                # Draw message bubbles
+                # Draw message bubbles with avatars
                 for msg in filtered_messages[-8:]:  # Show last 8 messages
+                    # Draw avatar (circle with initial)
+                    avatar_x = 50 if not msg['is_sender'] else 1820
+                    avatar_y = y_pos
+                    avatar_size = 50
+                    
+                    # Draw circle
+                    draw.ellipse([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size], fill=msg['color'])
+                    
+                    # Draw initial
+                    initial = msg['username'][0].upper()
+                    initial_bbox = draw.textbbox((0, 0), initial, font=font_medium)
+                    initial_width = initial_bbox[2] - initial_bbox[0]
+                    initial_height = initial_bbox[3] - initial_bbox[1]
+                    initial_x = avatar_x + (avatar_size - initial_width) // 2
+                    initial_y = avatar_y + (avatar_size - initial_height) // 2
+                    draw.text((initial_x, initial_y), initial, fill=(255, 255, 255), font=font_medium)
+                    
                     # Message bubble
-                    bubble_x = 100 if not msg['is_sender'] else 1000
-                    bubble_color = (30, 120, 200) if not msg['is_sender'] else (50, 150, 50)
+                    bubble_x = 120 if not msg['is_sender'] else 1000
                     
                     # Username and timestamp
                     user_text = f"{msg['username']} • {msg['timestamp']}"
