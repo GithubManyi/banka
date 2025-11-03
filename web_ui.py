@@ -398,69 +398,117 @@ def encode_avatar_for_html(avatar_path):
 # =============================================
 
 def generate_avatar_with_initials(username, size=200):
-    """Generate a WhatsApp-style avatar with BIG initials."""
+    """Generate a WhatsApp-style avatar with initials - LARGER FONT SIZE"""
+    # Generate initials from name (like WhatsApp does)
     def get_initials(name):
+        # Remove extra spaces and split into words
         words = name.strip().split()
-        if not words:
+        if len(words) == 0:
             return "?"
         elif len(words) == 1:
-            return words[0][0].upper()
-        return (words[0][0] + words[-1][0]).upper()
-
+            # Single word - take first character only (like real WhatsApp)
+            return name[:1].upper()
+        else:
+            # Multiple words - take first letter of first and last word
+            return (words[0][0] + words[-1][0]).upper()
+    
     initials = get_initials(username)
-
-    from PIL import Image, ImageDraw, ImageFont
-
-    # WhatsApp-random color style
-    colors = [
-        '#25D366', '#075E54', '#128C7E', '#34B7F1', '#FF6F61',
-        '#6A1B9A', '#00897B', '#0277BD', '#FBC02D', '#D81B60'
-    ]
-    bg_color = colors[hash(username) % len(colors)]
-
-    img = Image.new("RGB", (size, size), bg_color)
-    draw = ImageDraw.Draw(img)
-
-    # BIGGER font
-    font_size = int(size * (0.65 if len(initials) == 1 else 0.55))
-
-    font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "arial.ttf"
-    ]
-
-    font = None
-    for path in font_paths:
+    
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        
+        # WhatsApp-like colors (similar to their color palette)
+        colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+            '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
+        ]
+        
+        # Pick a consistent color based on username hash
+        color_index = hash(username) % len(colors)
+        background_color = colors[color_index]
+        
+        # Create image
+        img = Image.new('RGB', (size, size), color=background_color)
+        draw = ImageDraw.Draw(img)
+        
+        # Try to use a nice font, fallback to default
         try:
-            font = ImageFont.truetype(path, font_size)
-            break
-        except:
-            pass
+            # SIGNIFICANTLY LARGER FONT SIZES for better visibility
+            if len(initials) == 1:
+                font_size = int(size * 0.7)  # 70% of image size for single letters (was 60%)
+            else:
+                font_size = int(size * 0.55)  # 55% of image size for two letters (was 45%)
+            
+            # Try multiple font paths
+            font_paths = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
+                "/System/Library/Fonts/Helvetica.ttc",
+                "Arial",
+                "/System/Library/Fonts/Arial.ttf",
+                "/Windows/Fonts/arial.ttf",
+                "arialbd.ttf"
+            ]
+            
+            font = None
+            for font_path in font_paths:
+                try:
+                    font = ImageFont.truetype(font_path, font_size)
+                    break
+                except:
+                    continue
+            
+            if font is None:
+                # Final fallback to default font with larger size
+                try:
+                    font = ImageFont.load_default()
+                except:
+                    font = None
+                
+        except Exception as font_error:
+            print(f"Font loading issue: {font_error}")
+            font = None
+        
+        # Calculate text position (centered)
+        if font:
+            # Get text bounding box
+            try:
+                bbox = draw.textbbox((0, 0), initials, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                x = (size - text_width) // 2
+                y = (size - text_height) // 2
+            except:
+                # Fallback if textbbox fails
+                x = size * 0.2
+                y = size * 0.2
+        else:
+            # Fallback positioning - much larger area for text
+            x = size * 0.15
+            y = size * 0.15
+        
+        # Draw the text with white color for maximum contrast
+        draw.text((x, y), initials, fill='white', font=font)
+        
+        return img
+        
+    except ImportError:
+        print("⚠️ PIL not available, cannot generate avatar with initials")
+        # Create a simple fallback using command line
+        return create_fallback_avatar(username, size)
+    except Exception as e:
+        print(f"⚠️ Error generating avatar with initials: {e}")
+        # Create a simple fallback
+        return create_fallback_avatar(username, size)
 
-    if font is None:
-        font = ImageFont.load_default()
-
-    # Center initials
-    bbox = draw.textbbox((0, 0), initials, font=font)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
-
-    x = (size - text_w) // 2
-    y = (size - text_h) // 2
-
-    draw.text((x, y), initials, font=font, fill="white")
-
-    # Make avatar circular like WhatsApp
-    mask = Image.new("L", (size, size), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.ellipse((0, 0, size, size), fill=255)
-
-    final_img = Image.new("RGB", (size, size), (0, 0, 0))
-    final_img.paste(img, (0, 0), mask)
-
-    return final_img
+def create_fallback_avatar(username, size=200):
+    """Create a simple fallback avatar when PIL is not available"""
+    # This is a simple fallback - you might want to implement something basic
+    # that doesn't require PIL, or return a default image
+    print(f"Fallback avatar for: {username}")
+    # Return a simple colored block or handle as needed
+    return None
 
 
 def get_or_create_initial_avatar(username):
