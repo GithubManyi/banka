@@ -13,9 +13,7 @@ import random
 import traceback
 import gc
 import logging
-import emoji
 from io import BytesIO
-
 # Reduce logging verbosity
 logging.getLogger('html2image').setLevel(logging.WARNING)
 logging.getLogger('PIL').setLevel(logging.WARNING)
@@ -23,12 +21,10 @@ logging.getLogger('selenium').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 # Suppress Chrome/Chromium specific warnings
 logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.ERROR)
-
 os.environ['DBUS_SESSION_BUS_ADDRESS'] = ''
 os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = ''
 os.environ['DISABLE_DEV_SHM'] = 'true'
 os.environ['ENABLE_CRASH_REPORTER'] = 'false'
-
 # ---------- CONFIG ---------- #
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "backend", "templates")
@@ -39,10 +35,8 @@ TIMELINE_FILE = os.path.join(FRAMES_DIR, "timeline.json")
 AVATAR_DIR = os.path.join(BASE_DIR, "static", "avatars")
 CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
 os.makedirs(FRAMES_DIR, exist_ok=True)
-
 MAIN_USER = "Banka" # right-side sender
 W, H = 1904, 934 # match video size
-
 # ---------- AVATAR MANAGEMENT SYSTEM ---------- #
 def load_characters():
     """Load characters from JSON file - SELF CONTAINED"""
@@ -55,14 +49,13 @@ def load_characters():
             print(f"❌ Error loading characters: {e}")
             return {}
     return {}
-
 def get_character_avatar_path(username):
     """Get the correct avatar path for a character - SELF CONTAINED"""
     characters = load_characters()
-   
+  
     # Clean username
     username_clean = username.strip()
-   
+  
     # 1) Check character JSON first
     if username_clean in characters:
         avatar_path = characters[username_clean].get("avatar", "")
@@ -72,13 +65,13 @@ def get_character_avatar_path(username):
                 full_path = os.path.join(BASE_DIR, avatar_path)
             else:
                 full_path = avatar_path
-           
+          
             if os.path.exists(full_path):
                 print(f"✅ Found avatar for {username_clean}: {full_path}")
                 return full_path
             else:
                 print(f"⚠️ Avatar path in JSON doesn't exist: {full_path}")
-   
+  
     # 2) Check avatars directory directly
     avatars_dir = os.path.join(BASE_DIR, "static", "avatars")
     if os.path.exists(avatars_dir):
@@ -91,43 +84,40 @@ def get_character_avatar_path(username):
             username_clean.replace(' ', '_') + ".jpg",
             username_clean.replace(' ', '_') + ".jpeg"
         ]
-       
+      
         for filename in possible_filenames:
             possible_path = os.path.join(avatars_dir, filename)
             if os.path.exists(possible_path):
                 print(f"✅ Found avatar in avatars dir: {possible_path}")
                 return possible_path
-   
+  
     # 3) No avatar found, return empty string to trigger initial generation
     print(f"⚠️ No avatar found for {username_clean}, will generate initial")
     return ""
-
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display - SELF CONTAINED"""
     if not avatar_path or not os.path.exists(avatar_path):
         return ""
-   
+  
     try:
         with open(avatar_path, "rb") as f:
             avatar_data = base64.b64encode(f.read()).decode("utf-8")
-       
+      
         mime_type = "image/jpeg"
         if avatar_path.lower().endswith('.png'):
             mime_type = "image/png"
         elif avatar_path.lower().endswith('.gif'):
             mime_type = "image/gif"
-       
+      
         return f"data:{mime_type};base64,{avatar_data}"
     except Exception as e:
         print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
         return ""
-
 # ---------- PERFORMANCE OPTIMIZATIONS ---------- #
 # Global HTML2Image instance
 HTI = None
 FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
-
 def get_html2image():
     """Get or create HTML2Image instance with optimized Chrome flags"""
     global HTI
@@ -141,14 +131,14 @@ def get_html2image():
                 '/usr/bin/chrome',
                 '/app/.apt/usr/bin/chromium-browser'
             ]
-           
+          
             chromium_path = None
             for path in possible_paths:
                 if os.path.exists(path):
                     chromium_path = path
                     print(f"✅ Found Chromium at: {path}")
                     break
-           
+          
             if chromium_path:
                 # OPTIMIZED CHROME FLAGS TO MINIMIZE ERRORS
                 chrome_flags = [
@@ -178,7 +168,7 @@ def get_html2image():
                     '--disable-breakpad',
                     '--memory-pressure-off'
                 ]
-               
+              
                 HTI = html2image.Html2Image(
                     browser='chromium',
                     browser_executable=chromium_path,
@@ -192,7 +182,6 @@ def get_html2image():
             print(f"⚠️ HTML2Image setup failed: {e}")
             HTI = None
     return HTI
-
 def cleanup_resources():
     """Clean up all resources when done"""
     global HTI
@@ -201,7 +190,6 @@ def cleanup_resources():
     FRAME_CACHE.clear()
     gc.collect()
     print("🧹 Cleaned up rendering resources")
-
 def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     """Generate a cache key for frame rendering"""
     key_data = {
@@ -212,7 +200,6 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
         'upcoming_text': upcoming_text
     }
     return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
-
 # ---------- HELPERS ---------- #
 def encode_meme(path):
     """Encode meme for HTML display"""
@@ -231,7 +218,6 @@ def encode_meme(path):
         "meme_type": ext, # ".jpg", ".png", ".mp4", etc.
         "mime": mime # "image/png", "image/jpeg", "video/mp4"
     }
-
 def name_to_color(username: str) -> str:
     """Readable deterministic color from username, with better spread."""
     h = hashlib.md5(username.strip().lower().encode("utf-8")).hexdigest()
@@ -241,33 +227,29 @@ def name_to_color(username: str) -> str:
     lightness = 0.55
     r, g, b = colorsys.hls_to_rgb(hue/360, lightness, saturation)
     return f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
-
 def calculate_typing_duration(text):
     """Calculate realistic typing duration based on text length"""
     chars = len(text.strip())
     base_duration = 1.5 # Minimum typing time
     char_duration = 0.08 # Per character typing speed
-   
+  
     typing_time = base_duration + (chars * char_duration)
     return min(typing_time, 4.0) # Cap at 4 seconds max
-
 def debug_timeline_entries():
     """Debug function to check what's in the timeline"""
     if hasattr(render_bubble, 'timeline') and render_bubble.timeline:
         print("🔍 ===== TIMELINE DEBUG =====")
         typing_entries = [e for e in render_bubble.timeline if e.get('typing_bar')]
         print(f"🔍 Found {len(typing_entries)} typing bar entries in timeline")
-       
+      
         for i, entry in enumerate(typing_entries[-10:]): # Show last 10 entries
             print(f"🔍 Entry {i}: text='{entry.get('upcoming_text')}' sound={entry.get('sound')} duration={entry.get('duration')}")
-
 # ---------- VIDEO HELPERS ---------- #
 def add_still_to_concat(concat_lines, frame_file, duration):
     """Add a still frame to concat file for video generation"""
     safe_path = frame_file.replace("\\", "/")
     concat_lines.append(f"file '{safe_path}'")
     concat_lines.append(f"duration {float(duration):.3f}")
-
 def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
     """Handle meme image processing for video generation"""
     if not os.path.exists(meme_path):
@@ -281,10 +263,9 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
     # Save a single frame (not multiple frames)
     frame_path = output_path if output_path.endswith('.png') else output_path + '.png'
     img.save(frame_path, "PNG")
-   
+  
     # Return the single frame path and duration
     return frame_path, duration
-
 # ---------- RENDERER ---------- #
 class WhatsAppRenderer:
     def __init__(self, chat_title="Default Group", chat_avatar=None, chat_status=None):
@@ -295,98 +276,19 @@ class WhatsAppRenderer:
         self.chat_status = chat_status
         self._last_render_time = 0
         self._render_count = 0
-   
-    def draw_text_with_emoji_support(self, draw, text, x, y, max_width, font, fill_color):
-        """Draw text with basic emoji support - handles emojis mixed with regular text"""
-        try:
-            current_x = x
-            current_y = y
-            line_height = 25  # Adjust based on your font size
-            
-            for char in text:
-                try:
-                    # Check if character is an emoji
-                    if emoji.is_emoji(char):
-                        # Try to use a larger font for emojis for better visibility
-                        try:
-                            emoji_font = ImageFont.truetype("Arial", 22)  # Slightly larger for emojis
-                        except:
-                            emoji_font = font
-                        
-                        # Draw the emoji character
-                        draw.text((current_x, current_y), char, fill=fill_color, font=emoji_font)
-                        
-                        # Move cursor - emojis are typically wider
-                        current_x += 25  # Fixed width for emojis
-                        
-                    else:
-                        # Regular character
-                        draw.text((current_x, current_y), char, fill=fill_color, font=font)
-                        
-                        # Estimate character width
-                        try:
-                            bbox = draw.textbbox((0, 0), char, font=font)
-                            char_width = bbox[2] - bbox[0]
-                            current_x += char_width + 1  # Small spacing
-                        except:
-                            current_x += 10  # Fallback width
-                    
-                    # Line wrapping
-                    if current_x > (x + max_width):
-                        current_x = x
-                        current_y += line_height
-                        
-                except Exception as char_error:
-                    # If we can't draw this character, skip it but continue
-                    print(f"⚠️ Could not draw character '{char}': {char_error}")
-                    current_x += 10  # Advance anyway
-                    continue
-                    
-        except Exception as e:
-            # Fallback: draw the entire text normally
-            print(f"⚠️ Emoji text rendering failed, using fallback: {e}")
-            draw.text((x, y), text, fill=fill_color, font=font)
-
-    def calculate_text_lines(self, text, max_width, font):
-        """Calculate how many lines the text will take"""
-        from PIL import Image, ImageDraw
-        try:
-            # Create a temporary image to measure text
-            temp_img = Image.new('RGB', (1, 1))
-            temp_draw = ImageDraw.Draw(temp_img)
-            
-            lines = 1
-            current_width = 0
-            
-            for char in text:
-                try:
-                    bbox = temp_draw.textbbox((0, 0), char, font=font)
-                    char_width = bbox[2] - bbox[0]
-                    current_width += char_width
-                    
-                    if current_width > max_width:
-                        lines += 1
-                        current_width = char_width
-                except:
-                    current_width += 10  # Fallback width
-                    
-            return max(1, lines)
-            
-        except:
-            return len(text) // 50 + 1  # Very rough estimate
-
+  
     def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
         """COMPLETE METHOD - Add message to history with FIXED AVATAR SYSTEM"""
         try:
             ts = datetime.now().strftime("%-I:%M %p").lower()
         except ValueError:
             ts = datetime.now().strftime("%#I:%M %p").lower()
-   
+  
         color = name_to_color(username)
-   
+  
         # --- FIXED AVATAR RESOLUTION SYSTEM ---
         avatar_path = get_character_avatar_path(username)
-       
+      
         # Encode avatar or generate initial if not found
         if avatar_path and os.path.exists(avatar_path):
             try:
@@ -424,7 +326,7 @@ class WhatsAppRenderer:
             avatar_data = base64.b64encode(buf.getvalue()).decode("utf-8")
             mime = "image/png"
             print(f"✅ Generated initial avatar for {username}")
-   
+  
         # --- MEME HANDLING ---
         meme_data = None
         if meme_path and os.path.exists(meme_path):
@@ -432,7 +334,7 @@ class WhatsAppRenderer:
                 meme_data = encode_meme(meme_path)
             except Exception as e:
                 print(f"⚠️ Meme encode failed: {e}")
-   
+  
         # --- BUILD MESSAGE ENTRY ---
         message_entry = {
             "username": username,
@@ -445,25 +347,24 @@ class WhatsAppRenderer:
             "avatar": avatar_data,
             "avatar_format": mime
         }
-   
+  
         if meme_data:
             message_entry["meme"] = meme_data["meme"]
             message_entry["meme_type"] = meme_data["meme_type"]
             message_entry["mime"] = meme_data["mime"]
-   
+  
         self.message_history.append(message_entry)
-
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
         """
         Optimized frame rendering with HTML2Image fallback to PIL
         """
         start_time = time.time()
         self._render_count += 1
-       
+      
         # Check cache first
         is_typing_frame = show_typing_bar and upcoming_text
         cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
-       
+      
         if not is_typing_frame and cache_key in FRAME_CACHE and os.path.exists(FRAME_CACHE[cache_key]):
             cached_frame = FRAME_CACHE[cache_key]
             if os.path.exists(cached_frame):
@@ -473,16 +374,16 @@ class WhatsAppRenderer:
                 if self._render_count % 50 == 0:
                     print(f"⚡ Using cached frame: {cache_key[:8]}...")
                 return f"CACHED: {cached_frame}"
-       
+      
         template = self.jinja_env.get_template(TEMPLATE_FILE)
-     
+    
         # Filter typing bubbles for sender
         filtered_messages = []
         for msg in self.message_history:
             if msg['is_sender'] and msg['typing']:
                 continue
             filtered_messages.append(msg)
-   
+  
         rendered_html = template.render(
             messages=filtered_messages,
             static_path="/app/static", # ✅ critical for headless chrome
@@ -493,22 +394,22 @@ class WhatsAppRenderer:
             typing_user=typing_user,
             upcoming_text=upcoming_text
         )
-   
+  
         with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
             f.write(rendered_html)
-   
+  
         # Try HTML2Image first, fallback to PIL if it fails
         try:
             # Get HTML2Image with optimized flags
             hti = get_html2image()
             if hti is None:
                 raise Exception("HTML2Image not available")
-           
+          
             # Save HTML to temporary file
             temp_html = os.path.join(FRAMES_DIR, f"temp_{render_bubble.frame_count}.html")
             with open(temp_html, "w", encoding="utf-8") as f:
                 f.write(rendered_html)
-           
+          
             # Render to image with error handling
             try:
                 hti.screenshot(
@@ -519,7 +420,7 @@ class WhatsAppRenderer:
             except Exception as render_error:
                 print(f"⚠️ HTML2Image render failed: {render_error}")
                 raise render_error
-           
+          
             # Move the screenshot to the correct location
             generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
             if os.path.exists(generated_file):
@@ -530,78 +431,83 @@ class WhatsAppRenderer:
             else:
                 # If file wasn't generated, fall back to PIL
                 raise Exception("HTML2Image didn't generate output file")
-           
+          
             # Clean up temp HTML file
             if os.path.exists(temp_html):
                 os.remove(temp_html)
-               
+              
         except Exception as e:
             # REDUCED LOGGING: Only log HTML2Image failures, not every fallback
             if self._render_count % 10 == 0:
                 print(f"❌ HTML2Image failed: {e}")
                 print("🔄 Falling back to PIL rendering...")
-           
-            # PIL FALLBACK - Create a visual chat frame WITH EMOJI SUPPORT
+          
+            # PIL FALLBACK - Create a visual chat frame
             from PIL import Image, ImageDraw, ImageFont
-           
+          
             # Create background
             img = Image.new('RGB', (1920, 1080), color=(53, 53, 53))
             draw = ImageDraw.Draw(img)
-           
+          
             try:
-                # Try to use fonts that support emojis
+                # Try to use a font (fallback to default if not available)
                 try:
-                    # Try system fonts that might have emoji support
                     font_large = ImageFont.truetype("Arial", 24)
                     font_medium = ImageFont.truetype("Arial", 18)
                     font_small = ImageFont.truetype("Arial", 14)
                 except:
-                    # Fallback to default fonts
                     font_large = ImageFont.load_default()
                     font_medium = ImageFont.load_default()
                     font_small = ImageFont.load_default()
-               
+              
                 y_pos = 50
-               
+              
                 # Chat header
                 draw.text((100, y_pos), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
                 y_pos += 40
                 draw.text((100, y_pos), f"👥 {self.chat_status}", fill=(200, 200, 200), font=font_medium)
                 y_pos += 60
-               
+              
                 # Show typing indicator if active
                 if show_typing_bar and typing_user:
                     draw.text((100, y_pos), f"⌨️ {typing_user} is typing: {upcoming_text}", fill=(100, 255, 100), font=font_medium)
                     y_pos += 40
-               
-                # Draw message bubbles WITH EMOJI SUPPORT
+              
+                # Draw message bubbles
                 for msg in filtered_messages[-8:]: # Show last 8 messages
                     # Message bubble
                     bubble_x = 100 if not msg['is_sender'] else 1000
                     bubble_color = (30, 120, 200) if not msg['is_sender'] else (50, 150, 50)
-                   
+                  
                     # Username and timestamp
                     user_text = f"{msg['username']} • {msg['timestamp']}"
                     draw.text((bubble_x, y_pos), user_text, fill=msg['color'], font=font_small)
                     y_pos += 25
-                   
-                    # MESSAGE TEXT WITH EMOJI SUPPORT
-                    message_text = msg['text']
-                    if message_text:
-                        # Use a function that handles emojis properly
-                        self.draw_text_with_emoji_support(draw, message_text, bubble_x, y_pos, 800, font_medium, (255, 255, 255))
-                       
-                        # Calculate how many lines we need to advance
-                        lines_needed = self.calculate_text_lines(message_text, 800, font_medium)
-                        y_pos += (lines_needed * 25)
-                   
+                  
+                    # Message text
+                    message_lines = []
+                    current_line = ""
+                    for word in msg['text'].split():
+                        test_line = current_line + word + " "
+                        if len(test_line) > 50: # Wrap at 50 chars
+                            message_lines.append(current_line)
+                            current_line = word + " "
+                        else:
+                            current_line = test_line
+                    if current_line:
+                        message_lines.append(current_line)
+                  
+                    for line in message_lines:
+                        draw.text((bubble_x, y_pos), line, fill=(255, 255, 255), font=font_medium)
+                        y_pos += 25
+                  
                     # Typing indicator for receiver bubbles
                     if msg.get('typing'):
                         draw.text((bubble_x, y_pos), "⏳ typing...", fill=(200, 200, 100), font=font_small)
                         y_pos += 20
-                   
+                  
                     y_pos += 15 # Space between messages
-               
+              
             except Exception as pil_error:
                 if self._render_count % 10 == 0:
                     print(f"⚠️ Advanced PIL rendering failed: {pil_error}")
@@ -609,23 +515,22 @@ class WhatsAppRenderer:
                 draw.text((100, 100), f"Chat Frame - {len(filtered_messages)} messages", fill=(255, 255, 255))
                 if show_typing_bar and typing_user:
                     draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
-           
+          
             img.save(frame_file)
             # REDUCED LOGGING: Only log every 50th PIL frame
             if self._render_count % 50 == 0:
                 print(f"✅ PIL fallback frame {self._render_count}: {frame_file}")
-       
+      
         # Cache non-typing frames only
         if not is_typing_frame and len(FRAME_CACHE) < CACHE_MAX_SIZE:
             FRAME_CACHE[cache_key] = frame_file
-       
+      
         render_time = time.time() - start_time
         # REDUCED LOGGING: Only log slow renders
         if render_time > 1.0:
             print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
-       
+      
         return rendered_html
-
 # ---------- BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
     """
@@ -698,7 +603,7 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
     # Normal rendering for all users
     render_bubble.renderer.add_message(username, message, meme_path=meme_path, is_read=is_read, typing=False)
     frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
-   
+  
     # Use short wait for better performance
     is_typing_bar = (username.strip().lower() == MAIN_USER.lower() and not message)
     render_bubble.renderer.render_frame(frame_file, show_typing_bar=False, short_wait=is_typing_bar)
@@ -739,10 +644,8 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
     if render_bubble.frame_count % 20 == 0:
         print(f"✅ Regular frame {render_bubble.frame_count}: {frame_file} ({duration}s)")
     return frame_file
-
 def render_meme(username, meme_path):
     return render_bubble(username, "", meme_path=meme_path)
-
 def render_typing_bubble(username, duration=None, is_sender=None, custom_durations=None):
     custom_durations = custom_durations or {} # ✅ prevents NoneType errors
     """Optimized typing bubble rendering"""
@@ -754,7 +657,7 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
         )
         render_bubble.frame_count = 0
         render_bubble.timeline = []
-   
+  
     if is_sender is None:
         is_sender = (username.strip().lower() == MAIN_USER.lower())
     # 🔹 FIXED: Don't show typing bubbles for sender
@@ -765,13 +668,13 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
         return render_typing_bar_frame(username, "", duration=1.5)
     # Use the MAIN renderer, but temporarily add typing message
     original_history = render_bubble.renderer.message_history.copy()
-   
+  
     # Add typing indicator to main renderer temporarily
     render_bubble.renderer.add_message(username, None, typing=True)
-   
+  
     frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
     render_bubble.renderer.render_frame(frame_file, short_wait=True) # Use short wait
-   
+  
     # Restore original history (remove the typing message)
     render_bubble.renderer.message_history = original_history
     # Use custom duration if available, else default to 1.5
@@ -792,7 +695,7 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
         "typing_sound": False # ✅ FORCE NO SOUND for typing bubbles
     }
     render_bubble.timeline.append(entry)
-   
+  
     with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
         json.dump(render_bubble.timeline, tf, indent=2)
     render_bubble.frame_count += 1
@@ -800,7 +703,6 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
     if render_bubble.frame_count % 20 == 0:
         print(f"⌨️ Typing indicator for {username} (duration: {duration}s)")
     return frame_file
-
 def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duration=None, is_character_typing=True):
     """
     SIMPLIFIED: Render typing bar frames with CONTINUOUS sound logic.
@@ -813,7 +715,7 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         )
         render_bubble.frame_count = 0
         render_bubble.timeline = []
-   
+  
     if not frame_path:
         frame_path = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
     # Skip typing bar for non-sender
@@ -842,10 +744,10 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
             frame_duration = 0.4 # Shorter for actual typing
     else:
         frame_duration = duration
-   
+  
     # ✅ SIMPLIFIED SOUND LOGIC: Continuous sound during active typing
     should_play_sound = is_character_typing
-   
+  
     # Check if this is one of the last 3 frames (no cursor, complete text)
     current_text = upcoming_text.replace("|", "").strip()
     is_final_frame = (not upcoming_text.endswith('|') and current_text)
@@ -860,18 +762,18 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
     # Generate session ID for continuous sound grouping
     if not hasattr(render_bubble, 'current_typing_session'):
         render_bubble.current_typing_session = None
-   
+  
     # Start new session when we begin typing after not typing
     if is_character_typing and not hasattr(render_bubble, 'prev_typing_text'):
         render_bubble.prev_typing_text = ""
-   
+  
     current_text = upcoming_text.replace("|", "").strip()
     if is_character_typing and not render_bubble.prev_typing_text and current_text:
         render_bubble.current_typing_session = f"session_{render_bubble.frame_count}"
         # REDUCED LOGGING
         if render_bubble.frame_count % 20 == 0:
             print(f"🎹 🆕 STARTING NEW TYPING SESSION: {render_bubble.current_typing_session}")
-   
+  
     # End session when we stop typing
     if not is_character_typing and render_bubble.current_typing_session:
         # REDUCED LOGGING
@@ -901,7 +803,6 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         json.dump(render_bubble.timeline, tf, indent=2)
     render_bubble.frame_count += 1
     return frame_path
-
 def generate_beluga_typing_sequence(real_message):
     """
     FIXED: Actually renders typing frames with CONTINUOUS sound control
@@ -937,25 +838,25 @@ def generate_beluga_typing_sequence(real_message):
         render_bubble.max_fakes_per_video = random.randint(1, 2) # 1-2 fakes total
     if (render_bubble.fake_typing_count < render_bubble.max_fakes_per_video and
         random.random() < 0.4): # 40% chance per message
-       
+      
         fake = random.choice(fake_phrases)
         render_bubble.fake_typing_count += 1
         print(f"🎲 FAKE TYPING {render_bubble.fake_typing_count}/{render_bubble.max_fakes_per_video}: '{fake}'")
-       
+      
         # Type fake text WITH SOUND (continuous)
         buf = ""
         for ch in fake:
             buf += ch
             sequence.append((buf + "|", typing_speed_for(ch), True))
-       
+      
         # Blink cursor - NO SOUND
         blink_frame(buf, blinks=1)
-       
+      
         # Delete fake text - NO SOUND
         for i in range(len(fake) - 1, -1, -1):
             buf = fake[:i]
             sequence.append((buf + "|", random.uniform(0.15, 0.25), False))
-       
+      
         # Pause - NO SOUND
         sequence.append(("", 0.5, False))
     else:
@@ -967,37 +868,36 @@ def generate_beluga_typing_sequence(real_message):
     for i, ch in enumerate(real_message):
         buf += ch
         is_active_typing = True
-       
+      
         # Last 3 characters should have no sound
         if i >= len(real_message) - 3:
             is_active_typing = False
             # REDUCED LOGGING
             if random.random() < 0.05:
                 print(f"🎹 LAST 3 CHARS: '{ch}' at position {i} - NO SOUND")
-           
+          
         sequence.append((buf + "|", typing_speed_for(ch), is_active_typing))
     # Final cursor blinks and stable frame - NO SOUND
     blink_frame(real_message, blinks=2)
     sequence.append((real_message, 0.8, False))
     # REDUCED LOGGING
     print(f"⌨️ Generated {len(sequence)} typing frames for '{real_message[:50]}...'")
-   
+  
     return sequence
-
 def render_typing_sequence(username, real_message):
     """
     FIXED: Actually renders the typing sequence frames with sound
     """
     print(f"🎬 Starting typing sequence for '{username}': '{real_message[:50]}...'")
-   
+  
     sequence = generate_beluga_typing_sequence(real_message)
-   
+  
     rendered_frames = []
     for i, (text, duration, has_sound) in enumerate(sequence):
         # REDUCED LOGGING: Only log every 20th typing frame
         if i % 20 == 0:
             print(f"🎬 Rendering typing frame {i}: '{text}' - duration: {duration}s - sound: {has_sound}")
-       
+      
         # Actually render the frame with sound information
         frame_path = render_typing_bar_frame(
             username=username,
@@ -1006,10 +906,9 @@ def render_typing_sequence(username, real_message):
             is_character_typing=has_sound # This controls the sound!
         )
         rendered_frames.append(frame_path)
-   
+  
     print(f"🎬 Completed typing sequence: {len(rendered_frames)} frames rendered")
     return rendered_frames
-
 def reset_typing_sessions():
     """Reset typing session tracking - call this when starting a new video"""
     if hasattr(render_bubble, 'typing_session_active'):
@@ -1019,7 +918,6 @@ def reset_typing_sessions():
         render_bubble.prev_typing_text = ""
         render_bubble.fake_typing_count = 0
         print("🔄 Reset typing session tracking")
-
 # ---------- MAIN SCRIPT ---------- #
 if __name__ == "__main__":
     try:
@@ -1034,7 +932,7 @@ if __name__ == "__main__":
         print("🔄 Initialized typing session tracking for main script")
         # Your main script execution logic here...
         print(f"✅ Rendered {render_bubble.frame_count} frames from {script_file}")
-       
+      
     finally:
         cleanup_resources()
 
