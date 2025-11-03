@@ -398,7 +398,7 @@ def encode_avatar_for_html(avatar_path):
 # =============================================
 
 def generate_avatar_with_initials(username, size=200):
-    """Generate a WhatsApp-style avatar with initials - LARGER FONT SIZE"""
+    """Generate a WhatsApp-style avatar with initials - IMPROVED FONT SIZE"""
     # Generate initials from name (like WhatsApp does)
     def get_initials(name):
         # Remove extra spaces and split into words
@@ -434,21 +434,18 @@ def generate_avatar_with_initials(username, size=200):
         
         # Try to use a nice font, fallback to default
         try:
-            # SIGNIFICANTLY LARGER FONT SIZES for better visibility
+            # SIGNIFICANTLY INCREASED FONT SIZES for better visibility
             if len(initials) == 1:
-                font_size = int(size * 0.7)  # 70% of image size for single letters (was 60%)
+                font_size = int(size * 0.7)  # Increased to 70% of image size for single letters
             else:
-                font_size = int(size * 0.55)  # 55% of image size for two letters (was 45%)
+                font_size = int(size * 0.55)  # Increased to 55% of image size for two letters
             
             # Try multiple font paths
             font_paths = [
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
                 "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
                 "/System/Library/Fonts/Helvetica.ttc",
-                "Arial",
-                "/System/Library/Fonts/Arial.ttf",
-                "/Windows/Fonts/arial.ttf",
-                "arialbd.ttf"
+                "Arial"
             ]
             
             font = None
@@ -460,93 +457,50 @@ def generate_avatar_with_initials(username, size=200):
                     continue
             
             if font is None:
-                # Final fallback to default font with larger size
-                try:
-                    font = ImageFont.load_default()
-                except:
-                    font = None
+                # Final fallback to default font
+                font = ImageFont.load_default()
                 
-        except Exception as font_error:
-            print(f"Font loading issue: {font_error}")
-            font = None
+        except:
+            try:
+                # Fallback to any available font
+                font = ImageFont.load_default()
+            except:
+                font = None
         
         # Calculate text position (centered)
         if font:
             # Get text bounding box
-            try:
-                bbox = draw.textbbox((0, 0), initials, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-                x = (size - text_width) // 2
-                y = (size - text_height) // 2
-            except:
-                # Fallback if textbbox fails
-                x = size * 0.2
-                y = size * 0.2
+            bbox = draw.textbbox((0, 0), initials, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            x = (size - text_width) // 2
+            y = (size - text_height) // 2
         else:
-            # Fallback positioning - much larger area for text
-            x = size * 0.15
-            y = size * 0.15
+            # Fallback positioning with better centering
+            x = size // 4
+            y = size // 4
         
-        # Draw the text with white color for maximum contrast
+        # Draw the text
         draw.text((x, y), initials, fill='white', font=font)
         
         return img
         
     except ImportError:
-        print("⚠️ PIL not available, using simple fallback avatar")
-        # Return a simple colored image as fallback
+        print("⚠️ PIL not available, cannot generate avatar with initials")
+        # Create a simple fallback using command line
         return create_fallback_avatar(username, size)
     except Exception as e:
         print(f"⚠️ Error generating avatar with initials: {e}")
-        # Return a simple colored image as fallback
+        # Create a simple fallback
         return create_fallback_avatar(username, size)
 
+
 def create_fallback_avatar(username, size=200):
-    """Create a simple fallback avatar that always returns an image"""
-    try:
-        from PIL import Image, ImageDraw
-        
-        # Use a default background color
-        background_color = '#4ECDC4'
-        
-        # Create image
-        img = Image.new('RGB', (size, size), color=background_color)
-        draw = ImageDraw.Draw(img)
-        
-        # Get initials for fallback
-        def get_initials(name):
-            words = name.strip().split()
-            if len(words) == 0:
-                return "?"
-            elif len(words) == 1:
-                return name[:1].upper()
-            else:
-                return (words[0][0] + words[-1][0]).upper()
-        
-        initials = get_initials(username)
-        
-        # Draw simple text (no font, just basic drawing)
-        # Calculate rough position
-        text_width = len(initials) * size // 3
-        x = (size - text_width) // 2
-        y = size // 3
-        
-        # Draw the text
-        draw.text((x, y), initials, fill='white')
-        
-        return img
-        
-    except Exception as e:
-        print(f"⚠️ Even fallback avatar failed: {e}")
-        # Ultimate fallback - create a basic colored image
-        try:
-            from PIL import Image
-            img = Image.new('RGB', (size, size), color='#4ECDC4')
-            return img
-        except:
-            # If everything fails, we can't return an image
-            raise Exception("Cannot generate avatar - PIL may not be properly installed")
+    """Create a simple fallback avatar when PIL is not available"""
+    # This is a simple fallback - you might want to implement a basic ASCII art version
+    # or return a placeholder image URL
+    print(f"Fallback avatar for: {username}")
+    return None
 
 
 def get_or_create_initial_avatar(username):
