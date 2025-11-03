@@ -437,9 +437,9 @@ def generate_avatar_with_initials(username, size=200):
         try:
             # Try to use a bold font - larger size for single letters
             if len(initials) == 1:
-                font_size = size // 1.5  # Bigger for single letters
+                font_size = size // 0.5  # Bigger for single letters
             else:
-                font_size = size // 2  # Smaller for two letters
+                font_size = size // 0.5  # Smaller for two letters
             
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
         except:
