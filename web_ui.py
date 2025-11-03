@@ -337,46 +337,42 @@ def get_character_details(name):
     else:
         return {"avatar": "static/images/contact.png", "personality": ""}
 
-def get_character_avatar_path(username):
-    """Return web path for avatar - ALWAYS USE HTML INITIALS"""
-    # Nuclear option: Always return INITIALS to force HTML display
-    print(f"🎯 FORCING HTML initials for {username}")
-    return "INITIALS"
+
         
-# def get_character_avatar_path(username):
-#     """Return web path for avatar with better error handling"""
+ def get_character_avatar_path(username):
+     """Return web path for avatar with better error handling"""
     
-#     # Default fallback avatar
-#     default_web = "static/images/contact.png"
-#     default_fs = os.path.join(PROJECT_ROOT, default_web)
+     # Default fallback avatar
+     default_web = "static/images/contact.png"
+     default_fs = os.path.join(PROJECT_ROOT, default_web)
     
-#     # Ensure default exists
-#     if not os.path.exists(default_fs):
-#         create_default_assets()
+     # Ensure default exists
+     if not os.path.exists(default_fs):
+         create_default_assets()
     
-#     username_clean = username.strip()
+     username_clean = username.strip()
     
-#     # 1) Check character JSON first
-#     characters = load_characters()
-#     if username_clean in characters:
-#         avatar_web = characters[username_clean].get("avatar", "")
-#         if avatar_web:
-#             avatar_fs = os.path.join(PROJECT_ROOT, avatar_web)
-#             if os.path.exists(avatar_fs):
-#                 return avatar_web
-#             else:
-#                 print(f"⚠️ Avatar from JSON not found: {avatar_fs}")
+     # 1) Check character JSON first
+     characters = load_characters()
+     if username_clean in characters:
+         avatar_web = characters[username_clean].get("avatar", "")
+         if avatar_web:
+             avatar_fs = os.path.join(PROJECT_ROOT, avatar_web)
+             if os.path.exists(avatar_fs):
+                 return avatar_web
+             else:
+                 print(f"⚠️ Avatar from JSON not found: {avatar_fs}")
     
-#     # 2) Check avatars directory
-#     avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
-#     for ext in ['.png', '.jpg', '.jpeg', '.gif']:
-#         avatar_path = os.path.join(avatars_dir, f"{username_clean}{ext}")
-#         if os.path.exists(avatar_path):
-#             return f"static/avatars/{username_clean}{ext}"
+     # 2) Check avatars directory
+     avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
+     for ext in ['.png', '.jpg', '.jpeg', '.gif']:
+         avatar_path = os.path.join(avatars_dir, f"{username_clean}{ext}")
+         if os.path.exists(avatar_path):
+             return f"static/avatars/{username_clean}{ext}"
     
-#     # 3) Return special value to indicate we should use initials
-#     print(f"⚠️ No avatar found for {username_clean}, will use initials")
-#     return "INITIALS"
+     # 3) Return special value to indicate we should use initials
+     print(f"⚠️ No avatar found for {username_clean}, will use initials")
+     return "INITIALS"
 
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display"""
