@@ -398,7 +398,7 @@ def encode_avatar_for_html(avatar_path):
 # =============================================
 
 def generate_avatar_with_initials(username, size=200):
-    """Generate a WhatsApp-style avatar with initials"""
+    """Generate a WhatsApp-style avatar with initials - FIXED FONT SIZE"""
     # Generate initials from name (like WhatsApp does)
     def get_initials(name):
         # Remove extra spaces and split into words
@@ -416,7 +416,6 @@ def generate_avatar_with_initials(username, size=200):
     
     try:
         from PIL import Image, ImageDraw, ImageFont
-        import random
         
         # WhatsApp-like colors (similar to their color palette)
         colors = [
@@ -435,13 +434,32 @@ def generate_avatar_with_initials(username, size=200):
         
         # Try to use a nice font, fallback to default
         try:
-            # Try to use a bold font - larger size for single letters
+            # ✅ FIXED: MUCH LARGER FONT SIZES for better visibility
             if len(initials) == 1:
-                font_size = int(size * 0.55) # Bigger for single letters
+                font_size = int(size * 0.65)  # Bigger for single letters - was 0.55
             else:
-                font_size = int(size * 0.48)  # Smaller for two letters
+                font_size = int(size * 0.55)  # Bigger for two letters - was 0.48
             
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+            # Try multiple font paths
+            font_paths = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
+                "/System/Library/Fonts/Helvetica.ttc",
+                "Arial"
+            ]
+            
+            font = None
+            for font_path in font_paths:
+                try:
+                    font = ImageFont.truetype(font_path, font_size)
+                    break
+                except:
+                    continue
+            
+            if font is None:
+                # Final fallback to default font
+                font = ImageFont.load_default()
+                
         except:
             try:
                 # Fallback to any available font
@@ -465,14 +483,18 @@ def generate_avatar_with_initials(username, size=200):
         # Draw the text
         draw.text((x, y), initials, fill='white', font=font)
         
+        print(f"✅ Generated avatar for {username}: initials='{initials}', font_size={font_size}, image_size={size}")
+        
         return img
         
     except ImportError:
         print("⚠️ PIL not available, cannot generate avatar with initials")
-        return None
+        # Create a simple fallback using command line
+        return create_fallback_avatar(username, size)
     except Exception as e:
         print(f"⚠️ Error generating avatar with initials: {e}")
-        return None
+        # Create a simple fallback
+        return create_fallback_avatar(username, size)
 
 def get_or_create_initial_avatar(username):
     """Get or create an avatar with initials for a username"""
