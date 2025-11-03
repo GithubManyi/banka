@@ -596,17 +596,36 @@
             </div>
             {% if is_first_in_group %}
               <div class="msg-avatar"> 
-                <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" alt="" class="avatar"> 
-                     onerror="this.src='static/images/contact.png'">
+               {% if msg.avatar %}
+                   <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" class="avatar"
+                        onerror="this.style.display='none'">
+               {% else %}
+                   <div class="avatar-fallback" style="
+                       width: 120px; height:120px; border-radius:50%;
+                       background:#2a3942; color:white; display:flex;
+                       align-items:center; justify-content:center;
+                       font-size:42px; font-weight:700;">
+                       {{ msg.username[:1] }}{{ msg.username.split(' ')[1][:1] if msg.username.split(' ')|length > 1 else '' }}
+                   </div>
+               {% endif %}
 
               </div>
             {% endif %}
           {% else %}
             {% if is_first_in_group %}
               <div class="msg-avatar">
-                <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" alt="" class="avatar">
-                     onerror="this.src='static/images/contact.png'">
-
+                {% if msg.avatar %}
+                   <img src="data:image/{{ msg.avatar_format }};base64,{{ msg.avatar }}" class="avatar"
+                        onerror="this.style.display='none'">
+               {% else %}
+                   <div class="avatar-fallback" style="
+                       width: 120px; height:120px; border-radius:50%;
+                       background:#2a3942; color:white; display:flex;
+                       align-items:center; justify-content:center;
+                       font-size:42px; font-weight:700;">
+                       {{ msg.username[:1] }}{{ msg.username.split(' ')[1][:1] if msg.username.split(' ')|length > 1 else '' }}
+                   </div>
+               {% endif %}
               </div>
             {% endif %}
             <div class="bubble">
