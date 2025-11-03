@@ -398,101 +398,70 @@ def encode_avatar_for_html(avatar_path):
 # =============================================
 
 def generate_avatar_with_initials(username, size=200):
-    """Generate a WhatsApp-style avatar with initials - IMPROVED FONT SIZE"""
-    # Generate initials from name (like WhatsApp does)
+    """Generate a WhatsApp-style avatar with BIG initials."""
     def get_initials(name):
-        # Remove extra spaces and split into words
         words = name.strip().split()
-        if len(words) == 0:
+        if not words:
             return "?"
         elif len(words) == 1:
-            # Single word - take first character only (like real WhatsApp)
-            return name[:1].upper()
-        else:
-            # Multiple words - take first letter of first and last word
-            return (words[0][0] + words[-1][0]).upper()
-    
+            return words[0][0].upper()
+        return (words[0][0] + words[-1][0]).upper()
+
     initials = get_initials(username)
-    
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-        
-        # WhatsApp-like colors (similar to their color palette)
-        colors = [
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-            '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
-        ]
-        
-        # Pick a consistent color based on username hash
-        color_index = hash(username) % len(colors)
-        background_color = colors[color_index]
-        
-        # Create image
-        img = Image.new('RGB', (size, size), color=background_color)
-        draw = ImageDraw.Draw(img)
-        
-        # Try to use a nice font, fallback to default
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    # WhatsApp-random color style
+    colors = [
+        '#25D366', '#075E54', '#128C7E', '#34B7F1', '#FF6F61',
+        '#6A1B9A', '#00897B', '#0277BD', '#FBC02D', '#D81B60'
+    ]
+    bg_color = colors[hash(username) % len(colors)]
+
+    img = Image.new("RGB", (size, size), bg_color)
+    draw = ImageDraw.Draw(img)
+
+    # BIGGER font
+    font_size = int(size * (0.65 if len(initials) == 1 else 0.55))
+
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "arial.ttf"
+    ]
+
+    font = None
+    for path in font_paths:
         try:
-            # Try to use a bold font - MUCH larger size for better visibility
-            if len(initials) == 1:
-                font_size = int(size * 0.6)  # 60% of image size for single letters
-            else:
-                font_size = int(size * 0.45)  # 45% of image size for two letters
-            
-            # Try multiple font paths
-            font_paths = [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
-                "/System/Library/Fonts/Helvetica.ttc",
-                "Arial"
-            ]
-            
-            font = None
-            for font_path in font_paths:
-                try:
-                    font = ImageFont.truetype(font_path, font_size)
-                    break
-                except:
-                    continue
-            
-            if font is None:
-                # Final fallback to default font
-                font = ImageFont.load_default()
-                
+            font = ImageFont.truetype(path, font_size)
+            break
         except:
-            try:
-                # Fallback to any available font
-                font = ImageFont.load_default()
-            except:
-                font = None
-        
-        # Calculate text position (centered)
-        if font:
-            # Get text bounding box
-            bbox = draw.textbbox((0, 0), initials, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            x = (size - text_width) // 2
-            y = (size - text_height) // 2
-        else:
-            # Fallback positioning with better centering
-            x = size // 4
-            y = size // 4
-        
-        # Draw the text
-        draw.text((x, y), initials, fill='white', font=font)
-        
-        return img
-        
-    except ImportError:
-        print("⚠️ PIL not available, cannot generate avatar with initials")
-        # Create a simple fallback using command line
-        return create_fallback_avatar(username, size)
-    except Exception as e:
-        print(f"⚠️ Error generating avatar with initials: {e}")
-        # Create a simple fallback
-        return create_fallback_avatar(username, size)
+            pass
+
+    if font is None:
+        font = ImageFont.load_default()
+
+    # Center initials
+    bbox = draw.textbbox((0, 0), initials, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+
+    x = (size - text_w) // 2
+    y = (size - text_h) // 2
+
+    draw.text((x, y), initials, font=font, fill="white")
+
+    # Make avatar circular like WhatsApp
+    mask = Image.new("L", (size, size), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.ellipse((0, 0, size, size), fill=255)
+
+    final_img = Image.new("RGB", (size, size), (0, 0, 0))
+    final_img.paste(img, (0, 0), mask)
+
+    return final_img
+
 
 def get_or_create_initial_avatar(username):
     """Get or create an avatar with initials for a username"""
