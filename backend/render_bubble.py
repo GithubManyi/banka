@@ -641,6 +641,7 @@ class WhatsAppRenderer:
                 print(f"❌ HTML2Image failed: {e}")
                 print("🔄 Falling back to PIL rendering...")
           
+           
             # PIL FALLBACK - Compatible with your HTML structure
             from PIL import Image, ImageDraw, ImageFont
             
@@ -785,7 +786,7 @@ class WhatsAppRenderer:
                     text_y = username_y + 30
                     for line in lines:
                         draw.text((bubble_x + 18, text_y), line, 
-                                 fill=(233, 237, 239), font=font_medium)  # --text: #e9edef
+                                 fill=(233, 237, 239), font=medium)  # --text: #e9edef
                         text_y += 40  # line-height equivalent
                     
                     # Timestamp at bottom
