@@ -131,49 +131,92 @@ FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
 
 def get_html2image():
-    """Fast HTML2Image setup with emoji + reduced flags"""
+    """Ultra-fast Railway-optimized HTML2Image with emoji support"""
     global HTI
     if HTI is None:
         try:
-            import shutil
-
-            chromium_path = (
-                shutil.which("chromium")
-                or shutil.which("chromium-browser")
-                or shutil.which("google-chrome")
-            )
-
+            # STRATEGY: Try multiple paths with Railway priority
+            chromium_path = None
+            
+            # 1. First try Railway environment variable (fastest)
+            railway_path = os.environ.get('CHROMIUM_PATH')
+            if railway_path and os.path.exists(railway_path):
+                chromium_path = railway_path
+                print(f"🚀 Using Railway Chromium: {chromium_path}")
+            
+            # 2. Try common system paths (fast)
+            if not chromium_path:
+                import shutil
+                chromium_path = (
+                    shutil.which("chromium") or
+                    shutil.which("chromium-browser") or 
+                    shutil.which("google-chrome") or
+                    "/usr/bin/chromium"  # Railway default
+                )
+            
             if chromium_path:
                 print(f"✅ Using Chromium: {chromium_path}")
 
+                # ULTRA-FAST FLAGS (optimized for Railway)
                 chrome_flags = [
-                    "--headless=new",       # ✅ much faster boot
-                    "--no-sandbox",
-                    "--disable-gpu",
-                    "--disable-dev-shm-usage",
-                    "--window-size=1920,1080",
-                    "--disable-webgl",
-                    "--no-first-run",
-                    "--disable-translate",
+                    "--headless=new",           # ✅ New headless (much faster)
+                    "--no-sandbox",             # ✅ Required for Docker
+                    "--disable-gpu",            # ✅ No GPU in containers
+                    "--disable-dev-shm-usage",  # ✅ Prevent memory issues
+                    "--disable-software-rasterizer", # ✅ Faster rendering
+                    "--disable-webgl",          # ✅ Not needed for 2D
+                    "--no-first-run",           # ✅ Skip initial setup
+                    "--disable-translate",      # ✅ No translation popups
+                    "--disable-extensions",     # ✅ No extensions needed
+                    "--disable-background-networking", # ✅ Reduce network calls
+                    "--disable-sync",           # ✅ No sync services
+                    "--disable-default-apps",   # ✅ No default apps
+                    "--mute-audio",             # ✅ No audio needed
+                    "--no-default-browser-check", # ✅ Skip browser check
+                    "--disable-component-extensions-with-background-pages", # ✅ Reduce processes
+                    "--disable-features=TranslateUI,BlinkGenPropertyTrees", # ✅ Optimize rendering
+                    "--disable-ipc-flooding-protection", # ✅ Better performance
+                    "--disable-renderer-backgrounding", # ✅ Keep renderers active
+                    "--disable-background-timer-throttling", # ✅ Better performance
+                    "--font-render-hinting=none", # ✅ Better emoji rendering
+                    "--force-color-profile=srgb", # ✅ Consistent colors
+                    "--enable-font-antialiasing", # ✅ Smoother text
                 ]
 
                 HTI = html2image.Html2Image(
                     browser_executable=chromium_path,
                     custom_flags=chrome_flags,
-                    output_path=FRAMES_DIR
+                    output_path=FRAMES_DIR,
+                    size=(1920, 1080)  # ✅ Pre-set size for faster rendering
                 )
 
-                print("🚀 Renderer ready (Fast mode)")
+                print("🚀 Ultra-fast Railway Renderer Ready (Emoji Support)")
 
-                # ✅ Warm-up browser once (first frame only)
-                HTI.screenshot(html="<html></html>", save_as="__warmup.png")
+                # ✅ OPTIMIZED WARM-UP: Minimal but effective
+                try:
+                    # Fast warm-up with basic HTML
+                    warmup_html = "<html><body style='background:#0b141a'></body></html>"
+                    HTI.screenshot(html=warmup_html, save_as="__warmup.png")
+                    
+                    # Quick emoji test (only log if it fails)
+                    emoji_test_html = """
+                    <html><body style="background:#0b141a;color:white;font-family:'Noto Color Emoji','Apple Color Emoji',sans-serif;font-size:20px">
+                        😀📱
+                    </body></html>
+                    """
+                    HTI.screenshot(html=emoji_test_html, save_as="__emojitest.png")
+                    print("✅ Warm-up completed with emoji support")
+                    
+                except Exception as warmup_error:
+                    print(f"⚠️ Warm-up had minor issue (continuing anyway): {warmup_error}")
 
             else:
-                print("⚠️ Chromium not found — fallback mode")
+                print("⚠️ Chromium not found — fallback to PIL mode")
                 HTI = None
 
         except Exception as e:
             print(f"❌ HTML2Image init error: {e}")
+            # Don't give up completely - fallback will handle it
             HTI = None
 
     return HTI
