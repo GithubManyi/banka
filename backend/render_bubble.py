@@ -1178,4 +1178,4 @@ if __name__ == "__main__":
         print(f"✅ Rendered {render_bubble.frame_count} frames from {script_file}")
      
     finally:
-        cleanup_resources() 
+        cleanup_resources()
