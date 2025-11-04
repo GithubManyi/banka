@@ -131,40 +131,30 @@ FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
 
 def get_html2image():
-    """Get or create HTML2Image instance with proper Chrome flags (emoji + CSS safe)"""
+    """Fast HTML2Image setup with emoji + reduced flags"""
     global HTI
     if HTI is None:
         try:
             import shutil
-            chromium_path = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+
+            chromium_path = (
+                shutil.which("chromium")
+                or shutil.which("chromium-browser")
+                or shutil.which("google-chrome")
+            )
 
             if chromium_path:
-                print(f"✅ Using Chromium at: {chromium_path}")
+                print(f"✅ Using Chromium: {chromium_path}")
 
                 chrome_flags = [
-                    "--headless",
+                    "--headless=new",       # ✅ much faster boot
                     "--no-sandbox",
-                    "--disable-dev-shm-usage",
                     "--disable-gpu",
+                    "--disable-dev-shm-usage",
                     "--window-size=1920,1080",
                     "--disable-webgl",
-                    "--disable-accelerated-2d-canvas",
-                    "--disable-accelerated-video-decode",
-                    "--disable-software-rasterizer",
-                    "--disable-background-timer-throttling",
-                    "--disable-backgrounding-occluded-windows",
-                    "--disable-renderer-backgrounding",
-                    "--no-default-browser-check",
                     "--no-first-run",
-                    "--disable-default-apps",
-                    "--disable-features=TranslateUI",
-                    "--disable-ipc-flooding-protection",
-                    "--enable-features=NetworkService,NetworkServiceInProcess",
-                    "--disable-vulkan",
-                    "--disable-crash-reporter",
-                    "--disable-logging",
-                    "--disable-breakpad",
-                    "--memory-pressure-off"
+                    "--disable-translate",
                 ]
 
                 HTI = html2image.Html2Image(
@@ -172,17 +162,22 @@ def get_html2image():
                     custom_flags=chrome_flags,
                     output_path=FRAMES_DIR
                 )
-                print("🚀 HTML2Image renderer ready")
+
+                print("🚀 Renderer ready (Fast mode)")
+
+                # ✅ Warm-up browser once (first frame only)
+                HTI.screenshot(html="<html></html>", save_as="__warmup.png")
 
             else:
-                print("⚠️ Chromium not found – using fallback mode (no emoji support)")
+                print("⚠️ Chromium not found — fallback mode")
                 HTI = None
 
         except Exception as e:
-            print(f"❌ HTML2Image setup failed: {e}")
+            print(f"❌ HTML2Image init error: {e}")
             HTI = None
 
     return HTI
+
 
 
 def cleanup_resources():
