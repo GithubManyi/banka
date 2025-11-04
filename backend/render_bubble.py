@@ -573,26 +573,26 @@ class WhatsAppRenderer:
                 print(f"❌ HTML2Image failed: {e}")
                 print("🔄 Falling back to PIL rendering...")
           
-            # PIL FALLBACK - Create a visual chat frame
+            # PIL FALLBACK - Compatible with your HTML structure
             from PIL import Image, ImageDraw, ImageFont
-          
-            # Create background
-            img = Image.new('RGB', (1920, 1080), color=(53, 53, 53))
+            
+            # Create background matching your HTML theme
+            img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))  # --app-bg: #0b141a
             draw = ImageDraw.Draw(img)
-          
+            
             try:
                 # Try to use emoji-supporting fonts first
                 font_large = None
                 font_medium = None
                 font_small = None
                 
-                # Try to load emoji-supporting fonts
                 if self._emoji_fonts:
                     for font_path in self._emoji_fonts:
                         try:
-                            font_large = ImageFont.truetype(font_path, 24)
-                            font_medium = ImageFont.truetype(font_path, 18)
-                            font_small = ImageFont.truetype(font_path, 14)
+                            # Match your HTML font sizes (scaled for PIL)
+                            font_large = ImageFont.truetype(font_path, 36)  # Matches your 36px name
+                            font_medium = ImageFont.truetype(font_path, 30)  # Matches your 30px text
+                            font_small = ImageFont.truetype(font_path, 20)   # Matches your 20px timestamp
                             print(f"✅ Using emoji font: {os.path.basename(font_path)}")
                             break
                         except:
@@ -601,91 +601,166 @@ class WhatsAppRenderer:
                 # Fallback to system fonts
                 if font_large is None:
                     try:
-                        font_large = ImageFont.truetype("Arial", 24)
-                        font_medium = ImageFont.truetype("Arial", 18)
-                        font_small = ImageFont.truetype("Arial", 14)
+                        font_large = ImageFont.truetype("Arial", 36)
+                        font_medium = ImageFont.truetype("Arial", 30) 
+                        font_small = ImageFont.truetype("Arial", 20)
                     except:
                         font_large = ImageFont.load_default()
                         font_medium = ImageFont.load_default()
                         font_small = ImageFont.load_default()
-              
-                y_pos = 50
-              
-                # Chat header
-                draw.text((100, y_pos), f"💬 {self.chat_title}", fill=(255, 255, 255), font=font_large)
-                y_pos += 40
-                draw.text((100, y_pos), f"👥 {self.chat_status}", fill=(200, 200, 200), font=font_medium)
-                y_pos += 60
-              
-                # ✅ FIXED: Show typing indicator BELOW messages, not overlapping - MOVED LOWER
+            
+                # ✅ COMPATIBLE: Match your HTML structure exactly
+                
+                # 1. Draw topbar (130px high)
+                topbar_height = 130
+                draw.rectangle([0, 0, 1920, topbar_height], fill=(17, 27, 33))  # --panel-bg: #111b21
+                
+                # Avatar circle
+                avatar_x, avatar_y = 24, 15
+                avatar_size = 100
+                draw.ellipse([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size], 
+                            fill=(42, 57, 66))  # --avatar-bg: #2a3942
+                
+                # Chat title and status (matching your HTML)
+                draw.text((avatar_x + avatar_size + 24, 50), 
+                          f"💬 {self.chat_title}", 
+                          fill=(255, 255, 255), font=font_large)
+                draw.text((avatar_x + avatar_size + 24, 90), 
+                          f"👥 {self.chat_status}", 
+                          fill=(134, 150, 160), font=font_small)  # --muted: #8696a0
+                
+                # 2. Draw chat background with pattern (simplified)
+                chat_bg_top = topbar_height
+                draw.rectangle([0, chat_bg_top, 1920, 1080], fill=(11, 20, 26))  # --chat-bg: #0b141a
+                
+                # 3. Draw messages in your HTML-compatible layout
+                chat_container_top = chat_bg_top + 32  # Your 32px padding
+                chat_container_bottom = 1080 - 30      # Your 30px bottom padding
+                
+                # Calculate available height for messages
+                available_height = chat_container_bottom - chat_container_top
+                
+                # Reserve space for typing bar if active
+                typing_bar_height = 80 if (show_typing_bar and typing_user) else 0
+                if typing_bar_height > 0:
+                    available_height -= typing_bar_height
+                
+                # Start from bottom (like your HTML auto-scroll)
+                current_y = chat_container_bottom
+                
+                # Process messages from newest to oldest (bottom to top)
+                visible_messages = []
+                
+                for msg in reversed(filtered_messages):
+                    # Estimate message height (matching your bubble sizing)
+                    lines = []
+                    current_line = ""
+                    
+                    # Wrap text to match your bubble width (approx 70% of screen)
+                    max_chars = 60  # Adjusted for your font size
+                    for word in msg['text'].split():
+                        test_line = current_line + word + " "
+                        if len(test_line) > max_chars:
+                            lines.append(current_line)
+                            current_line = word + " "
+                        else:
+                            current_line = test_line
+                    if current_line:
+                        lines.append(current_line)
+                    
+                    # Calculate bubble height (matching your CSS)
+                    bubble_padding = 28 + 14  # pad-x + pad-y equivalents
+                    line_height = 40  # Approximate for your font size
+                    message_height = bubble_padding + (len(lines) * line_height) + 40  # + footer space
+                    
+                    # Check if we have space above
+                    if current_y - message_height < chat_container_top:
+                        break  # No more space
+                    
+                    visible_messages.append((msg, message_height, lines))
+                    current_y -= message_height
+                
+                # ✅ Draw messages from bottom to top (newest at bottom)
+                current_y = chat_container_bottom
+                
+                for msg, message_height, lines in reversed(visible_messages):
+                    # Match your HTML bubble positioning
+                    if msg['is_sender']:
+                        # Right side (sender) - green
+                        bubble_x = 1920 - 500 - 20  # Right-aligned like your CSS
+                        bubble_color = (0, 92, 75)  # --outgoing: #005c4b
+                        avatar_x = bubble_x + 500 - 120  # Avatar on right
+                    else:
+                        # Left side (receiver) - dark
+                        bubble_x = 150  # Left-aligned like your CSS
+                        bubble_color = (32, 44, 51)  # --incoming: #202c33
+                        avatar_x = bubble_x - 144  # Avatar on left (120px + 24px margin)
+                    
+                    # Draw message bubble
+                    bubble_top = current_y - message_height
+                    bubble_bottom = current_y
+                    
+                    # Rounded rectangle bubble
+                    draw.rounded_rectangle(
+                        [bubble_x, bubble_top, bubble_x + 500, bubble_bottom],
+                        radius=18,  # --bubble-radius: 18px
+                        fill=bubble_color
+                    )
+                    
+                    # Username (only for first in group - simplified)
+                    username_y = bubble_top + 14
+                    draw.text((bubble_x + 18, username_y), 
+                             msg['username'], 
+                             fill=msg['color'], font=font_small)
+                    
+                    # Message text lines
+                    text_y = username_y + 30
+                    for line in lines:
+                        draw.text((bubble_x + 18, text_y), line, 
+                                 fill=(233, 237, 239), font=medium)  # --text: #e9edef
+                        text_y += 40  # line-height equivalent
+                    
+                    # Timestamp at bottom
+                    timestamp_y = bubble_bottom - 30
+                    draw.text((bubble_x + 18, timestamp_y), 
+                             msg['timestamp'], 
+                             fill=(255, 255, 255, 153), font=font_small)  # semi-transparent white
+                    
+                    # Move up for next message
+                    current_y -= message_height
+                
+                # 4. Draw typing bar if active (matches your HTML)
                 if show_typing_bar and typing_user:
-                    # Position typing bar at bottom to avoid overlap - MOVED LOWER
-                    typing_y = 950  # Changed from 900 to 950 (moved lower)
-                    typing_height = 60  # Reduced height
+                    typing_bar_y = 1080 - 80
                     
-                    # Draw typing bar background
-                    draw.rectangle([30, typing_y, 1890, typing_y + typing_height], fill=(40, 40, 40), outline=(80, 80, 80))
+                    # Typing bar background
+                    draw.rectangle([0, typing_bar_y, 1920, 1080], 
+                                  fill=(17, 27, 33))  # --panel-bg: #111b21
                     
-                    # Draw typing text
+                    # WhatsApp-style input bar
+                    bar_width = 1800
+                    bar_x = (1920 - bar_width) // 2
+                    draw.rounded_rectangle([bar_x, typing_bar_y + 10, bar_x + bar_width, typing_bar_y + 70],
+                                          radius=48, fill=(32, 44, 51))  # --incoming: #202c33
+                    
+                    # Typing text
                     typing_text = f"⌨️ {typing_user} is typing..."
                     if upcoming_text:
-                        # Show partial text preview (first 30 chars)
                         preview_text = upcoming_text.replace("|", "")[:30]
                         if len(upcoming_text) > 30:
                             preview_text += "..."
                         typing_text = f"⌨️ {typing_user}: {preview_text}"
                     
-                    draw.text((50, typing_y + 20), typing_text, fill=(100, 255, 100), font=font_medium)
+                    draw.text((bar_x + 60, typing_bar_y + 25), 
+                             typing_text, 
+                             fill=(100, 255, 100), font=font_medium)
                     
-                    # Draw typing indicator animation
+                    # Animated dots
                     dots = "." * ((self._render_count // 10) % 4)
-                    draw.text((50, typing_y + 45), f"Typing{dots}", fill=(150, 150, 150), font=font_small)
-              
-                # Draw message bubbles - leave MORE space at bottom for typing bar
-                max_y = 800 if show_typing_bar else 950  # Increased space from 850 to 800
-                message_y = 150
-              
-                for msg in filtered_messages[-8:]: # Show last 8 messages
-                    if message_y > max_y:
-                        break
-                      
-                    # Message bubble
-                    bubble_x = 100 if not msg['is_sender'] else 1000
-                    bubble_color = (30, 120, 200) if not msg['is_sender'] else (50, 150, 50)
-                  
-                    # Username and timestamp
-                    user_text = f"{msg['username']} • {msg['timestamp']}"
-                    draw.text((bubble_x, message_y), user_text, fill=msg['color'], font=font_small)
-                    message_y += 25
-                  
-                    # Message text
-                    message_lines = []
-                    current_line = ""
-                    for word in msg['text'].split():
-                        test_line = current_line + word + " "
-                        if len(test_line) > 50: # Wrap at 50 chars
-                            message_lines.append(current_line)
-                            current_line = word + " "
-                        else:
-                            current_line = test_line
-                    if current_line:
-                        message_lines.append(current_line)
-                  
-                    for line in message_lines:
-                        if message_y > max_y:
-                            break
-                        draw.text((bubble_x, message_y), line, fill=(255, 255, 255), font=font_medium)
-                        message_y += 25
-                  
-                    # Typing indicator for receiver bubbles
-                    if msg.get('typing'):
-                        if message_y > max_y:
-                            break
-                        draw.text((bubble_x, message_y), "⏳ typing...", fill=(200, 200, 100), font=font_small)
-                        message_y += 20
-                  
-                    message_y += 15 # Space between messages
-              
+                    draw.text((bar_x + 60, typing_bar_y + 50), 
+                             f"Typing{dots}", 
+                             fill=(134, 150, 160), font=font_small)
+            
             except Exception as pil_error:
                 if self._render_count % 10 == 0:
                     print(f"⚠️ Advanced PIL rendering failed: {pil_error}")
@@ -693,9 +768,8 @@ class WhatsAppRenderer:
                 draw.text((100, 100), f"Chat Frame - {len(filtered_messages)} messages", fill=(255, 255, 255))
                 if show_typing_bar and typing_user:
                     draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
-          
+            
             img.save(frame_file)
-            # REDUCED LOGGING: Only log every 50th PIL frame
             if self._render_count % 50 == 0:
                 print(f"✅ PIL fallback frame {self._render_count}: {frame_file}")
       
