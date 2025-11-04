@@ -36,6 +36,12 @@ do you see it here <!DOCTYPE html>
     color: var(--text);
   }
 
+  /* ✅ Global emoji font support */
+  html, body, .bubble, .text, .name {
+    font-family: "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji",
+    system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  }
+
   .topbar {
     height: 130px;
     background: var(--panel-bg);
@@ -57,7 +63,14 @@ do you see it here <!DOCTYPE html>
   }
   .topbar .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .topbar .meta { display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 5px; }
-  .topbar .name { font-size: 36px; font-weight: 600; }
+  
+  
+  .topbar .name {
+    font-size: 36px;
+    font-weight: 600;
+    font-family: "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
   .topbar .status { align-items: flex-end; font-size: 16px; color: var(--muted); margin-top: 4px; }
 
   .app-container {
