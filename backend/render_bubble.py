@@ -131,69 +131,59 @@ FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
 
 def get_html2image():
-    """Get or create HTML2Image instance with optimized Chrome flags"""
+    """Get or create HTML2Image instance with proper Chrome flags (emoji + CSS safe)"""
     global HTI
     if HTI is None:
         try:
-            # Try multiple possible Chromium paths
-            possible_paths = [
-                '/usr/bin/chromium',
-                '/usr/bin/chromium-browser',
-                '/usr/bin/google-chrome',
-                '/usr/bin/chrome',
-                '/app/.apt/usr/bin/chromium-browser'
-            ]
-          
-            chromium_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    chromium_path = path
-                    print(f"✅ Found Chromium at: {path}")
-                    break
-          
+            import shutil
+            chromium_path = shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
+
             if chromium_path:
-                # OPTIMIZED CHROME FLAGS TO MINIMIZE ERRORS
+                print(f"✅ Using Chromium at: {chromium_path}")
+
                 chrome_flags = [
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--disable-software-rasterizer',
-                    '--headless',
-                    '--window-size=1920,1080',
-                    '--disable-webgl',
-                    '--disable-accelerated-2d-canvas',
-                    '--disable-accelerated-video-decode',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    '--no-default-browser-check',
-                    '--no-first-run',
-                    '--disable-default-apps',
-                    '--disable-features=TranslateUI',
-                    '--disable-ipc-flooding-protection',
-                    '--enable-features=NetworkService,NetworkServiceInProcess',
-                    '--disable-vulkan',
-                    '--disable-gl-drawing-for-tests',
-                    '--disable-crash-reporter',
-                    '--disable-in-process-stack-traces',
-                    '--disable-logging',
-                    '--disable-breakpad',
-                    '--memory-pressure-off'
+                    "--headless",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--window-size=1920,1080",
+                    "--disable-webgl",
+                    "--disable-accelerated-2d-canvas",
+                    "--disable-accelerated-video-decode",
+                    "--disable-software-rasterizer",
+                    "--disable-background-timer-throttling",
+                    "--disable-backgrounding-occluded-windows",
+                    "--disable-renderer-backgrounding",
+                    "--no-default-browser-check",
+                    "--no-first-run",
+                    "--disable-default-apps",
+                    "--disable-features=TranslateUI",
+                    "--disable-ipc-flooding-protection",
+                    "--enable-features=NetworkService,NetworkServiceInProcess",
+                    "--disable-vulkan",
+                    "--disable-crash-reporter",
+                    "--disable-logging",
+                    "--disable-breakpad",
+                    "--memory-pressure-off"
                 ]
-              
+
                 HTI = html2image.Html2Image(
-                    browser='chromium',
                     browser_executable=chromium_path,
-                    custom_flags=chrome_flags
+                    custom_flags=chrome_flags,
+                    output_path=FRAMES_DIR
                 )
-                print("🚀 Created HTML2Image renderer with optimized Chrome flags")
+                print("🚀 HTML2Image renderer ready")
+
             else:
-                print("❌ No Chromium found, will use PIL fallback")
+                print("⚠️ Chromium not found – using fallback mode (no emoji support)")
                 HTI = None
+
         except Exception as e:
-            print(f"⚠️ HTML2Image setup failed: {e}")
+            print(f"❌ HTML2Image setup failed: {e}")
             HTI = None
+
     return HTI
+
 
 def cleanup_resources():
     """Clean up all resources when done"""
