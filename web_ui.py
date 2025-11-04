@@ -3239,104 +3239,8 @@ with gr.Blocks() as demo:
     """
 
 
-
-# if __name__ == "__main__":
-#     print("🎬 Starting Banka Video Generator Web UI...")
-#     demo.queue(max_size=10)
-#     port = int(os.environ.get("PORT", 7860))
-#     print(f"🌐 Launching on port {port}...")
-#     try:
-#         demo.launch(server_name="0.0.0.0", server_port=port, share=False, inbrowser=False)
-#     except Exception as e:
-#         print(f"💥 Failed to launch: {e}")
-#         traceback.print_exc()
-
-# if __name__ == "__main__":
-#     print("🎬 Starting Banka Video Generator Web UI...")
-
-#     import gradio as gr
-#     from fastapi import FastAPI
-#     from fastapi.responses import HTMLResponse
-#     from starlette.middleware.cors import CORSMiddleware
-
-#     app = FastAPI()
-
-#     # ✅ Allow assets and future features
-#     app.add_middleware(
-#         CORSMiddleware,
-#         allow_origins=["*"],
-#         allow_methods=["*"],
-#         allow_headers=["*"],
-#     )
-
-#     # ✅ Emoji test route
-#     @app.get("/emoji")
-#     def emoji_test():
-#         return HTMLResponse("""
-#         <html>
-#         <body style="font-size:40px">
-#         ✅ Emoji Test<br><br>
-#         😀😁😂🤣😅🥲😍😎🔥❤️💯👌🚀🌍📱
-#         </body>
-#         </html>
-#         """)
-
-#     app = gr.mount_gradio_app(app, demo, path="/")
-
-#     demo.queue(max_size=10)
-#     port = int(os.environ.get("PORT", 7860))
-#     print(f"🌐 Launching on port {port}...")
-
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=port)
-
 if __name__ == "__main__":
     print("🎬 Starting Banka Video Generator Web UI...")
-
-    # --- Ensure Noto Color Emoji installed (runtime fallback) ---
-    import shutil, subprocess, sys
-    def ensure_noto_emoji():
-        # Only try on Linux where apt-get is available
-        if shutil.which("apt-get"):
-            try:
-                print("🔧 Installing fonts-noto-color-emoji (this may take a moment)...")
-                subprocess.run(["apt-get", "update", "-y"], check=True)
-                subprocess.run(["apt-get", "install", "-y", "fonts-noto-color-emoji"], check=True)
-                print("✅ fonts-noto-color-emoji installed")
-            except Exception as ex:
-                print(f"⚠️ Could not install noto emoji fonts at runtime: {ex}")
-        else:
-            print("ℹ️ apt-get not found — skipping runtime font install")
-
-    ensure_noto_emoji()
-    # --- End font install ---
-
-    import gradio as gr
-    from fastapi import FastAPI
-    from fastapi.responses import HTMLResponse
-    from starlette.middleware.cors import CORSMiddleware
-
-    app = FastAPI()
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    @app.get("/emoji")
-    def emoji_test():
-        return HTMLResponse("""
-        <html>
-        <body style="font-size:40px">
-        ✅ Emoji Test<br><br>
-        😀😁😂🤣😅🥲😍😎🔥❤️💯👌🚀🌍📱
-        </body>
-        </html>
-        """)
-
-    app = gr.mount_gradio_app(app, demo, path="/")
 
     demo.queue(max_size=10)
     port = int(os.environ.get("PORT", 7860))
@@ -3344,5 +3248,11 @@ if __name__ == "__main__":
 
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=port)
+    try:
+         demo.launch(server_name="0.0.0.0", server_port=port, share=False, inbrowser=False)
+     except Exception as e:
+         print(f"💥 Failed to launch: {e}")
+         traceback.print_exc()
 
+    
 
