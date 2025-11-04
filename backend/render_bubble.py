@@ -289,6 +289,32 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
     # Return the single frame path and duration
     return frame_path, duration
 
+# ---------- EMOJI FONT SUPPORT ---------- #
+
+def install_emoji_fonts():
+    """Try to install or use emoji-supporting fonts"""
+    try:
+        # List of emoji-supporting fonts to try
+        emoji_fonts = [
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",  # Good unicode support
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",         # Good unicode support
+            "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",             # Best for emoji
+            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",            # Color emoji
+            "/System/Library/Fonts/Apple Color Emoji.ttc",                  # macOS
+            "C:/Windows/Fonts/segoeuiemoji.ttf",                            # Windows
+        ]
+        
+        available_fonts = []
+        for font_path in emoji_fonts:
+            if os.path.exists(font_path):
+                available_fonts.append(font_path)
+                print(f"✅ Found emoji font: {font_path}")
+        
+        return available_fonts
+    except Exception as e:
+        print(f"⚠️ Error checking emoji fonts: {e}")
+        return []
+
 # ---------- RENDERER ---------- #
 
 class WhatsAppRenderer:
@@ -300,6 +326,9 @@ class WhatsAppRenderer:
         self.chat_status = chat_status
         self._last_render_time = 0
         self._render_count = 0
+        # Initialize emoji fonts
+        self._emoji_fonts = install_emoji_fonts()
+        self._emoji_fonts_checked = True
   
     def add_message(self, username, message, meme_path=None, is_read=False, typing=False):
         """COMPLETE METHOD - Add message to history with FIXED AVATAR SYSTEM"""
@@ -328,8 +357,9 @@ class WhatsAppRenderer:
                 # Fall through to generate initial
                 avatar_data = None
                 mime = None
+      
         else:
-            # Generate initial avatar with LARGER FONT SIZES
+            # Generate initial avatar with LARGER FONT SIZES and BETTER CENTERING
             def get_initials(name):
                 words = name.strip().split()
                 if len(words) == 0:
@@ -342,80 +372,90 @@ class WhatsAppRenderer:
             initial = get_initials(username)
             color_hex = color
             r, g, b = int(color_hex[1:3], 16), int(color_hex[3:5], 16), int(color_hex[5:7], 16)
-            img = Image.new('RGB', (128, 128), color=(r, g, b))
+            
+            # Create a larger image for better quality
+            img_size = 200  # Increased from 128 for better quality
+            img = Image.new('RGB', (img_size, img_size), color=(r, g, b))
             draw = ImageDraw.Draw(img)
             
-            # ✅ FIXED: MUCH LARGER FONT SIZES for better visibility
+            # ✅ FIXED: BETTER FONT SIZES AND CENTERING
             if len(initial) == 1:
-                font_size = 80  # Bigger for single letters
+                font_size = 100  # Bigger for single letters
             else:
-                font_size = 60  # Bigger for two letters
+                font_size = 80   # Bigger for two letters
             
             try:
                 # Try multiple font paths for better emoji support
                 font_paths = [
+                    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
                     "/System/Library/Fonts/Helvetica.ttc",
-                    "Arial"
+                    "Arial",
+                    "arial.ttf"
                 ]
                 
                 font = None
                 for font_path in font_paths:
                     try:
                         font = ImageFont.truetype(font_path, font_size)
+                        print(f"✅ Using font: {font_path}")
                         break
-                    except:
+                    except Exception as e:
                         continue
                 
                 if font is None:
                     # Final fallback to default font
                     font = ImageFont.load_default()
+                    print("⚠️ Using default font")
                     
             except Exception as font_error:
                 print(f"⚠️ Font loading error for {username}: {font_error}")
                 font = ImageFont.load_default()
             
-            # Calculate text position (centered)
+            # ✅ FIXED: PERFECT CENTERING
             if font:
                 try:
                     # Get text bounding box
                     bbox = draw.textbbox((0, 0), initial, font=font)
                     text_width = bbox[2] - bbox[0]
                     text_height = bbox[3] - bbox[1]
-                    x = (128 - text_width) // 2
-                    y = (128 - text_height) // 2
                     
-                    # Draw the text with outline for better visibility
-                    outline_width = max(2, 128 // 100)
+                    # Perfect center calculation
+                    x = (img_size - text_width) / 2
+                    y = (img_size - text_height) / 2 - bbox[1]  # Adjust for baseline
+                    
+                    # Draw the text with subtle outline for better visibility
+                    outline_width = max(2, img_size // 80)
                     for x_offset in [-outline_width, 0, outline_width]:
                         for y_offset in [-outline_width, 0, outline_width]:
                             if x_offset != 0 or y_offset != 0:
-                                draw.text((x + x_offset, y + y_offset), initial, fill='rgba(0,0,0,0.3)', font=font)
+                                draw.text((x + x_offset, y + y_offset), initial, fill=(0, 0, 0, 128), font=font)
                     
-                    # Then draw the main text
+                    # Draw the main text
                     draw.text((x, y), initial, fill=(255, 255, 255), font=font)
+                    
+                    print(f"✅ Perfectly centered avatar for {username}: '{initial}' at ({x:.1f}, {y:.1f})")
                     
                 except Exception as draw_error:
                     print(f"⚠️ Error drawing text for {username}: {draw_error}")
                     # Fallback: simple centered text
-                    x = 128 // 4
-                    y = 128 // 4
+                    x = img_size // 4
+                    y = img_size // 4
                     draw.text((x, y), initial, fill=(255, 255, 255), font=font)
             else:
-                # Fallback positioning with larger text
-                x = 128 // 6
-                y = 128 // 4
-                # Draw larger text manually
-                for i in range(max(1, 128 // 50)):  # Thicker text
-                    draw.text((x+i, y), initial, fill=(255, 255, 255))
-                    draw.text((x, y+i), initial, fill=(255, 255, 255))
+                # Fallback positioning
+                x = img_size // 6
+                y = img_size // 4
+                draw.text((x, y), initial, fill=(255, 255, 255))
+            
+            # Resize to standard avatar size for consistency
+            img = img.resize((128, 128), Image.Resampling.LANCZOS)
             
             buf = BytesIO()
             img.save(buf, format="PNG")
             avatar_data = base64.b64encode(buf.getvalue()).decode("utf-8")
             mime = "image/png"
-            print(f"✅ Generated initial avatar for {username} with larger font")
+            print(f"✅ Generated perfectly centered avatar for {username}")
   
         # --- MEME HANDLING ---
         meme_data = None
@@ -474,7 +514,7 @@ class WhatsAppRenderer:
             if msg['is_sender'] and msg['typing']:
                 continue
             filtered_messages.append(msg)
-  
+    
         rendered_html = template.render(
             messages=filtered_messages,
             static_path="/app/static", # ✅ critical for headless chrome
@@ -485,10 +525,10 @@ class WhatsAppRenderer:
             typing_user=typing_user,
             upcoming_text=upcoming_text
         )
-  
+    
         with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
             f.write(rendered_html)
-  
+    
         # Try HTML2Image first, fallback to PIL if it fails
         try:
             # Get HTML2Image with optimized flags
@@ -541,15 +581,33 @@ class WhatsAppRenderer:
             draw = ImageDraw.Draw(img)
           
             try:
-                # Try to use a font (fallback to default if not available)
-                try:
-                    font_large = ImageFont.truetype("Arial", 24)
-                    font_medium = ImageFont.truetype("Arial", 18)
-                    font_small = ImageFont.truetype("Arial", 14)
-                except:
-                    font_large = ImageFont.load_default()
-                    font_medium = ImageFont.load_default()
-                    font_small = ImageFont.load_default()
+                # Try to use emoji-supporting fonts first
+                font_large = None
+                font_medium = None
+                font_small = None
+                
+                # Try to load emoji-supporting fonts
+                if self._emoji_fonts:
+                    for font_path in self._emoji_fonts:
+                        try:
+                            font_large = ImageFont.truetype(font_path, 24)
+                            font_medium = ImageFont.truetype(font_path, 18)
+                            font_small = ImageFont.truetype(font_path, 14)
+                            print(f"✅ Using emoji font: {os.path.basename(font_path)}")
+                            break
+                        except:
+                            continue
+                
+                # Fallback to system fonts
+                if font_large is None:
+                    try:
+                        font_large = ImageFont.truetype("Arial", 24)
+                        font_medium = ImageFont.truetype("Arial", 18)
+                        font_small = ImageFont.truetype("Arial", 14)
+                    except:
+                        font_large = ImageFont.load_default()
+                        font_medium = ImageFont.load_default()
+                        font_small = ImageFont.load_default()
               
                 y_pos = 50
               
@@ -559,15 +617,32 @@ class WhatsAppRenderer:
                 draw.text((100, y_pos), f"👥 {self.chat_status}", fill=(200, 200, 200), font=font_medium)
                 y_pos += 60
               
-                # ✅ FIXED: Show typing indicator BELOW messages, not overlapping
+                # ✅ FIXED: Show typing indicator BELOW messages, not overlapping - MOVED LOWER
                 if show_typing_bar and typing_user:
-                    # Position typing bar at bottom to avoid overlap
-                    typing_y = 900  # Position at bottom
-                    draw.rectangle([50, typing_y, 1870, typing_y + 80], fill=(30, 30, 30), outline=(100, 100, 100))
-                    draw.text((100, typing_y + 20), f"⌨️ {typing_user} is typing: {upcoming_text}", fill=(100, 255, 100), font=font_medium)
+                    # Position typing bar at bottom to avoid overlap - MOVED LOWER
+                    typing_y = 950  # Changed from 900 to 950 (moved lower)
+                    typing_height = 60  # Reduced height
+                    
+                    # Draw typing bar background
+                    draw.rectangle([30, typing_y, 1890, typing_y + typing_height], fill=(40, 40, 40), outline=(80, 80, 80))
+                    
+                    # Draw typing text
+                    typing_text = f"⌨️ {typing_user} is typing..."
+                    if upcoming_text:
+                        # Show partial text preview (first 30 chars)
+                        preview_text = upcoming_text.replace("|", "")[:30]
+                        if len(upcoming_text) > 30:
+                            preview_text += "..."
+                        typing_text = f"⌨️ {typing_user}: {preview_text}"
+                    
+                    draw.text((50, typing_y + 20), typing_text, fill=(100, 255, 100), font=font_medium)
+                    
+                    # Draw typing indicator animation
+                    dots = "." * ((self._render_count // 10) % 4)
+                    draw.text((50, typing_y + 45), f"Typing{dots}", fill=(150, 150, 150), font=font_small)
               
-                # Draw message bubbles - leave space at bottom for typing bar
-                max_y = 850 if show_typing_bar else 950  # Reserve space for typing bar
+                # Draw message bubbles - leave MORE space at bottom for typing bar
+                max_y = 800 if show_typing_bar else 950  # Increased space from 850 to 800
                 message_y = 150
               
                 for msg in filtered_messages[-8:]: # Show last 8 messages
@@ -1048,4 +1123,3 @@ if __name__ == "__main__":
       
     finally:
         cleanup_resources()
-
