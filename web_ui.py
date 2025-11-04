@@ -3246,11 +3246,13 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
     print(f"🌐 Launching on port {port}...")
 
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
     try:
-        demo.launch(server_name="0.0.0.0", server_port=port, share=False, inbrowser=False)
+        demo.launch(
+            server_name="0.0.0.0",
+            server_port=port,
+            share=False,
+            inbrowser=False
+        )
     except Exception as e:
         print(f"💥 Failed to launch: {e}")
         traceback.print_exc()
