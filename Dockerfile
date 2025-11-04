@@ -1,6 +1,7 @@
 FROM python:3.10-slim
 
 # Install system dependencies including ffmpeg
+
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     chromium \
@@ -14,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     libgbm1 \
     libxss1 \
+    fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
