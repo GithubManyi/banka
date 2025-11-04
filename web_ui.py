@@ -3238,13 +3238,53 @@ with gr.Blocks() as demo:
     }
     """
 
+# if __name__ == "__main__":
+#     print("🎬 Starting Banka Video Generator Web UI...")
+#     demo.queue(max_size=10)
+#     port = int(os.environ.get("PORT", 7860))
+#     print(f"🌐 Launching on port {port}...")
+#     try:
+#         demo.launch(server_name="0.0.0.0", server_port=port, share=False, inbrowser=False)
+#     except Exception as e:
+#         print(f"💥 Failed to launch: {e}")
+#         traceback.print_exc()
+
 if __name__ == "__main__":
     print("🎬 Starting Banka Video Generator Web UI...")
+
+    import gradio as gr
+    from fastapi import FastAPI
+    from fastapi.responses import HTMLResponse
+    from starlette.middleware.cors import CORSMiddleware
+
+    app = FastAPI()
+
+    # ✅ Allow assets and future features
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ✅ Emoji test route
+    @app.get("/emoji")
+    def emoji_test():
+        return HTMLResponse("""
+        <html>
+        <body style="font-size:40px">
+        ✅ Emoji Test<br><br>
+        😀😁😂🤣😅🥲😍😎🔥❤️💯👌🚀🌍📱
+        </body>
+        </html>
+        """)
+
+    app = gr.mount_gradio_app(app, demo, path="/")
+
     demo.queue(max_size=10)
     port = int(os.environ.get("PORT", 7860))
     print(f"🌐 Launching on port {port}...")
-    try:
-        demo.launch(server_name="0.0.0.0", server_port=port, share=False, inbrowser=False)
-    except Exception as e:
-        print(f"💥 Failed to launch: {e}")
-        traceback.print_exc()
+
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
