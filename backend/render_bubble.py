@@ -136,7 +136,6 @@ def encode_avatar_for_html(avatar_path):
         print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
         return ""
 
-# ---------- PERFORMANCE OPTIMIZATIONS ---------- #
 
 # Global HTML2Image instance
 HTI = None
@@ -144,94 +143,68 @@ FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
 
 def get_html2image():
-    """Ultra-fast Railway-optimized HTML2Image with emoji support"""
+    """Get or create HTML2Image instance with optimized Chrome flags"""
     global HTI
     if HTI is None:
         try:
-            # STRATEGY: Try multiple paths with Railway priority
+            # Try multiple possible Chromium paths
+            possible_paths = [
+                '/usr/bin/chromium',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/google-chrome',
+                '/usr/bin/chrome',
+                '/app/.apt/usr/bin/chromium-browser'
+            ]
+          
             chromium_path = None
-            
-            # 1. First try Railway environment variable (fastest)
-            railway_path = os.environ.get('CHROMIUM_PATH')
-            if railway_path and os.path.exists(railway_path):
-                chromium_path = railway_path
-                print(f"🚀 Using Railway Chromium: {railway_path}")
-            
-            # 2. Try common system paths (fast)
-            if not chromium_path:
-                import shutil
-                chromium_path = (
-                    shutil.which("chromium") or
-                    shutil.which("chromium-browser") or 
-                    shutil.which("google-chrome") or
-                    "/usr/bin/chromium"  # Railway default
-                )
-            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    chromium_path = path
+                    print(f"✅ Found Chromium at: {path}")
+                    break
+          
             if chromium_path:
-                print(f"✅ Using Chromium: {chromium_path}")
-
-                # ULTRA-FAST FLAGS (optimized for Railway)
+                # OPTIMIZED CHROME FLAGS TO MINIMIZE ERRORS
                 chrome_flags = [
-                    "--headless=new",           # ✅ New headless (much faster)
-                    "--no-sandbox",             # ✅ Required for Docker
-                    "--disable-gpu",            # ✅ No GPU in containers
-                    "--disable-dev-shm-usage",  # ✅ Prevent memory issues
-                    "--disable-software-rasterizer", # ✅ Faster rendering
-                    "--disable-webgl",          # ✅ Not needed for 2D
-                    "--no-first-run",           # ✅ Skip initial setup
-                    "--disable-translate",      # ✅ No translation popups
-                    "--disable-extensions",     # ✅ No extensions needed
-                    "--disable-background-networking", # ✅ Reduce network calls
-                    "--disable-sync",           # ✅ No sync services
-                    "--disable-default-apps",   # ✅ No default apps
-                    "--mute-audio",             # ✅ No audio needed
-                    "--no-default-browser-check", # ✅ Skip browser check
-                    "--disable-component-extensions-with-background-pages", # ✅ Reduce processes
-                    "--disable-features=TranslateUI,BlinkGenPropertyTrees", # ✅ Optimize rendering
-                    "--disable-ipc-flooding-protection", # ✅ Better performance
-                    "--disable-renderer-backgrounding", # ✅ Keep renderers active
-                    "--disable-background-timer-throttling", # ✅ Better performance
-                    "--font-render-hinting=none", # ✅ Better emoji rendering
-                    "--force-color-profile=srgb", # ✅ Consistent colors
-                    "--enable-font-antialiasing", # ✅ Smoother text
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-software-rasterizer',
+                    '--headless',
+                    '--window-size=1920,1080',
+                    '--disable-webgl',
+                    '--disable-accelerated-2d-canvas',
+                    '--disable-accelerated-video-decode',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--no-default-browser-check',
+                    '--no-first-run',
+                    '--disable-default-apps',
+                    '--disable-features=TranslateUI',
+                    '--disable-ipc-flooding-protection',
+                    '--enable-features=NetworkService,NetworkServiceInProcess',
+                    '--disable-vulkan',
+                    '--disable-gl-drawing-for-tests',
+                    '--disable-crash-reporter',
+                    '--disable-in-process-stack-traces',
+                    '--disable-logging',
+                    '--disable-breakpad',
+                    '--memory-pressure-off'
                 ]
-
+              
                 HTI = html2image.Html2Image(
+                    browser='chromium',
                     browser_executable=chromium_path,
-                    custom_flags=chrome_flags,
-                    output_path=FRAMES_DIR,
-                    size=(1920, 1080)  # ✅ Pre-set size for faster rendering
+                    custom_flags=chrome_flags
                 )
-
-                print("🚀 Ultra-fast Railway Renderer Ready (Emoji Support)")
-
-                # ✅ OPTIMIZED WARM-UP: Minimal but effective
-                try:
-                    # Fast warm-up with basic HTML
-                    warmup_html = "<html><body style='background:#0b141a'></body></html>"
-                    HTI.screenshot(html=warmup_html, save_as="__warmup.png")
-                    
-                    # Quick emoji test (only log if it fails)
-                    emoji_test_html = """
-                    <html><body style="background:#0b141a;color:white;font-family:'Noto Color Emoji','Apple Color Emoji',sans-serif;font-size:20px">
-                        😀📱
-                    </body></html>
-                    """
-                    HTI.screenshot(html=emoji_test_html, save_as="__emojitest.png")
-                    print("✅ Warm-up completed with emoji support")
-                    
-                except Exception as warmup_error:
-                    print(f"⚠️ Warm-up had minor issue (continuing anyway): {warmup_error}")
-
+                print("🚀 Created HTML2Image renderer with optimized Chrome flags")
             else:
-                print("⚠️ Chromium not found — fallback to PIL mode")
+                print("❌ No Chromium found, will use PIL fallback")
                 HTI = None
-
         except Exception as e:
-            print(f"❌ HTML2Image init error: {e}")
-            # Don't give up completely - fallback will handle it
+            print(f"⚠️ HTML2Image setup failed: {e}")
             HTI = None
-
     return HTI
 
 def cleanup_resources():
@@ -331,31 +304,30 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
 # ---------- EMOJI FONT SUPPORT ---------- #
 
 def install_emoji_fonts():
-    """Railway-specific emoji font detection with better fallbacks"""
+    """Try to install or use emoji-supporting fonts"""
     try:
-        # Railway-specific font paths
-        railway_fonts = [
-            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",  # Color emojis
-            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", # Regular text with emoji
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        # List of emoji-supporting fonts to try
+        emoji_fonts = [
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",  # Good unicode support
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",         # Good unicode support
+            "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",             # Best for emoji
+            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",            # Color emoji
+            "/System/Library/Fonts/Apple Color Emoji.ttc",                  # macOS
+            "C:/Windows/Fonts/segoeuiemoji.ttf",                            # Windows
         ]
         
         available_fonts = []
-        for font_path in railway_fonts:
+        for font_path in emoji_fonts:
             if os.path.exists(font_path):
                 available_fonts.append(font_path)
-                print(f"✅ Found Railway font: {os.path.basename(font_path)}")
+                print(f"✅ Found emoji font: {font_path}")
         
-        if available_fonts:
-            return available_fonts
-        else:
-            print("⚠️ No Railway fonts found, using basic system fonts")
-            return ["Arial", "DejaVuSans", "LiberationSans"]
-            
+        return available_fonts
     except Exception as e:
-        print(f"⚠️ Error checking Railway fonts: {e}")
-        return ["Arial"]  # Basic fallback
+        print(f"⚠️ Error checking emoji fonts: {e}")
+        return []
+
+# ---------- RENDERER ---------- #
 
 # ---------- AVATAR GENERATION FIXES ---------- #
 
@@ -375,7 +347,6 @@ def test_avatar_generation():
 test_avatar_generation()
 
 # ---------- RENDERER ---------- #
-
 class WhatsAppRenderer:
     def __init__(self, chat_title="Default Group", chat_avatar=None, chat_status=None):
         self.message_history = []
@@ -418,7 +389,7 @@ class WhatsAppRenderer:
                 mime = None
       
         else:
-            # Generate initial avatar with FIXED OUTLINE
+            # Generate initial avatar with LARGER FONT SIZES and BETTER CENTERING
             def get_initials(name):
                 words = name.strip().split()
                 if len(words) == 0:
@@ -471,7 +442,7 @@ class WhatsAppRenderer:
                 print(f"⚠️ Font loading error for {username}: {font_error}")
                 font = ImageFont.load_default()
             
-            # ✅ FIXED: PERFECT CENTERING WITH FIXED OUTLINE
+            # ✅ FIXED: PERFECT CENTERING
             if font:
                 try:
                     # Get text bounding box
@@ -483,26 +454,17 @@ class WhatsAppRenderer:
                     x = (img_size - text_width) / 2
                     y = (img_size - text_height) / 2 - bbox[1]  # Adjust for baseline
                     
-                    # ✅ FIXED: Draw text outline (shadow effect) - NO RGBA COLORS
-                    outline_color = (0, 0, 0)  # Simple black, no alpha
+                    # Draw the text with subtle outline for better visibility
                     outline_width = max(2, img_size // 80)
+                    for x_offset in [-outline_width, 0, outline_width]:
+                        for y_offset in [-outline_width, 0, outline_width]:
+                            if x_offset != 0 or y_offset != 0:
+                                draw.text((x + x_offset, y + y_offset), initial, fill=(0, 0, 0, 128), font=font)
                     
-                    try:
-                        # Draw text outline (shadow effect)
-                        for x_offset in [-outline_width, 0, outline_width]:
-                            for y_offset in [-outline_width, 0, outline_width]:
-                                if x_offset != 0 or y_offset != 0:
-                                    draw.text((x + x_offset, y + y_offset), initial, fill=outline_color, font=font)
-                        
-                        # Draw the main text
-                        draw.text((x, y), initial, fill=(255, 255, 255), font=font)
-                        print(f"✅ Generated avatar with outline for {username}: '{initial}'")
-                        
-                    except Exception as draw_error:
-                        print(f"⚠️ Error drawing outline for {username}: {draw_error}")
-                        # Fallback: simple text without outline
-                        draw.text((x, y), initial, fill=(255, 255, 255), font=font)
-                        print(f"✅ Generated simple avatar for {username}: '{initial}'")
+                    # Draw the main text
+                    draw.text((x, y), initial, fill=(255, 255, 255), font=font)
+                    
+                    print(f"✅ Perfectly centered avatar for {username}: '{initial}' at ({x:.1f}, {y:.1f})")
                     
                 except Exception as draw_error:
                     print(f"⚠️ Error drawing text for {username}: {draw_error}")
@@ -641,7 +603,6 @@ class WhatsAppRenderer:
                 print(f"❌ HTML2Image failed: {e}")
                 print("🔄 Falling back to PIL rendering...")
           
-           
             # PIL FALLBACK - Compatible with your HTML structure
             from PIL import Image, ImageDraw, ImageFont
             
