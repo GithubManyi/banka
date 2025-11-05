@@ -984,6 +984,7 @@ def create_gradio_interface():
                     outputs=[recv_choice, status]
                 )
 
+    try:
         return demo
     except Exception as e:
         print(f"❌ Error creating Gradio interface: {e}")
