@@ -3,7 +3,6 @@ import sys
 import os
 import traceback
 
-
 print("🚀 Application starting...")
 print(f"📁 Current directory: {os.getcwd()}")
 print(f"🐍 Python version: {sys.version}")
@@ -37,9 +36,6 @@ import tempfile
 import shutil
 from pathlib import Path
 import base64  # Add this import for avatar encoding
-
-
-
 
 # Add after your existing imports, around line 45-55
 try:
@@ -75,6 +71,12 @@ try:
 except ImportError as e:
     print(f"❌ Failed to import standard libraries: {e}")
     sys.exit(1)
+
+# ===== GLOBAL REFRESH STATE =====
+auto_refresh_running = False
+auto_refresh_thread = None
+rendering_in_progress = False
+pause_message_shown = False   # ✅ prevents spam logs
 
 # Import your custom modules with better error handling
 try:
@@ -127,8 +129,6 @@ except ImportError as e:
     render_bubble.timeline = []
     render_bubble.renderer = WhatsAppRenderer()
 
-    
-
 try:
     from groq import Groq
     # Groq client (assuming API key is set in environment)
@@ -169,13 +169,6 @@ if os.path.exists(AUDIO_DIR):
 else:
     AUDIO_FILES = []
 
-# Global flag to control auto-refresh thread
-auto_refresh_running = False
-auto_refresh_thread = None
-
-# Flag to track if video rendering is in progress
-rendering_in_progress = False
-
 # Prevent Gradio timeouts
 os.environ["GRADIO_QUEUE"] = "True"
 
@@ -183,7 +176,6 @@ if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 print("✅ Configuration loaded successfully")
-
 
 # Add asset creation function
 def create_default_assets():
@@ -333,7 +325,6 @@ def get_character_details(name):
     else:
         return {"avatar": "static/images/contact.png", "personality": ""}
 
-
         
 def get_character_avatar_path(username):
     """Return web path for avatar with better error handling"""
@@ -389,7 +380,6 @@ def encode_avatar_for_html(avatar_path):
     except Exception as e:
         print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
         return None
-
 
 # =============================================
 # WHATSAPP-STYLE AVATAR GENERATION SYSTEM - FIXED FONT SIZES
@@ -1160,13 +1150,6 @@ if os.path.exists(AUDIO_DIR):
 else:
     AUDIO_FILES = []
 
-# Global flag to control auto-refresh thread
-auto_refresh_running = False
-auto_refresh_thread = None
-
-# Flag to track if video rendering is in progress
-rendering_in_progress = False
-
 # Groq client (assuming API key is set in environment)
 try:
     groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -1219,12 +1202,9 @@ def load_timeline_data():
     total_seconds, formatted = calculate_total_runtime(data)
     return data, f"✅ Loaded timeline ({len(data)} messages) — ⏱️ Total: {total_seconds:.1f}s ({formatted})", formatted
 
-# ---- SMART AUTO-REFRESH ----
-auto_refresh_running = False
-auto_refresh_thread = None
-rendering_in_progress = False
-pause_message_shown = False   # ✅ prevents spam logs
-
+# =============================================
+# SMART AUTO-REFRESH FUNCTIONS - PROPERLY PLACED
+# =============================================
 
 def start_auto_refresh(load_button, timeline_table, status_box, total_duration_box, interval=10):
     global auto_refresh_running, auto_refresh_thread, rendering_in_progress, pause_message_shown
@@ -1261,7 +1241,6 @@ def start_auto_refresh(load_button, timeline_table, status_box, total_duration_b
 def stop_auto_refresh():
     global auto_refresh_running
     auto_refresh_running = False
-# ---- END SMART AUTO-REFRESH ----
 
 def save_timeline_data(data):
     frames_dir = os.path.join(PROJECT_ROOT, "frames")
@@ -1758,7 +1737,6 @@ def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, t
 
         # Determine if we should use segments
         use_segments = os.path.exists(bg_timeline_file) and bg_segments
-        print(f"🎵 Using BG segments: {use_segments}")
 
         print("🎵 Calling build_video_from_timeline...")
         video_path = build_video_from_timeline(
@@ -2407,11 +2385,6 @@ def reset_bg_segments():
     return pd.DataFrame(columns=["start_seconds", "end_seconds", "audio", "playback_mode", "custom_start"]), "✅ Reset all BG segments"
 
 def debug_bg_segments_ui():
-    debug_file_btn = gr.Button("🔍 Debug BG File")
-    debug_file_btn.click(
-        fn=debug_bg_file,
-        outputs=[bg_status]
-    )
     segments = debug_bg_segments()
     if segments:
         output = "Current BG Segments:\n"
@@ -3262,6 +3235,17 @@ with gr.Blocks() as demo:
 if __name__ == "__main__":
     print("🎬 Starting Banka Video Generator Web UI...")
 
+    # =============================================
+    # START AUTO-REFRESH - PROPERLY PLACED
+    # =============================================
+    start_auto_refresh(
+        load_button=load_timeline_btn, 
+        timeline_table=timeline_table, 
+        status_box=status_box, 
+        total_duration_box=total_duration_box,
+        interval=10
+    )
+
     demo.queue(max_size=10)
     port = int(os.environ.get("PORT", 7860))
     print(f"🌐 Launching on port {port}...")
@@ -3276,4 +3260,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"💥 Failed to launch: {e}")
         traceback.print_exc()
-
