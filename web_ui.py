@@ -15,17 +15,50 @@ import math
 import random
 import psutil
 
-# SUPPRESS CHROMIUM ERRORS FOR BETTER PERFORMANCE
+# =============================================
+# ENHANCED CHROMIUM/CHROME SUPPRESSION
+# =============================================
+
+# More comprehensive Chromium error suppression
 os.environ['DBUS_SESSION_BUS_ADDRESS'] = '/dev/null'
 os.environ['DISABLE_DEV_SHM'] = 'true'
 os.environ['ENABLE_CRASH_REPORTER'] = 'false'
 os.environ['CHROME_HEADLESS'] = 'true'
+os.environ['NO_AT_BRIDGE'] = '1'
+os.environ['CHROMIUM_FLAGS'] = '--no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --no-default-browser-check --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows'
 
 # Disable GPU and other unnecessary features
 os.environ['LIBGL_ALWAYS_SOFTWARE'] = '1'
 os.environ['GALLIUM_DRIVER'] = 'llvmpipe'
 
-# SIMPLE FFMPEG CHECK ONLY - NO INSTALLATION
+# Disable various system integrations
+os.environ['XDG_RUNTIME_DIR'] = '/tmp/runtime'
+os.environ['XDG_CACHE_HOME'] = '/tmp/cache'
+os.environ['HOME'] = '/tmp'
+
+# Resource limits to prevent thread exhaustion
+os.environ['GRADIO_ANALYTICS_ENABLED'] = 'False'
+os.environ['BOKEH_Resources'] = 'minified'
+
+# =============================================
+# RESOURCE MANAGEMENT
+# =============================================
+
+def optimize_system_limits():
+    """Optimize system limits to prevent resource exhaustion"""
+    try:
+        import resource
+        # Increase resource limits
+        resource.setrlimit(resource.RLIMIT_NOFILE, (4096, 8192))
+    except:
+        pass
+
+optimize_system_limits()
+
+# =============================================
+# FFMPEG CHECK
+# =============================================
+
 try:
     result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
     if result.returncode != 0:
@@ -33,7 +66,10 @@ try:
 except Exception:
     print("ffmpeg check failed")
 
-# Import Gradio and other modules
+# =============================================
+# IMPORTS WITH ENHANCED ERROR HANDLING
+# =============================================
+
 try:
     import gradio as gr
 except ImportError:
@@ -56,29 +92,39 @@ try:
 except ImportError:
     save_uploaded_avatar = None
 
-# Render bubble modules with fallbacks
+# Enhanced render bubble import with better error handling
 try:
     from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
     
-    # Initialize renderer state (fresh each session)
+    # Initialize renderer state with resource limits
     render_bubble.frame_count = 0
     render_bubble.timeline = []
     render_bubble.renderer = WhatsAppRenderer()
     
-except ImportError:
-    # Create dummy functions to prevent crashes
+except ImportError as e:
+    print(f"Warning: Could not import render_bubble modules: {e}")
+    # Create enhanced dummy functions
     class WhatsAppRenderer:
         def __init__(self, *args, **kwargs):
-            pass
+            self.chat_title = "Chat"
+            self.chat_status = "Online"
+            self.chat_avatar = None
             
     def render_bubble(*args, **kwargs):
-        return "/app/frames/frame_0000.png"
+        # Create frames directory if it doesn't exist
+        frames_dir = os.path.join(PROJECT_ROOT, "frames")
+        os.makedirs(frames_dir, exist_ok=True)
+        return os.path.join(frames_dir, "frame_0000.png")
         
     def render_typing_bubble(*args, **kwargs):
-        return "/app/frames/frame_0000.png"
+        frames_dir = os.path.join(PROJECT_ROOT, "frames")
+        os.makedirs(frames_dir, exist_ok=True)
+        return os.path.join(frames_dir, "frame_0000.png")
         
     def render_typing_bar_frame(*args, **kwargs):
-        return "/app/frames/frame_0000.png"
+        frames_dir = os.path.join(PROJECT_ROOT, "frames")
+        os.makedirs(frames_dir, exist_ok=True)
+        return os.path.join(frames_dir, "frame_0000.png")
         
     def generate_beluga_typing_sequence(*args, **kwargs):
         return []
@@ -86,7 +132,7 @@ except ImportError:
     def reset_typing_sessions():
         pass
     
-    # Set up the global variables your code expects
+    # Set up the global variables
     render_bubble.frame_count = 0
     render_bubble.timeline = []
     render_bubble.renderer = WhatsAppRenderer()
@@ -110,7 +156,10 @@ except ImportError:
     def get_avatar_path(username):
         return os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
 
-# Configuration
+# =============================================
+# CONFIGURATION
+# =============================================
+
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_FILE = os.path.join(PROJECT_ROOT, "script.txt")
 BG_TIMELINE_FILE = os.path.join(PROJECT_ROOT, "frames", "bg_timeline.json")
@@ -147,19 +196,26 @@ os.environ["GRADIO_QUEUE"] = "True"
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# Asset creation function
+# =============================================
+# ENHANCED ASSET MANAGEMENT
+# =============================================
+
 def create_default_assets():
-    """Create default assets if they don't exist"""
+    """Create default assets if they don't exist with better error handling"""
     static_dirs = [
         "static/images",
         "static/avatars", 
         "static/audio",
-        "frames"
+        "frames",
+        "temp"
     ]
     
     for dir_path in static_dirs:
         full_path = os.path.join(PROJECT_ROOT, dir_path)
-        os.makedirs(full_path, exist_ok=True)
+        try:
+            os.makedirs(full_path, exist_ok=True)
+        except Exception as e:
+            print(f"Warning: Could not create directory {full_path}: {e}")
     
     # Create default contact.png if it doesn't exist
     contact_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
@@ -175,9 +231,12 @@ def create_default_assets():
             draw.ellipse([110, 80, 130, 100], fill='white')
             
             img.save(contact_path, 'PNG')
+            print("Created default contact avatar")
         except ImportError:
+            # Create empty file as fallback
             open(contact_path, 'a').close()
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Could not create default avatar: {e}")
             open(contact_path, 'a').close()
 
 create_default_assets()
@@ -705,6 +764,88 @@ def get_file_path(file_input, choice, default):
         return default
 
 # =============================================
+# ENHANCED RENDER FUNCTIONS WITH RESOURCE MANAGEMENT
+# =============================================
+
+def safe_render_with_limits(*args, **kwargs):
+    """Wrapper for render functions with resource limits"""
+    try:
+        # Clear any temporary files before rendering
+        temp_dir = os.path.join(PROJECT_ROOT, "temp")
+        if os.path.exists(temp_dir):
+            for file in os.listdir(temp_dir):
+                try:
+                    os.remove(os.path.join(temp_dir, file))
+                except:
+                    pass
+        
+        # Call the actual render function
+        return render_bubble(*args, **kwargs)
+    except Exception as e:
+        print(f"Render error: {e}")
+        # Return a fallback frame
+        frames_dir = os.path.join(PROJECT_ROOT, "frames")
+        os.makedirs(frames_dir, exist_ok=True)
+        return os.path.join(frames_dir, "frame_fallback.png")
+
+# Replace the original render_bubble with our safe version
+original_render_bubble = render_bubble
+render_bubble = safe_render_with_limits
+
+# =============================================
+# ENHANCED VIDEO RENDERING WITH BETTER ERROR HANDLING
+# =============================================
+
+def safe_build_video_from_timeline(*args, **kwargs):
+    """Wrapper for video building with enhanced error handling"""
+    try:
+        if build_video_from_timeline:
+            print("Starting video rendering process...")
+            result = build_video_from_timeline(*args, **kwargs)
+            if result and os.path.exists(result):
+                print(f"Video successfully rendered: {result}")
+                
+                # Optimize the video
+                try:
+                    optimized_path = result.replace('.mp4', '_optimized.mp4')
+                    print(f"Optimizing video: {result} -> {optimized_path}")
+                    
+                    # Use simpler ffmpeg command for better compatibility
+                    cmd = [
+                        'ffmpeg', '-i', result,
+                        '-c:v', 'libx264', '-preset', 'medium', '-crf', '23',
+                        '-c:a', 'aac', '-b:a', '128k',
+                        '-movflags', '+faststart',
+                        '-y', optimized_path
+                    ]
+                    
+                    result_ffmpeg = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                    if result_ffmpeg.returncode == 0 and os.path.exists(optimized_path):
+                        # Remove original and use optimized
+                        try:
+                            os.remove(result)
+                        except:
+                            pass
+                        print(f"Video optimization successful: {optimized_path}")
+                        return optimized_path
+                    else:
+                        print(f"FFmpeg optimization failed: {result_ffmpeg.stderr}")
+                        return result
+                except Exception as e:
+                    print(f"Optimization failed, using original: {e}")
+                    return result
+            else:
+                print("Video rendering failed - no output file produced")
+                return None
+        else:
+            print("Video rendering module not available")
+            return None
+    except Exception as e:
+        print(f"Error in video rendering: {e}")
+        traceback.print_exc()
+        return None
+
+# =============================================
 # CORE APPLICATION FUNCTIONS
 # =============================================
 
@@ -953,10 +1094,13 @@ def safe_handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choi
 def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, chat_title, chat_status, chat_avatar, moral_text):
     global latest_generated_script, rendering_in_progress
     
+    print("Starting render process...")
+    
     reset_typing_sessions()
 
     rendering_in_progress = True
     try:
+        # Check script availability
         if os.path.exists(SCRIPT_FILE):
             with open(SCRIPT_FILE, "r", encoding="utf-8") as f:
                 latest_generated_script = f.read().strip()
@@ -966,31 +1110,28 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
 
         frames_dir = os.path.join(PROJECT_ROOT, "frames")
         timeline_file = os.path.join(frames_dir, "timeline.json")
-        custom_durations = {}
-
-        if os.path.exists(timeline_file):
-            try:
-                with open(timeline_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                for i, entry in enumerate(data):
-                    key = f"typing:{entry['username']}" if not entry.get("text") and entry.get("username") else entry.get("text", f"msg_{i}")
-                    try:
-                        duration = float(entry.get("duration", 2.0))
-                        if duration <= 0:
-                            duration = 2.0
-                        custom_durations[key.strip()] = duration
-                    except (ValueError, TypeError):
-                        custom_durations[key.strip()] = 2.0
-            except Exception:
-                pass
-
+        
+        # Clean up previous frames
         if os.path.exists(frames_dir):
-            shutil.rmtree(frames_dir)
+            try:
+                shutil.rmtree(frames_dir)
+            except Exception as e:
+                print(f"Warning: Could not clean frames directory: {e}")
         os.makedirs(frames_dir, exist_ok=True)
 
+        # Reset render state
         render_bubble.frame_count = 0
         render_bubble.timeline = []
-        render_bubble.renderer = WhatsAppRenderer()
+        
+        # Initialize renderer with safe defaults
+        try:
+            render_bubble.renderer = WhatsAppRenderer()
+        except:
+            render_bubble.renderer = type('MockRenderer', (), {
+                'chat_title': chat_title or "Banka😎",
+                'chat_status': chat_status or "",
+                'chat_avatar': chat_avatar or "static/images/contact.png"
+            })()
 
         characters = set()
         for line in latest_generated_script.splitlines():
@@ -1045,9 +1186,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                 if meme_file:
                     safe_render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
                     if render_bubble.timeline:
-                        custom_key = ""
-                        duration = custom_durations.get(custom_key, 4.0)
-                        render_bubble.timeline[-1]["duration"] = duration
+                        render_bubble.timeline[-1]["duration"] = 4.0
                 continue
 
             if ":" in line:
@@ -1076,15 +1215,13 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     if meme_file:
                         safe_render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
                         if render_bubble.timeline:
-                            custom_key = text_message.strip() if text_message.strip() else ""
-                            duration = custom_durations.get(custom_key, 4.0 if not text_message.strip() else max(3.0, len(text_message) / 8))
+                            duration = 4.0 if not text_message.strip() else max(3.0, len(text_message) / 8)
                             render_bubble.timeline[-1]["duration"] = duration
                     else:
                         if text_message.strip():
                             safe_render_bubble(name, text_message, is_sender=is_sender)
                             if render_bubble.timeline:
-                                custom_key = text_message.strip()
-                                duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
+                                duration = max(3.0, len(text_message) / 8)
                                 render_bubble.timeline[-1]["duration"] = duration
                 else:
                     text_message = message
@@ -1099,10 +1236,9 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                                 is_character_typing=frame_sound
                             )
                     elif is_sender and random.random() < 0.3:
-                        render_typing_bubble(name, is_sender, custom_durations=custom_durations)
+                        render_typing_bubble(name, is_sender)
 
-                    custom_key = text_message.strip()
-                    duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
+                    duration = max(3.0, len(text_message) / 8)
                     
                     safe_render_bubble(name, text_message, is_sender=is_sender)
                     
@@ -1112,47 +1248,28 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
         with open(timeline_file, "w", encoding="utf-8") as f:
             json.dump(render_bubble.timeline, f, indent=2)
 
-        bg_path = get_file_path(bg_upload, bg_choice, DEFAULT_BG)
-        send_path = get_file_path(send_upload, send_choice, DEFAULT_SEND)
-        recv_path = get_file_path(recv_upload, recv_choice, DEFAULT_RECV)
-        typing_path = get_file_path(typing_upload, typing_choice, DEFAULT_TYPING)
-        typing_bar_path = get_file_path(typing_bar_upload, typing_bar_choice, None)
-
-        use_segments = os.path.exists(BG_TIMELINE_FILE)
-
-        bg_segments = []
-        if use_segments and os.path.exists(BG_TIMELINE_FILE):
-            with open(BG_TIMELINE_FILE, "r", encoding="utf-8") as f:
-                bg_segments = json.load(f)
-
-        try:
-            if build_video_from_timeline:
-                video_path = build_video_from_timeline(
-                    bg_audio=bg_path, 
-                    send_audio=send_path, 
-                    recv_audio=recv_path, 
-                    typing_audio=typing_path,
-                    typing_bar_audio=typing_bar_path,
-                    use_segments=use_segments,
-                    bg_segments=bg_segments if use_segments else None,
-                    moral_text=moral_text
-                )
-                if video_path:
-                    optimized_path = video_path.replace('.mp4', '_optimized.mp4')
-                    subprocess.run([
-                        'ffmpeg', '-i', video_path, 
-                        '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-                        '-c:a', 'aac', '-b:a', '192k',
-                        '-movflags', '+faststart', '-y', optimized_path
-                    ], check=True)
-                    os.remove(video_path)
-                    video_path = optimized_path
-                custom_count = sum(1 for entry in render_bubble.timeline if (entry.get("text", "").strip() in custom_durations or (entry.get("is_meme", False) and "" in custom_durations) or (entry.get("typing", False) and f"typing:{entry['username']}" in custom_durations)))
-                return video_path, f"Video rendered successfully! Used {custom_count} custom durations, {len(render_bubble.timeline) - custom_count} default durations.", video_path
-            else:
-                return None, "Video rendering module not available", None
-        except Exception as e:
-            return None, f"Error rendering video: {e}", None
+        # Use the safe video builder
+        video_path = safe_build_video_from_timeline(
+            bg_audio=get_file_path(bg_upload, bg_choice, DEFAULT_BG),
+            send_audio=get_file_path(send_upload, send_choice, DEFAULT_SEND),
+            recv_audio=get_file_path(recv_upload, recv_choice, DEFAULT_RECV),
+            typing_audio=get_file_path(typing_upload, typing_choice, DEFAULT_TYPING),
+            typing_bar_audio=get_file_path(typing_bar_upload, typing_bar_choice, None),
+            use_segments=os.path.exists(BG_TIMELINE_FILE),
+            bg_segments=load_bg_segments() if os.path.exists(BG_TIMELINE_FILE) else None,
+            moral_text=moral_text
+        )
+        
+        if video_path:
+            return video_path, "Video rendered successfully!", video_path
+        else:
+            return None, "Video rendering failed. Check console for details.", None
+            
+    except Exception as e:
+        error_msg = f"Error rendering video: {str(e)}"
+        print(error_msg)
+        traceback.print_exc()
+        return None, error_msg, None
     finally:
         rendering_in_progress = False
 
@@ -1215,49 +1332,33 @@ def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, t
 
         use_segments = os.path.exists(bg_timeline_file) and bg_segments
 
-        if build_video_from_timeline:
-            video_path = build_video_from_timeline(
-                bg_audio=bg_path,
-                send_audio=send_path,
-                recv_audio=recv_path,
-                typing_audio=typing_path,
-                typing_bar_audio=typing_bar_path,
-                use_segments=use_segments,
-                bg_segments=bg_segments if use_segments else None,
-                moral_text=moral_text
-            )
+        # Use the safe video builder
+        video_path = safe_build_video_from_timeline(
+            bg_audio=bg_path,
+            send_audio=send_path,
+            recv_audio=recv_path,
+            typing_audio=typing_path,
+            typing_bar_audio=typing_bar_path,
+            use_segments=use_segments,
+            bg_segments=bg_segments if use_segments else None,
+            moral_text=moral_text
+        )
+        
+        if video_path and os.path.exists(video_path):
+            try:
+                result = subprocess.run([
+                    'ffprobe', '-v', 'error', 
+                    '-show_entries', 'format=duration', 
+                    '-of', 'default=noprint_wrappers=1:nokey=1',
+                    video_path
+                ], capture_output=True, text=True, check=True)
+                actual_duration = float(result.stdout.strip())
+            except Exception:
+                actual_duration = 0
             
-            if video_path and os.path.exists(video_path):
-                try:
-                    result = subprocess.run([
-                        'ffprobe', '-v', 'error', 
-                        '-show_entries', 'format=duration', 
-                        '-of', 'default=noprint_wrappers=1:nokey=1',
-                        video_path
-                    ], capture_output=True, text=True, check=True)
-                    actual_duration = float(result.stdout.strip())
-                except Exception:
-                    actual_duration = 0
-                
-                optimized_path = video_path.replace('.mp4', '_optimized.mp4')
-                try:
-                    subprocess.run([
-                        'ffmpeg', '-i', video_path, 
-                        '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-                        '-c:a', 'aac', '-b:a', '192k',
-                        '-movflags', '+faststart', '-y', optimized_path
-                    ], check=True)
-                    if os.path.exists(optimized_path):
-                        os.remove(video_path)
-                        video_path = optimized_path
-                except Exception:
-                    pass
-                
-                return video_path, f"Video rendered successfully! Expected: {total_duration}s, Actual: {actual_duration}s", video_path
-            else:
-                return None, "Video rendering failed - no output file", None
+            return video_path, f"Video rendered successfully! Expected: {total_duration}s, Actual: {actual_duration}s", video_path
         else:
-            return None, "Video rendering module not available", None
+            return None, "Video rendering failed - no output file", None
             
     except Exception as e:
         return None, f"Error: {str(e)}", None
@@ -1589,17 +1690,29 @@ def create_fallback_avatar(username, size=200):
         return None
 
 # =============================================
-# GRADIO UI
+# ENHANCED GRADIO UI WITH RESOURCE MANAGEMENT
 # =============================================
 
+def cleanup_resources():
+    """Clean up temporary resources"""
+    try:
+        temp_dir = os.path.join(PROJECT_ROOT, "temp")
+        if os.path.exists(temp_dir):
+            for file in os.listdir(temp_dir):
+                try:
+                    os.remove(os.path.join(temp_dir, file))
+                except:
+                    pass
+    except Exception as e:
+        print(f"Cleanup warning: {e}")
+
+# Create the Gradio interface
 with gr.Blocks() as demo:
     gr.Markdown("## Chat Script & Video Generator")
     
-    # Create invisible placeholder components for the missing typing bar inputs
-    # Use None instead of empty strings to avoid file path issues
+    # Create invisible placeholder components
     typing_bar_choice_placeholder = gr.Textbox(visible=False, value=None)
     typing_bar_upload_placeholder = gr.File(visible=False, value=None)
-    
     typing_bar_choice_timeline_placeholder = gr.Textbox(visible=False, value=None)
     typing_bar_upload_timeline_placeholder = gr.File(visible=False, value=None)
     
@@ -1790,7 +1903,7 @@ with gr.Blocks() as demo:
                     placeholder="Paste your own script here...\nFormat: Name: message",
                     lines=30)
                 generate_btn = gr.Button("Generate Script")
-                render_btn = gr.Button("Render Video")
+                render_btn = gr.Button("Render Video", variant="primary")
 
             script_output = gr.Textbox(label="Generated Script", lines=15)
             status = gr.Textbox(label="Status")
@@ -2027,17 +2140,30 @@ with gr.Blocks() as demo:
         ]
     )
 
+    # Add cleanup on demo close
+    demo.unload(cleanup_resources)
+
+# =============================================
+# LAUNCH WITH RESOURCE MANAGEMENT
+# =============================================
+
 if __name__ == "__main__":
-    demo.queue(max_size=10)
+    # Set lower concurrency for resource-constrained environments
+    demo.queue(max_size=5, concurrency_count=2)
     port = int(os.environ.get("PORT", 7860))
 
     try:
+        print("Starting application with enhanced resource management...")
         demo.launch(
             server_name="0.0.0.0",
             server_port=port,
             share=False,
-            inbrowser=False
+            inbrowser=False,
+            show_error=True,
+            debug=True
         )
     except Exception as e:
         print(f"Failed to launch: {e}")
         traceback.print_exc()
+    finally:
+        cleanup_resources()
