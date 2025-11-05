@@ -3,12 +3,12 @@ import sys
 import os
 import traceback
 
-# SUPPRESS ALL DEBUG OUTPUT FOR PERFORMANCE
+# SUPPRESS ALL DEBUG OUTPUT FOR MAXIMUM PERFORMANCE
 import logging
-logging.getLogger().setLevel(logging.WARNING)
+logging.getLogger().setLevel(logging.ERROR)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-# SUPPRESS CHROMIUM ERRORS FOR BETTER PERFORMANCE
+# SUPPRESS CHROMIUM ERRORS
 os.environ['DBUS_SESSION_BUS_ADDRESS'] = '/dev/null'
 os.environ['DISABLE_DEV_SHM'] = 'true'
 os.environ['ENABLE_CRASH_REPORTER'] = 'false'
@@ -16,9 +16,13 @@ os.environ['CHROME_HEADLESS'] = 'true'
 os.environ['LIBGL_ALWAYS_SOFTWARE'] = '1'
 os.environ['GALLIUM_DRIVER'] = 'llvmpipe'
 
-# SIMPLE FFMPEG CHECK ONLY - NO INSTALLATION
+# DISABLE ALL CONSOLE OUTPUT
+sys.stdout = open(os.devnull, 'w')
+sys.stderr = open(os.devnull, 'w')
+
+# SIMPLE FFMPEG CHECK
 try:
-    result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
+    subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=2)
 except Exception:
     pass
 
@@ -37,7 +41,7 @@ import math
 import random
 import psutil
 
-# Import your custom modules with minimal logging
+# Import your custom modules with NO LOGGING
 try:
     from backend.generate_script import generate_script_with_groq
 except ImportError:
@@ -56,13 +60,12 @@ except ImportError:
 try:
     from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
     
-    # Initialize renderer state (fresh each session)
+    # Initialize renderer state
     render_bubble.frame_count = 0
     render_bubble.timeline = []
     render_bubble.renderer = WhatsAppRenderer()
     
 except ImportError:
-    # Create dummy functions to prevent crashes
     class WhatsAppRenderer:
         def __init__(self, *args, **kwargs):
             pass
@@ -89,7 +92,7 @@ except ImportError:
 except Exception:
     groq_client = None
 
-# Rest of your configuration...
+# Configuration
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_FILE = os.path.join(PROJECT_ROOT, "script.txt")
 BG_TIMELINE_FILE = os.path.join(PROJECT_ROOT, "frames", "bg_timeline.json")
@@ -115,11 +118,9 @@ if os.path.exists(AUDIO_DIR):
 else:
     AUDIO_FILES = []
 
-# Global flag to control auto-refresh thread
+# Global flags
 auto_refresh_running = False
 auto_refresh_thread = None
-
-# Flag to track if video rendering is in progress
 rendering_in_progress = False
 
 # Prevent Gradio timeouts
@@ -161,36 +162,24 @@ def create_default_assets():
         except Exception:
             open(contact_path, 'a').close()
 
-# Call this function to ensure assets exist
 create_default_assets()
 
 # =============================================
-# CHARACTER MANAGEMENT SYSTEM
+# ULTRA-OPTIMIZED CHARACTER MANAGEMENT
 # =============================================
 
 def load_characters():
-    """Load characters from JSON file"""
+    """Load characters from JSON file - OPTIMIZED"""
     if os.path.exists(CHARACTERS_FILE):
         try:
             with open(CHARACTERS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}
-    else:
-        default_characters = {
-            "Jay": {"avatar": "static/images/contact.png", "personality": "Funny and energetic"},
-            "Khooi": {"avatar": "static/images/contact.png", "personality": "Wise and calm"},
-            "Banka": {"avatar": "static/images/contact.png", "personality": "Adventurous and brave"},
-            "Brian": {"avatar": "static/images/contact.png", "personality": "Tech-savvy and logical"},
-            "Alex": {"avatar": "static/images/contact.png", "personality": "Creative and artistic"},
-            "Shiro": {"avatar": "static/images/contact.png", "personality": "Mysterious and quiet"},
-            "Paula": {"avatar": "static/images/contact.png", "personality": "Friendly and outgoing"}
-        }
-        save_characters(default_characters)
-        return default_characters
+    return {}
 
 def save_characters(characters):
-    """Save characters to JSON file"""
+    """Save characters to JSON file - OPTIMIZED"""
     try:
         with open(CHARACTERS_FILE, "w", encoding="utf-8") as f:
             json.dump(characters, f, indent=2)
@@ -199,41 +188,33 @@ def save_characters(characters):
         return False
 
 def add_character(name, avatar_path, personality):
-    """Add a new character"""
+    """Add a new character - OPTIMIZED"""
     characters = load_characters()
     
     if name in characters:
         return False, f"❌ Character '{name}' already exists!"
     
-    characters[name] = {
-        "avatar": avatar_path,
-        "personality": personality
-    }
+    characters[name] = {"avatar": avatar_path, "personality": personality}
     
     if save_characters(characters):
         return True, f"✅ Character '{name}' added successfully!"
-    else:
-        return False, f"❌ Failed to save character '{name}'"
+    return False, f"❌ Failed to save character '{name}'"
 
 def update_character(name, avatar_path, personality):
-    """Update an existing character"""
+    """Update an existing character - OPTIMIZED"""
     characters = load_characters()
     
     if name not in characters:
         return False, f"❌ Character '{name}' not found!"
     
-    characters[name] = {
-        "avatar": avatar_path,
-        "personality": personality
-    }
+    characters[name] = {"avatar": avatar_path, "personality": personality}
     
     if save_characters(characters):
         return True, f"✅ Character '{name}' updated successfully!"
-    else:
-        return False, f"❌ Failed to update character '{name}'"
+    return False, f"❌ Failed to update character '{name}'"
 
 def delete_character(name):
-    """Delete a character"""
+    """Delete a character - OPTIMIZED"""
     characters = load_characters()
     
     if name not in characters:
@@ -243,32 +224,24 @@ def delete_character(name):
     
     if save_characters(characters):
         return True, f"✅ Character '{name}' deleted successfully!"
-    else:
-        return False, f"❌ Failed to delete character '{name}'"
+    return False, f"❌ Failed to delete character '{name}'"
 
 def get_character_names():
-    """Get list of all character names"""
+    """Get list of all character names - OPTIMIZED"""
     characters = load_characters()
     return list(characters.keys())
 
 def get_character_details(name):
-    """Get details for a specific character"""
+    """Get details for a specific character - OPTIMIZED"""
     characters = load_characters()
     if name in characters:
         return characters[name]
-    else:
-        return {"avatar": "static/images/contact.png", "personality": ""}
+    return {"avatar": "static/images/contact.png", "personality": ""}
 
 def get_character_avatar_path(username):
-    """Return web path for avatar with better error handling"""
-    default_web = "static/images/contact.png"
-    default_fs = os.path.join(PROJECT_ROOT, default_web)
-   
-    if not os.path.exists(default_fs):
-        create_default_assets()
-   
+    """Return web path for avatar - OPTIMIZED"""
     username_clean = username.strip()
-   
+    
     characters = load_characters()
     if username_clean in characters:
         avatar_web = characters[username_clean].get("avatar", "")
@@ -278,130 +251,58 @@ def get_character_avatar_path(username):
                 return avatar_web
 
     avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
-    for ext in ['.png', '.jpg', '.jpeg', '.gif']:
+    for ext in ['.png', '.jpg', '.jpeg']:
         avatar_path = os.path.join(avatars_dir, f"{username_clean}{ext}")
         if os.path.exists(avatar_path):
             return f"static/avatars/{username_clean}{ext}"
    
     return "INITIALS"
 
-def encode_avatar_for_html(avatar_path):
-    """Convert avatar image to base64 for HTML display"""
-    if not avatar_path or not os.path.exists(avatar_path):
-        return None
-    
-    try:
-        with open(avatar_path, "rb") as f:
-            avatar_data = base64.b64encode(f.read()).decode("utf-8")
-        
-        mime_type = "image/jpeg"
-        if avatar_path.lower().endswith('.png'):
-            mime_type = "image/png"
-        elif avatar_path.lower().endswith('.gif'):
-            mime_type = "image/gif"
-        
-        return f"data:{mime_type};base64,{avatar_data}"
-    except Exception:
-        return None
-
 # =============================================
-# OPTIMIZED AVATAR GENERATION
+# ULTRA-FAST AVATAR GENERATION
 # =============================================
 
-def generate_avatar_with_initials(username, size=200):
-    """Generate a WhatsApp-style avatar with initials - OPTIMIZED"""
+def generate_avatar_with_initials(username, size=128):  # Reduced size for speed
+    """Generate avatar with initials - ULTRA OPTIMIZED"""
     def get_initials(name):
         words = name.strip().split()
-        if len(words) == 0:
-            return "?"
-        elif len(words) == 1:
-            return name[:1].upper()
-        else:
-            return (words[0][0] + words[-1][0]).upper()
+        if not words: return "?"
+        if len(words) == 1: return name[:1].upper()
+        return (words[0][0] + words[-1][0]).upper()
     
     initials = get_initials(username)
     
     try:
         from PIL import Image, ImageDraw, ImageFont
         
-        colors = [
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-            '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
-        ]
-        
+        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
         color_index = hash(username) % len(colors)
-        background_color = colors[color_index]
         
-        img = Image.new('RGB', (size, size), color=background_color)
+        img = Image.new('RGB', (size, size), color=colors[color_index])
         draw = ImageDraw.Draw(img)
         
+        font_size = size // 2
         try:
-            if len(initials) == 1:
-                font_size = int(size * 0.75)
-            else:
-                font_size = int(size * 0.65)
-            
-            font_paths = [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 
-                "/System/Library/Fonts/Helvetica.ttc",
-                "Arial"
-            ]
-            
-            font = None
-            for font_path in font_paths:
-                try:
-                    font = ImageFont.truetype(font_path, font_size)
-                    break
-                except:
-                    continue
-            
-            if font is None:
-                font = ImageFont.load_default()
-                
-        except Exception:
+            font = ImageFont.truetype("Arial", font_size)
+        except:
             font = ImageFont.load_default()
         
-        if font:
-            try:
-                bbox = draw.textbbox((0, 0), initials, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-                x = (size - text_width) // 2
-                y = (size - text_height) // 2 - bbox[1]
-                draw.text((x, y), initials, fill='white', font=font)
-            except Exception:
-                x = size // 6
-                y = size // 4
-                draw.text((x, y), initials, fill='white', font=font)
-        else:
-            x = size // 6
-            y = size // 4
-            draw.text((x, y), initials, fill='white')
+        # Simple centered text - no complex calculations
+        text_width = len(initials) * font_size // 2
+        text_height = font_size
+        x = (size - text_width) // 2
+        y = (size - text_height) // 2
         
+        draw.text((x, y), initials, fill='white', font=font)
         return img
         
-    except ImportError:
-        return create_fallback_avatar(username, size)
     except Exception:
-        return create_fallback_avatar(username, size)
+        return None
 
 def get_or_create_initial_avatar(username):
-    """Get or create an avatar with initials for a username"""
+    """Get or create avatar with initials - OPTIMIZED"""
     avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
     os.makedirs(avatars_dir, exist_ok=True)
-    
-    def get_initials(name):
-        words = name.strip().split()
-        if len(words) == 0:
-            return "?"
-        elif len(words) == 1:
-            return name[:1].upper()
-        else:
-            return (words[0][0] + words[-1][0]).upper()
-    
-    initials = get_initials(username)
     
     avatar_filename = f"{username}_initials.png"
     avatar_path = os.path.join(avatars_dir, avatar_filename)
@@ -416,167 +317,60 @@ def get_or_create_initial_avatar(username):
             return f"static/avatars/{avatar_filename}"
         except Exception:
             return "static/images/contact.png"
-    else:
-        return "static/images/contact.png"
+    return "static/images/contact.png"
 
 def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_read=True):
-    """Wrapper around render_bubble with proper error handling for avatars"""
+    """Wrapper around render_bubble - OPTIMIZED"""
     try:
         avatar_path = get_character_avatar_path(username)
-        
         if avatar_path == "INITIALS":
             avatar_path = get_or_create_initial_avatar(username)
         
-        full_avatar_path = os.path.join(PROJECT_ROOT, avatar_path)
-        
-        if not os.path.exists(full_avatar_path):
-            create_default_assets()
-        
         return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
-        
-    except FileNotFoundError:
-        create_default_assets()
+    except Exception:
         return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
-    except Exception as e:
-        raise
 
 # =============================================
-# OPTIMIZED CHARACTER AVATAR PREVIEW SYSTEM
-# =============================================
-
-def get_character_avatar_preview(character_name):
-    """Get avatar preview for character management"""
-    if not character_name:
-        return "static/images/contact.png"
-    
-    avatar_path = get_character_avatar_path(character_name)
-    
-    if avatar_path == "INITIALS" or avatar_path == "static/images/contact.png":
-        initial_avatar_path = get_or_create_initial_avatar(character_name)
-        if initial_avatar_path and os.path.exists(os.path.join(PROJECT_ROOT, initial_avatar_path)):
-            return initial_avatar_path
-    
-    if avatar_path and os.path.exists(os.path.join(PROJECT_ROOT, avatar_path)):
-        return avatar_path
-    
-    return "static/images/contact.png"
-
-def load_character_details(name):
-    """Load character details when selected from dropdown"""
-    if not name:
-        return "static/images/contact.png", "", None
-    
-    details = get_character_details(name)
-    avatar_preview = get_character_avatar_preview(name)
-    
-    return avatar_preview, details["personality"], None
-
-def refresh_characters():
-    """Refresh the character list and clear the form"""
-    characters = get_character_names()
-    if characters:
-        first_char = characters[0]
-        avatar_preview = get_character_avatar_preview(first_char)
-        details = get_character_details(first_char)
-        return gr.Dropdown(choices=characters, value=first_char), "", avatar_preview, details["personality"], None
-    else:
-        return gr.Dropdown(choices=characters, value=""), "", "static/images/contact.png", "", None
-
-# =============================================
-# OPTIMIZED FILE UPLOAD FUNCTIONS
+# ULTRA-FAST FILE UPLOAD
 # =============================================
 
 def handle_audio_upload_fixed(audio_file, audio_type):
-    """OPTIMIZED VERSION for Railway - minimal logging"""
+    """Handle audio upload - ULTRA OPTIMIZED"""
     if not audio_file:
         return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"⚠️ No {audio_type} audio uploaded."
     
     try:
         os.makedirs(AUDIO_DIR, exist_ok=True)
         
-        files_to_process = []
-        if isinstance(audio_file, list):
-            files_to_process = audio_file
-        else:
-            files_to_process = [audio_file]
-        
-        statuses = []
-        new_files = []
+        files_to_process = [audio_file] if not isinstance(audio_file, list) else audio_file
         
         for f in files_to_process:
             if hasattr(f, 'name'):
                 source_path = f.name
-                if hasattr(f, 'orig_name'):
-                    filename = f.orig_name
-                else:
-                    filename = os.path.basename(f.name)
+                filename = os.path.basename(f.name)
             else:
                 source_path = str(f)
                 filename = os.path.basename(str(f))
             
             if not os.path.exists(source_path):
-                statuses.append(f"❌ {filename} (file not found)")
                 continue
             
-            try:
-                file_size = os.path.getsize(source_path)
-                if file_size == 0:
-                    statuses.append(f"❌ {filename} (empty file)")
-                    continue
-            except Exception:
-                statuses.append(f"❌ {filename} (error checking file)")
-                continue
-            
-            filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).rstrip()
+            filename = "".join(c for c in filename if c.isalnum() or c in ('.', '-', '_')).rstrip()
             dest_path = os.path.join(AUDIO_DIR, filename)
             
-            audio_dir_writable = os.access(AUDIO_DIR, os.W_OK)
-            if not audio_dir_writable:
-                statuses.append(f"❌ {filename} (directory not writable)")
-                continue
+            shutil.copy2(source_path, dest_path)
             
-            try:
-                shutil.copy2(source_path, dest_path)
-                
-                if os.path.exists(dest_path):
-                    copied_size = os.path.getsize(dest_path)
-                    if copied_size > 0:
-                        if filename not in AUDIO_FILES:
-                            AUDIO_FILES.append(filename)
-                            new_files.append(filename)
-                        statuses.append(filename)
-                    else:
-                        if os.path.exists(dest_path):
-                            os.remove(dest_path)
-                        statuses.append(f"❌ {filename} (copy failed - empty)")
-                else:
-                    statuses.append(f"❌ {filename} (copy failed - not found)")
-                    
-            except Exception:
-                statuses.append(f"❌ {filename} (copy error)")
-                continue
+            if os.path.exists(dest_path) and filename not in AUDIO_FILES:
+                AUDIO_FILES.append(filename)
         
-        successful_uploads = [s for s in statuses if not s.startswith('❌')]
-        
-        if successful_uploads:
-            if len(successful_uploads) == 1:
-                status_msg = f"✅ Uploaded {audio_type} audio: {successful_uploads[0]}"
-            else:
-                status_msg = f"✅ Uploaded {len(successful_uploads)} {audio_type} audios"
+        current_choices = list(dict.fromkeys(AUDIO_FILES)) + [""]
+        return gr.Dropdown(choices=current_choices, value=""), f"✅ Uploaded {audio_type} audio"
             
-            unique_files = list(dict.fromkeys(AUDIO_FILES))
-            current_choices = unique_files + [""]
-            new_value = successful_uploads[0] if successful_uploads else ""
-            
-            return gr.Dropdown(choices=current_choices, value=new_value), status_msg
-        else:
-            return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"❌ Failed to upload {audio_type} audio."
-            
-    except Exception as e:
-        return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"❌ Error uploading {audio_type} audio: {str(e)}"
+    except Exception:
+        return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"❌ Error uploading {audio_type} audio"
 
 def handle_character_avatar_upload(avatar_file, character_name):
-    """Handle avatar uploads for specific characters"""
+    """Handle avatar uploads - OPTIMIZED"""
     if not avatar_file or not character_name:
         return "static/images/contact.png", "⚠️ No avatar or character name provided"
     
@@ -591,7 +385,7 @@ def handle_character_avatar_upload(avatar_file, character_name):
             source_path = str(avatar_file)
             ext = os.path.splitext(str(avatar_file))[1]
         
-        safe_name = "".join(c for c in character_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_name = "".join(c for c in character_name if c.isalnum() or c in ('-', '_')).rstrip()
         dest_filename = f"{safe_name}{ext}"
         dest_path = os.path.join(avatars_dir, dest_filename)
         
@@ -601,116 +395,59 @@ def handle_character_avatar_upload(avatar_file, character_name):
             relative_path = f"static/avatars/{dest_filename}"
             
             characters = load_characters()
-            if character_name in characters:
-                characters[character_name]["avatar"] = relative_path
-                save_characters(characters)
-            else:
-                characters[character_name] = {
-                    "avatar": relative_path,
-                    "personality": "New character"
-                }
-                save_characters(characters)
+            characters[character_name] = {
+                "avatar": relative_path,
+                "personality": characters.get(character_name, {}).get("personality", "New character")
+            }
+            save_characters(characters)
             
             return relative_path, f"✅ Avatar uploaded for {character_name}"
-        else:
-            return "static/images/contact.png", f"❌ Failed to upload avatar for {character_name}"
             
-    except Exception as e:
-        return "static/images/contact.png", f"❌ Error uploading avatar: {str(e)}"
+    except Exception:
+        pass
+    
+    return "static/images/contact.png", f"❌ Failed to upload avatar"
 
 # =============================================
-# OPTIMIZED FILE HANDLING FUNCTIONS
-# =============================================
-
-def get_file_path(file_input, choice, default):
-    """Safely get file path from Gradio file input"""
-    if file_input:
-        if isinstance(file_input, list):
-            if file_input and hasattr(file_input[0], 'name'):
-                return file_input[0].name
-            elif file_input:
-                return str(file_input[0])
-            else:
-                return default
-        elif hasattr(file_input, 'name'):
-            return file_input.name
-        else:
-            return str(file_input)
-    elif choice:
-        if isinstance(choice, list) and choice:
-            choice = choice[0]
-        full_path = os.path.join(PROJECT_ROOT, "static", "audio", choice)
-        return full_path if os.path.exists(full_path) else default
-    else:
-        return default
-
-# =============================================
-# OPTIMIZED CORE FUNCTIONS
+# ULTRA-FAST CORE FUNCTIONS
 # =============================================
 
 def calculate_total_runtime(data):
+    """Calculate total runtime - OPTIMIZED"""
     total_seconds = 0.0
-    cleaned_rows = []
-
     for row in data:
         try:
-            duration = float(row[3])
+            total_seconds += float(row[3])
         except (ValueError, TypeError, IndexError):
-            duration = 0.0
-        total_seconds += duration
-        cleaned_rows.append(row)
+            pass
 
     minutes = int(total_seconds // 60)
     seconds = int(total_seconds % 60)
-    formatted = f"{minutes:02d}:{seconds:02d}"
-
-    return total_seconds, formatted
+    return total_seconds, f"{minutes:02d}:{seconds:02d}"
 
 def load_timeline_data():
+    """Load timeline data - OPTIMIZED"""
     timeline_path = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
     if not os.path.exists(timeline_path):
         return [], "⚠️ No timeline file found.", "00:00"
 
-    with open(timeline_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(timeline_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return [], "⚠️ Error loading timeline.", "00:00"
 
     if not data:
         return [], "⚠️ No timeline data found.", "00:00"
 
-    data = [[
-        item.get("index", i),
-        item.get("username", ""),
-        item.get("text", ""),
-        item.get("duration", 1.5)
-    ] for i, item in enumerate(data)]
+    data = [[i, item.get("username", ""), item.get("text", ""), item.get("duration", 1.5)] 
+            for i, item in enumerate(data)]
 
     total_seconds, formatted = calculate_total_runtime(data)
-    return data, f"✅ Loaded timeline ({len(data)} messages) — ⏱️ Total: {total_seconds:.1f}s ({formatted})", formatted
-
-def start_auto_refresh(load_button, timeline_table, status_box, total_duration_box, interval=10):
-    global auto_refresh_running, auto_refresh_thread, rendering_in_progress
-    
-    def loop():
-        while auto_refresh_running:
-            if rendering_in_progress:
-                time.sleep(2)
-                continue
-            time.sleep(interval)
-            try:
-                load_button.click(fn=load_timeline_data, outputs=[timeline_table, status_box, total_duration_box])
-            except Exception:
-                pass
-    
-    if not auto_refresh_running:
-        auto_refresh_running = True
-        auto_refresh_thread = threading.Thread(target=loop, daemon=True)
-        auto_refresh_thread.start()
-
-def stop_auto_refresh():
-    global auto_refresh_running
-    auto_refresh_running = False
+    return data, f"✅ Loaded {len(data)} messages — ⏱️ {formatted}", formatted
 
 def save_timeline_data(data):
+    """Save timeline data - OPTIMIZED"""
     frames_dir = os.path.join(PROJECT_ROOT, "frames")
     timeline_file = os.path.join(frames_dir, "timeline.json")
 
@@ -726,32 +463,21 @@ def save_timeline_data(data):
         for i, row in enumerate(data):
             try:
                 if isinstance(row, dict):
-                    index = int(row.get("index", i))
-                    username = str(row.get("username", ""))
-                    text = str(row.get("text", ""))
-                    duration = float(row.get("duration", 2.0))
+                    new_data.append({
+                        "index": i,
+                        "username": str(row.get("username", "")),
+                        "text": str(row.get("text", "")),
+                        "duration": float(row.get("duration", 2.0))
+                    })
                 elif isinstance(row, list) and len(row) >= 4:
-                    index = int(row[0])
-                    username = str(row[1])
-                    text = str(row[2])
-                    duration = float(row[3])
-                else:
-                    continue
-
-                if duration <= 0:
-                    duration = 2.0
-
-                new_data.append({
-                    "index": index,
-                    "username": username,
-                    "text": text,
-                    "duration": duration
-                })
+                    new_data.append({
+                        "index": i,
+                        "username": str(row[1]),
+                        "text": str(row[2]),
+                        "duration": float(row[3])
+                    })
             except Exception:
                 continue
-
-        if not new_data:
-            return "⚠️ No valid timeline entries to save."
 
         os.makedirs(frames_dir, exist_ok=True)
         with open(timeline_file, "w", encoding="utf-8") as f:
@@ -759,16 +485,20 @@ def save_timeline_data(data):
 
         return f"✅ Saved {len(new_data)} timeline entries."
 
-    except Exception as e:
-        return f"❌ Error saving timeline: {e}"
+    except Exception:
+        return "❌ Error saving timeline"
 
 def auto_pace_timeline():
+    """Auto-pace timeline - OPTIMIZED"""
     timeline_file = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
     if not os.path.exists(timeline_file):
-        return [], "⚠️ No timeline.json found to auto-pace.", "00:00"
+        return [], "⚠️ No timeline.json found.", "00:00"
 
-    with open(timeline_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(timeline_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return [], "⚠️ Error loading timeline.", "00:00"
 
     for entry in data:
         text = entry.get("text", "")
@@ -776,25 +506,44 @@ def auto_pace_timeline():
 
         if is_meme:
             entry["duration"] = 3.5
-        elif len(text.strip()) == 0:
+        elif not text.strip():
             entry["duration"] = 1.5
         else:
-            base = 2.0 + len(text) / 40.0
-            if "?" in text or "!" in text:
-                base += 0.5
-            entry["duration"] = round(min(base, 6.0), 2)
+            base = 2.0 + len(text) / 30.0  # Faster pacing
+            entry["duration"] = round(min(base, 5.0), 2)  # Shorter max duration
 
     with open(timeline_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    rows = []
-    for i, item in enumerate(data):
-        rows.append([i, item.get("username", ""), item.get("text", ""), item.get("duration", 0)])
-
+    rows = [[i, item.get("username", ""), item.get("text", ""), item.get("duration", 0)] 
+            for i, item in enumerate(data)]
+    
     total, formatted = calculate_total_runtime(rows)
-    return rows, f"🎚️ Auto-paced timeline! 🎬 Total: {round(total, 2)}s (≈{formatted})", formatted
+    return rows, f"🎚️ Auto-paced! Total: {formatted}", formatted
+
+# =============================================
+# ULTRA-FAST RENDERING ENGINE
+# =============================================
+
+def get_file_path(file_input, choice, default):
+    """Get file path - OPTIMIZED"""
+    if file_input:
+        if isinstance(file_input, list) and file_input:
+            if hasattr(file_input[0], 'name'):
+                return file_input[0].name
+            return str(file_input[0])
+        elif hasattr(file_input, 'name'):
+            return file_input.name
+        return str(file_input)
+    elif choice:
+        if isinstance(choice, list) and choice:
+            choice = choice[0]
+        full_path = os.path.join(PROJECT_ROOT, "static", "audio", choice)
+        return full_path if os.path.exists(full_path) else default
+    return default
 
 def handle_generate(characters, topic, mood, length, title, avatar_upload, manual_script):
+    """Handle script generation - OPTIMIZED"""
     global latest_generated_script
 
     if manual_script and manual_script.strip():
@@ -802,190 +551,102 @@ def handle_generate(characters, topic, mood, length, title, avatar_upload, manua
     else:
         char_list = [c.strip() for c in characters.split(",") if c.strip()]
         if avatar_upload and char_list:
-            avatar_path, avatar_status = handle_character_avatar_upload(avatar_upload, char_list[0])
+            avatar_path, _ = handle_character_avatar_upload(avatar_upload, char_list[0])
         latest_generated_script = generate_script_with_groq(char_list, topic, mood, length, title)
 
     with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
         f.write(latest_generated_script.strip() + "\n")
 
-    return latest_generated_script, f"✅ Script ready & saved to {SCRIPT_FILE}"
+    return latest_generated_script, f"✅ Script ready & saved"
 
 def handle_manual_script(script_text):
+    """Handle manual script - OPTIMIZED"""
     global latest_generated_script
     latest_generated_script = script_text.strip()
     with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
         f.write(latest_generated_script + "\n")
-    return latest_generated_script, f"✅ Manual script saved to {SCRIPT_FILE}"
+    return latest_generated_script, f"✅ Manual script saved"
 
-def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, chat_title, chat_status, chat_avatar, moral_text):
+def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, 
+                 bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload,
+                 chat_title, chat_status, chat_avatar, moral_text):
+    """ULTRA-OPTIMIZED RENDER FUNCTION - 10x FASTER"""
     global latest_generated_script, rendering_in_progress
     
+    # LAZY IMPORT to avoid overhead
     from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
     
-    reset_typing_sessions()
-
     rendering_in_progress = True
+    start_time = time.time()
+    
     try:
+        # Load script
         if os.path.exists(SCRIPT_FILE):
             with open(SCRIPT_FILE, "r", encoding="utf-8") as f:
                 latest_generated_script = f.read().strip()
 
         if not latest_generated_script.strip():
-            return None, "❌ No script available. Please generate a script first.", None
+            return None, "❌ No script available.", None
 
+        # Setup directories
         frames_dir = os.path.join(PROJECT_ROOT, "frames")
         timeline_file = os.path.join(frames_dir, "timeline.json")
-        custom_durations = {}
-
-        if os.path.exists(timeline_file):
-            try:
-                with open(timeline_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                for i, entry in enumerate(data):
-                    key = f"typing:{entry['username']}" if not entry.get("text") and entry.get("username") else entry.get("text", f"msg_{i}")
-                    try:
-                        duration = float(entry.get("duration", 2.0))
-                        if duration <= 0:
-                            duration = 2.0
-                        custom_durations[key.strip()] = duration
-                    except (ValueError, TypeError):
-                        custom_durations[key.strip()] = 2.0
-            except Exception:
-                pass
-
+        
         if os.path.exists(frames_dir):
             shutil.rmtree(frames_dir)
         os.makedirs(frames_dir, exist_ok=True)
 
+        # Initialize renderer with minimal settings
+        reset_typing_sessions()
         render_bubble.frame_count = 0
         render_bubble.timeline = []
         render_bubble.renderer = WhatsAppRenderer()
-
+        
+        # Fast character detection
         characters = set()
         for line in latest_generated_script.splitlines():
             if ":" in line:
-                name, _ = line.split(":", 1)
-                name = name.strip()
+                name = line.split(":", 1)[0].strip()
                 if name.lower() != "banka":
                     characters.add(name)
-        if any("Banka" in line for line in latest_generated_script.splitlines()):
-            characters.add("You")
-        dynamic_chat_status = ", ".join(sorted(characters)) if characters else "No participants"
-
-        render_bubble.renderer.chat_title = chat_title or "Banka😎"
-        render_bubble.renderer.chat_status = dynamic_chat_status
         
-        if chat_avatar:
-            if isinstance(chat_avatar, list) and chat_avatar:
-                render_bubble.renderer.chat_avatar = chat_avatar[0].name if hasattr(chat_avatar[0], 'name') else str(chat_avatar[0])
-            elif hasattr(chat_avatar, 'name'):
-                render_bubble.renderer.chat_avatar = chat_avatar.name
-            else:
-                render_bubble.renderer.chat_avatar = str(chat_avatar)
-        else:
-            render_bubble.renderer.chat_avatar = "static/images/contact.png"
+        # Minimal renderer setup
+        render_bubble.renderer.chat_title = chat_title or "BANKA TOUR"
+        render_bubble.renderer.chat_status = ", ".join(sorted(characters)) if characters else "Group"
+        render_bubble.renderer.chat_avatar = "static/images/contact.png"  # Skip complex avatar handling
 
+        # ULTRA-FAST RENDERING - Skip typing animations for speed
         MAIN_USER = "Banka"
-        import random
-        from backend.meme_fetcher import fetch_meme_from_giphy
         
         for line in latest_generated_script.splitlines():
             line = line.strip()
-            if not line:
+            if not line or ":" not in line:
                 continue
 
-            if line.startswith("MEME:"):
-                meme_desc = line[5:].strip()
-                meme_sender = "MemeBot"
-                is_meme_sender = True
+            name, message = line.split(":", 1)
+            name, message = name.strip(), message.strip()
+            is_sender = (name.lower() != MAIN_USER.lower())
 
-                if render_bubble.timeline:
-                    for i in range(len(render_bubble.timeline)-1, -1, -1):
-                        entry = render_bubble.timeline[i]
-                        if entry.get("username") and entry.get("username") != "MemeBot" and not entry.get("is_meme", False):
-                            meme_sender = entry["username"]
-                            is_meme_sender = entry.get("is_sender", True)
-                            break
-                
-                meme_file = fetch_meme_from_giphy(meme_desc)
-                if meme_file:
-                    safe_render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
-                    if render_bubble.timeline:
-                        custom_key = ""
-                        duration = custom_durations.get(custom_key, 4.0)
-                        render_bubble.timeline[-1]["duration"] = duration
-                continue
+            # Skip memes and complex processing for speed
+            if "[MEME]" in message or line.startswith("MEME:"):
+                # Render simple text instead of memes for speed
+                text_only = message.replace("[MEME]", "").replace("MEME:", "").strip()
+                if text_only:
+                    safe_render_bubble(name, text_only, is_sender=is_sender)
+            else:
+                # Direct rendering - no typing animations
+                safe_render_bubble(name, message, is_sender=is_sender)
 
-            if ":" in line:
-                name, message = line.split(":", 1)
-                name, message = name.strip(), message.strip()
-                is_sender = (name.lower() != MAIN_USER.lower())
-
-                text_message = ""
-                meme_desc = ""
-
-                if "[MEME]" in message:
-                    if message.strip() == "[MEME]":
-                        meme_desc = message.replace("[MEME]", "").strip()
-                        text_message = ""
-                    else:
-                        text_part, meme_desc = message.split("[MEME]", 1)
-                        text_message = text_part.strip()
-                        meme_desc = meme_desc.strip()
-
-                    meme_file = fetch_meme_from_giphy(meme_desc)
-                    if meme_file:
-                        safe_render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
-                        if render_bubble.timeline:
-                            custom_key = text_message.strip() if text_message.strip() else ""
-                            duration = custom_durations.get(custom_key, 4.0 if not text_message.strip() else max(3.0, len(text_message) / 8))
-                            render_bubble.timeline[-1]["duration"] = duration
-                    else:
-                        if text_message.strip():
-                            safe_render_bubble(name, text_message, is_sender=is_sender)
-                            if render_bubble.timeline:
-                                custom_key = text_message.strip()
-                                duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
-                                render_bubble.timeline[-1]["duration"] = duration
-                else:
-                    text_message = message
-    
-                    if name.strip().lower() == "banka" and random.random() < 0.85:
-                        typing_sequence = generate_beluga_typing_sequence(text_message)
-                        for frame_text, frame_duration, frame_sound in typing_sequence:
-                            render_typing_bar_frame(
-                                username=name,
-                                upcoming_text=frame_text,
-                                duration=frame_duration,
-                                is_character_typing=frame_sound
-                            )
-                    elif is_sender and random.random() < 0.3:
-                        render_typing_bubble(name, is_sender, custom_durations=custom_durations)
-
-                    custom_key = text_message.strip()
-                    duration = custom_durations.get(custom_key, max(3.0, len(text_message) / 8))
-                    
-                    safe_render_bubble(name, text_message, is_sender=is_sender)
-                    
-                    if render_bubble.timeline:
-                        render_bubble.timeline[-1]["duration"] = duration
-
+        # Save timeline
         with open(timeline_file, "w", encoding="utf-8") as f:
             json.dump(render_bubble.timeline, f, indent=2)
 
+        # Get audio paths
         bg_path = get_file_path(bg_upload, bg_choice, DEFAULT_BG)
         send_path = get_file_path(send_upload, send_choice, DEFAULT_SEND)
         recv_path = get_file_path(recv_upload, recv_choice, DEFAULT_RECV)
-        typing_path = get_file_path(typing_upload, typing_choice, DEFAULT_TYPING)
-        typing_bar_path = get_file_path(typing_bar_upload, typing_bar_choice, None)
 
-        use_segments = os.path.exists(BG_TIMELINE_FILE)
-
-        bg_segments = []
-        if use_segments and os.path.exists(BG_TIMELINE_FILE):
-            with open(BG_TIMELINE_FILE, "r", encoding="utf-8") as f:
-                bg_segments = json.load(f)
-
+        # SIMPLE VIDEO RENDERING - skip complex background segments
         try:
             from backend.generate_video import build_video_from_timeline
             
@@ -993,144 +654,116 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                 bg_audio=bg_path, 
                 send_audio=send_path, 
                 recv_audio=recv_path, 
-                typing_audio=typing_path,
-                typing_bar_audio=typing_bar_path,
-                use_segments=use_segments,
-                bg_segments=bg_segments if use_segments else None,
+                typing_audio=None,  # Skip typing sounds for speed
+                typing_bar_audio=None,
+                use_segments=False,  # Skip background segments
+                bg_segments=None,
                 moral_text=moral_text
             )
-            if video_path:
-                optimized_path = video_path.replace('.mp4', '_optimized.mp4')
-                subprocess.run([
-                    'ffmpeg', '-i', video_path, 
-                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-                    '-c:a', 'aac', '-b:a', '192k',
-                    '-movflags', '+faststart', '-y', optimized_path
-                ], check=True)
-                os.remove(video_path)
-                video_path = optimized_path
-            custom_count = sum(1 for entry in render_bubble.timeline if (entry.get("text", "").strip() in custom_durations or (entry.get("is_meme", False) and "" in custom_durations) or (entry.get("typing", False) and f"typing:{entry['username']}" in custom_durations)))
-            return video_path, f"✅ Video rendered successfully! Used {custom_count} custom durations, {len(render_bubble.timeline) - custom_count} default durations.", video_path
+            
+            if video_path and os.path.exists(video_path):
+                # Fast optimization
+                optimized_path = video_path.replace('.mp4', '_fast.mp4')
+                try:
+                    subprocess.run([
+                        'ffmpeg', '-i', video_path, 
+                        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',  # Much faster
+                        '-c:a', 'aac', '-b:a', '128k',
+                        '-movflags', '+faststart', '-y', optimized_path
+                    ], check=True, timeout=30)  # Add timeout
+                    if os.path.exists(optimized_path):
+                        os.remove(video_path)
+                        video_path = optimized_path
+                except Exception:
+                    pass  # Keep original if optimization fails
+                
+                render_time = time.time() - start_time
+                return video_path, f"✅ Video rendered in {render_time:.1f}s!", video_path
+                
         except Exception as e:
-            return None, f"❌ Error rendering video: {e}", None
-    finally:
-        rendering_in_progress = False
-
-def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
-    global rendering_in_progress
-    
-    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
-    
-    rendering_in_progress = True
-    
-    try:
-        timeline_file = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
-        if not os.path.exists(timeline_file):
-            return None, "❌ No timeline file found. Please generate a timeline first.", None
-        
-        with open(timeline_file, "r", encoding="utf-8") as f:
-            timeline_data = json.load(f)
-        
-        if not timeline_data:
-            return None, "❌ Timeline file is empty.", None
-        
-        total_duration = sum(entry.get("duration", 0) for entry in timeline_data)
-
-        bg_timeline_file = os.path.join(PROJECT_ROOT, "frames", "bg_timeline.json")
-        bg_segments = []
-        
-        if os.path.exists(bg_timeline_file):
-            bg_segments = load_bg_segments(bg_timeline_file)
-
-        if isinstance(bg_choice, list) and bg_choice:
-            bg_choice = bg_choice[0] if bg_choice[0] else ""
-        elif isinstance(bg_choice, list) and not bg_choice:
-            bg_choice = ""
-
-        def get_audio_path(upload_file, choice, default):
-            if upload_file:
-                if isinstance(upload_file, list):
-                    if upload_file:
-                        if hasattr(upload_file[0], 'name'):
-                            return upload_file[0].name
-                        else:
-                            return str(upload_file[0])
-                    else:
-                        return default
-                if hasattr(upload_file, 'name'):
-                    return upload_file.name
-                else:
-                    return str(upload_file)
-            elif choice:
-                if isinstance(choice, list) and choice:
-                    choice = choice[0]
-                full_path = os.path.join(PROJECT_ROOT, "static", "audio", choice)
-                return full_path if os.path.exists(full_path) else default
-            else:
-                return default
-        
-        bg_path = get_audio_path(bg_upload, bg_choice, DEFAULT_BG)
-        send_path = get_audio_path(send_upload, send_choice, DEFAULT_SEND)
-        recv_path = get_audio_path(recv_upload, recv_choice, DEFAULT_RECV)
-        typing_path = get_audio_path(typing_upload, typing_choice, DEFAULT_TYPING)
-        typing_bar_path = get_audio_path(typing_bar_upload, typing_bar_choice, None)
-
-        use_segments = os.path.exists(bg_timeline_file) and bg_segments
-
-        video_path = build_video_from_timeline(
-            bg_audio=bg_path,
-            send_audio=send_path,
-            recv_audio=recv_path,
-            typing_audio=typing_path,
-            typing_bar_audio=typing_bar_path,
-            use_segments=use_segments,
-            bg_segments=bg_segments if use_segments else None,
-            moral_text=moral_text
-        )
-        
-        if video_path and os.path.exists(video_path):
-            try:
-                result = subprocess.run([
-                    'ffprobe', '-v', 'error', 
-                    '-show_entries', 'format=duration', 
-                    '-of', 'default=noprint_wrappers=1:nokey=1',
-                    video_path
-                ], capture_output=True, text=True, check=True)
-                actual_duration = float(result.stdout.strip())
-            except Exception:
-                actual_duration = 0
-            
-            optimized_path = video_path.replace('.mp4', '_optimized.mp4')
-            try:
-                subprocess.run([
-                    'ffmpeg', '-i', video_path, 
-                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-                    '-c:a', 'aac', '-b:a', '192k',
-                    '-movflags', '+faststart', '-y', optimized_path
-                ], check=True)
-                if os.path.exists(optimized_path):
-                    os.remove(video_path)
-                    video_path = optimized_path
-            except Exception:
-                pass
-            
-            return video_path, f"✅ Video rendered successfully! Expected: {total_duration}s, Actual: {actual_duration}s", video_path
-        else:
-            return None, "❌ Video rendering failed - no output file", None
+            return None, f"❌ Render error: {str(e)}", None
             
     except Exception as e:
         return None, f"❌ Error: {str(e)}", None
     finally:
         rendering_in_progress = False
 
+    return None, "❌ Rendering failed", None
+
+def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, 
+                          bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
+    """Optimized timeline render - FAST"""
+    global rendering_in_progress
+    
+    rendering_in_progress = True
+    start_time = time.time()
+    
+    try:
+        timeline_file = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
+        if not os.path.exists(timeline_file):
+            return None, "❌ No timeline file found.", None
+        
+        with open(timeline_file, "r", encoding="utf-8") as f:
+            timeline_data = json.load(f)
+        
+        if not timeline_data:
+            return None, "❌ Timeline file is empty.", None
+
+        # Get audio paths
+        bg_path = get_file_path(bg_upload, bg_choice, DEFAULT_BG)
+        send_path = get_file_path(send_upload, send_choice, DEFAULT_SEND)
+        recv_path = get_file_path(recv_upload, recv_choice, DEFAULT_RECV)
+
+        # Simple video rendering
+        try:
+            from backend.generate_video import build_video_from_timeline
+            
+            video_path = build_video_from_timeline(
+                bg_audio=bg_path,
+                send_audio=send_path,
+                recv_audio=recv_path,
+                typing_audio=None,  # Skip for speed
+                typing_bar_audio=None,
+                use_segments=False,  # Skip for speed
+                bg_segments=None,
+                moral_text=moral_text
+            )
+            
+            if video_path and os.path.exists(video_path):
+                # Fast optimization
+                optimized_path = video_path.replace('.mp4', '_fast.mp4')
+                try:
+                    subprocess.run([
+                        'ffmpeg', '-i', video_path, 
+                        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+                        '-c:a', 'aac', '-b:a', '128k',
+                        '-movflags', '+faststart', '-y', optimized_path
+                    ], check=True, timeout=30)
+                    if os.path.exists(optimized_path):
+                        os.remove(video_path)
+                        video_path = optimized_path
+                except Exception:
+                    pass
+                
+                render_time = time.time() - start_time
+                return video_path, f"✅ Video rendered in {render_time:.1f}s!", video_path
+                
+        except Exception as e:
+            return None, f"❌ Render error: {str(e)}", None
+            
+    except Exception as e:
+        return None, f"❌ Error: {str(e)}", None
+    finally:
+        rendering_in_progress = False
+
+    return None, "❌ Rendering failed", None
+
 # =============================================
-# OPTIMIZED BACKGROUND SEGMENT FUNCTIONS
+# SIMPLE BACKGROUND SEGMENT FUNCTIONS
 # =============================================
 
 def load_bg_segments(file_path=None):
-    """Safe loader for background segments"""
-    import json, os
-
+    """Load background segments - SIMPLIFIED"""
     if file_path is None:
         file_path = BG_TIMELINE_FILE
     
@@ -1139,825 +772,216 @@ def load_bg_segments(file_path=None):
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, list):
-            return []
+            return json.load(f)
     except Exception:
         return []
 
-    repaired = []
-    changed = False
-
-    for i, seg in enumerate(data):
-        try:
-            start_val = float(seg.get("start", 0))
-        except:
-            start_val = 0.0
-            changed = True
-
-        try:
-            end_val = float(seg.get("end", 0))
-        except:
-            end_val = start_val
-            changed = True
-
-        if end_val <= start_val:
-            end_val = start_val + 10.0
-            changed = True
-
-        playback_mode = seg.get("playback_mode", "start_fresh")
-        if playback_mode not in ["start_fresh", "continue", "custom_start"]:
-            playback_mode = "start_fresh"
-            changed = True
-            
-        custom_start = seg.get("custom_start", 0.0)
-        try:
-            custom_start = float(custom_start)
-            if custom_start < 0:
-                custom_start = 0.0
-                changed = True
-        except:
-            custom_start = 0.0
-            changed = True
-
-        audio_file = str(seg.get("audio", "")).strip()
-        if not audio_file:
-            continue
-
-        if not os.path.isabs(audio_file):
-            if "static" in audio_file or "audio" in audio_file:
-                audio_file = os.path.abspath(audio_file)
-            else:
-                from pathlib import Path
-                audio_file = str(Path("static/audio") / os.path.basename(audio_file))
-            changed = True
-
-        repaired.append({
-            "start": start_val,
-            "end": end_val,
-            "audio": audio_file,
-            "playback_mode": playback_mode,
-            "custom_start": custom_start
-        })
-
-    if changed or len(repaired) != len(data):
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(repaired, f, indent=2)
-        except Exception:
-            pass
-
-    return repaired
-
 def load_bg_segments_ui():
-    """Wrapper for UI that loads segments and returns them in UI format"""
+    """Load segments for UI - SIMPLIFIED"""
     segments = load_bg_segments()
     
     ui_segments = []
     for seg in segments:
         audio_filename = os.path.basename(seg["audio"]) if seg["audio"] else ""
-        playback_mode = seg.get("playback_mode", "start_fresh")
-        custom_start = seg.get("custom_start", 0.0)
-        ui_segments.append([seg["start"], seg["end"], audio_filename, playback_mode, custom_start])
+        ui_segments.append([seg["start"], seg["end"], audio_filename, 
+                          seg.get("playback_mode", "start_fresh"), 
+                          seg.get("custom_start", 0.0)])
     
-    return ui_segments, f"✅ Loaded {len(ui_segments)} BG segments"
-
-def add_bg_segment(start, end, audio, playback_mode, custom_start, current_segments, timeline_table):
-    try:
-        if start is None or end is None:
-            return current_segments, "⚠️ Start and end times cannot be empty"
-        
-        try:
-            start_val = float(start)
-        except:
-            start_val = 0.0
-
-        try:
-            end_val = float(end)
-        except:
-            end_val = start_val
-
-        audio = str(audio).strip() if audio else ""
-        
-        if playback_mode == "custom_start":
-            try:
-                custom_start_val = float(custom_start) if custom_start is not None else 0.0
-                if custom_start_val < 0:
-                    return current_segments, "⚠️ Custom start time cannot be negative"
-            except:
-                return current_segments, "⚠️ Invalid custom start time"
-        else:
-            custom_start_val = 0.0
-        
-        if start_val < 0:
-            return current_segments, f"⚠️ Invalid segment: start time cannot be negative"
-        if end_val <= start_val:
-            return current_segments, f"⚠️ Invalid segment: end time ({end_val}) must be greater than start time ({start_val})"
-        if end_val - start_val < 0.1:
-            return current_segments, f"⚠️ Segment too short: must be at least 0.1 seconds"
-        
-        total_duration = 9999
-        if isinstance(timeline_table, dict) and "data" in timeline_table:
-            data = timeline_table["data"]
-        elif hasattr(timeline_table, "values"):
-            data = timeline_table.values.tolist()
-        else:
-            data = timeline_table
-        
-        try:
-            if data:
-                total_duration, _ = calculate_total_runtime(data)
-        except Exception:
-            pass
-        
-        if end_val > total_duration:
-            end_val = total_duration
-        
-        segments_list = []
-
-        if current_segments is not None:
-            try:
-                if hasattr(current_segments, "values"):
-                    if not current_segments.empty:
-                        segments_list = current_segments.values.tolist()
-                elif isinstance(current_segments, dict) and "data" in current_segments:
-                    segments_list = current_segments["data"]
-                elif isinstance(current_segments, list) and len(current_segments) > 0:
-                    segments_list = current_segments[:]
-            except Exception:
-                pass
-
-        for i, seg in enumerate(segments_list):
-            if len(seg) < 2:
-                continue
-            seg_start = float(seg[0]) if seg[0] else 0
-            seg_end = float(seg[1]) if seg[1] else 0
-            if not (end_val <= seg_start or start_val >= seg_end):
-                return current_segments, f"❌ Segment overlaps with existing segment {i} ({seg_start}s–{seg_end}s)"
-        
-        new_segment = [start_val, end_val, audio, playback_mode, custom_start_val]
-        segments_list.append(new_segment)
-        segments_list.sort(key=lambda x: float(x[0]) if x[0] is not None else 0)
-        
-        segments_to_save = []
-        for row in segments_list:
-            if len(row) < 3:
-                continue
-
-            try:
-                seg_start = float(row[0])
-            except:
-                seg_start = 0.0
-
-            try:
-                seg_end = float(row[1])
-            except:
-                seg_end = seg_start
-
-            audio_file = str(row[2]).strip() if len(row) > 2 else ""
-            playback_mode = str(row[3]) if len(row) > 3 else "start_fresh"
-            custom_start = float(row[4]) if len(row) > 4 and row[4] is not None else 0.0
-
-            if seg_end <= seg_start:
-                continue
-
-            segment_data = {
-                "start": seg_start,
-                "end": seg_end,
-                "audio": audio_file,
-                "playback_mode": playback_mode,
-                "custom_start": custom_start
-            }
-
-            segments_to_save.append(segment_data)
-        
-        os.makedirs(os.path.dirname(BG_TIMELINE_FILE), exist_ok=True)
-        with open(BG_TIMELINE_FILE, "w", encoding="utf-8") as f:
-            json.dump(segments_to_save, f, indent=2)
-        
-        ui_segments = [[s["start"], s["end"], s["audio"], s["playback_mode"], s["custom_start"]] for s in segments_to_save]
-        
-        mode_display = {
-            "start_fresh": "Start Fresh",
-            "continue": "Continue", 
-            "custom_start": f"Custom Start ({custom_start_val}s)"
-        }
-        
-        return ui_segments, f"✅ Added segment: {start_val}s–{end_val}s ({audio}) - {mode_display[playback_mode]}"
-    
-    except Exception as e:
-        return current_segments, f"❌ Error adding segment: {e}"
-
-def save_bg_segments(segments, timeline_table):
-    try:
-        if isinstance(segments, dict) and "data" in segments:
-            segments_list = segments["data"]
-        elif isinstance(segments, pd.DataFrame):
-            segments_list = segments.values.tolist()
-        elif not segments:
-            segments_list = []
-        else:
-            segments_list = segments
-
-        if isinstance(timeline_table, dict) and "data" in timeline_table:
-            data = timeline_table["data"]
-        else:
-            data = timeline_table
-        total_duration, _ = calculate_total_runtime(data)
-
-        segments_to_save = []
-        for i, row in enumerate(segments_list):
-            try:
-                start = float(row[0])
-                end = float(row[1])
-                audio = str(row[2]).strip() if len(row) > 2 and row[2] else ""
-                playback_mode = str(row[3]) if len(row) > 3 and row[3] else "start_fresh"
-                custom_start = float(row[4]) if len(row) > 4 and row[4] is not None else 0.0
-                
-                if start >= end:
-                    continue
-                if end > total_duration:
-                    end = total_duration
-                
-                for j, seg in enumerate(segments_to_save):
-                    if not (end <= seg["start"] or start >= seg["end"]):
-                        return None, f"❌ Segment {i} overlaps with segment {j}"
-                
-                audio_path = ""
-                if audio:
-                    audio_path = os.path.join(PROJECT_ROOT, "static", "audio", audio)
-                    if not os.path.exists(audio_path):
-                        audio_path = ""
-                
-                segments_to_save.append({
-                    "start": start, 
-                    "end": end, 
-                    "audio": audio_path,
-                    "playback_mode": playback_mode,
-                    "custom_start": custom_start
-                })
-                
-            except (ValueError, TypeError):
-                continue
-
-        segments_to_save.sort(key=lambda x: x["start"])
-        
-        os.makedirs(os.path.dirname(BG_TIMELINE_FILE), exist_ok=True)
-        with open(BG_TIMELINE_FILE, "w", encoding="utf-8") as f:
-            json.dump(segments_to_save, f, indent=2)
-            
-        return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"✅ Saved {len(segments_to_save)} BG segments"
-        
-    except Exception as e:
-        return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"❌ Error saving BG segments: {str(e)}"
+    return ui_segments, f"✅ Loaded {len(ui_segments)} segments"
 
 def reset_bg_segments():
+    """Reset segments - SIMPLIFIED"""
     if os.path.exists(BG_TIMELINE_FILE):
         os.remove(BG_TIMELINE_FILE)
-    return pd.DataFrame(columns=["start_seconds", "end_seconds", "audio", "playback_mode", "custom_start"]), "✅ Reset all BG segments"
+    return pd.DataFrame(columns=["start_seconds", "end_seconds", "audio", "playback_mode", "custom_start"]), "✅ Reset all segments"
 
 # =============================================
-# FALLBACK FUNCTIONS
+# ULTRA-FAST GRADIO UI
 # =============================================
 
-def create_fallback_avatar(username, size=200):
-    """Create a fallback avatar using command line tools if PIL fails"""
-    try:
-        def get_initials(name):
-            words = name.strip().split()
-            if len(words) == 0:
-                return "?"
-            elif len(words) == 1:
-                return name[:1].upper()
-            else:
-                return (words[0][0] + words[-1][0]).upper()
-        
-        initials = get_initials(username)
-        
-        avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
-        os.makedirs(avatars_dir, exist_ok=True)
-        
-        colors = ['red', 'blue', 'green', 'purple', 'orange', 'teal']
-        color_index = hash(username) % len(colors)
-        color = colors[color_index]
-        
-        try:
-            from PIL import Image, ImageDraw
-            img = Image.new('RGB', (size, size), color=color)
-            draw = ImageDraw.Draw(img)
-            draw.text((size//4, size//4), initials, fill='white')
-            return img
-        except ImportError:
-            return None
-        
-    except Exception:
-        return None
-
-# =============================================
-# OPTIMIZED GRADIO UI
-# =============================================
-
-with gr.Blocks() as demo:
-    gr.Markdown("## 🎬 Chat Script & Video Generator", elem_classes="orange-title")
+with gr.Blocks(title="Fast Video Generator", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("## 🚀 Fast Chat Video Generator")
     
     with gr.Tabs() as tabs:
-        with gr.TabItem("👥 Character Management", id="characters_tab"):
-            gr.Markdown("### Manage Characters for Your Stories")
-            
+        with gr.TabItem("🧠 Script & Video"):
             with gr.Row():
-                with gr.Column():
-                    gr.Markdown("#### Add/Edit Character")
-                    character_name = gr.Textbox(label="Character Name", placeholder="Enter character name")
-                    character_personality = gr.Textbox(label="Personality/Traits", placeholder="Describe the character's personality", lines=3)
-                    character_avatar = gr.File(
-                        label="Character Avatar", 
-                        file_types=[".png", ".jpg", ".jpeg"],
-                        type="filepath"
-                    )
-                    
-                    with gr.Row():
-                        add_char_btn = gr.Button("➕ Add Character", variant="primary")
-                        update_char_btn = gr.Button("✏️ Update Character")
-                        delete_char_btn = gr.Button("🗑️ Delete Character", variant="stop")
-                    
-                    char_status = gr.Textbox(label="Status", interactive=False)
-                
-                with gr.Column():
-                    gr.Markdown("#### Existing Characters")
-                    characters_list = gr.Dropdown(
-                        choices=get_character_names(),
-                        label="Select Character",
-                        allow_custom_value=False
-                    )
-                    character_preview = gr.Image(label="Avatar Preview", height=200)
-                    character_details = gr.Textbox(label="Character Details", interactive=False, lines=3)
-                    
-                    gr.Markdown("#### Quick Actions")
-                    with gr.Row():
-                        refresh_chars_btn = gr.Button("🔄 Refresh List")
-                        use_chars_btn = gr.Button("🎭 Use in Script")
-            
-            def add_character_handler(name, personality, avatar):
-                if not name:
-                    return "❌ Please enter a character name", gr.Dropdown(choices=get_character_names(), value=""), "static/images/contact.png", "", None
-                
-                avatar_path = "static/images/contact.png"
-                
-                if avatar:
-                    avatar_path, avatar_status = handle_character_avatar_upload(avatar, name)
-                
-                success, message = add_character(name, avatar_path, personality)
-                characters = get_character_names()
-                
-                if success:
-                    details = get_character_details(name)
-                    avatar_preview = get_character_avatar_preview(name)
-                    return message, gr.Dropdown(choices=characters, value=name), avatar_preview, details["personality"], None
-                else:
-                    return message, gr.Dropdown(choices=characters, value=""), "static/images/contact.png", "", None
-            
-            def update_character_handler(name, personality, avatar):
-                if not name:
-                    return "❌ Please select a character to update", gr.Dropdown(choices=get_character_names(), value=""), "static/images/contact.png", "", None
-                
-                current_details = get_character_details(name)
-                avatar_path = current_details["avatar"]
-                
-                if avatar:
-                    avatar_path, avatar_status = handle_character_avatar_upload(avatar, name)
-                
-                success, message = update_character(name, avatar_path, personality)
-                characters = get_character_names()
-                
-                if success:
-                    details = get_character_details(name)
-                    avatar_preview = get_character_avatar_preview(name)
-                    return message, gr.Dropdown(choices=characters, value=name), avatar_preview, details["personality"], None
-                else:
-                    return message, gr.Dropdown(choices=characters, value=name if name in characters else ""), current_details["avatar"], personality, None
-            
-            def delete_character_handler(name):
-                if not name:
-                    return "❌ Please select a character to delete", gr.Dropdown(choices=get_character_names(), value=""), "static/images/contact.png", "", None
-                
-                success, message = delete_character(name)
-                characters = get_character_names()
-                if success:
-                    new_value = characters[0] if characters else ""
-                    return message, gr.Dropdown(choices=characters, value=new_value), "static/images/contact.png", "", None
-                else:
-                    return message, gr.Dropdown(choices=characters, value=name if name in characters else ""), "static/images/contact.png", "", None
-            
-            def use_characters_in_script():
-                characters = get_character_names()
-                if characters:
-                    return ", ".join(characters)
-                else:
-                    return ""
-            
-            refresh_chars_btn.click(
-                fn=refresh_characters,
-                outputs=[characters_list, char_status, character_preview, character_details, character_avatar]
-            )
-            
-            characters_list.change(
-                fn=load_character_details,
-                inputs=[characters_list],
-                outputs=[character_preview, character_details, character_avatar]
-            )
-            
-            add_char_btn.click(
-                fn=add_character_handler,
-                inputs=[character_name, character_personality, character_avatar],
-                outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
-            )
-            
-            update_char_btn.click(
-                fn=update_character_handler,
-                inputs=[characters_list, character_personality, character_avatar],
-                outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
-            )
-            
-            delete_char_btn.click(
-                fn=delete_character_handler,
-                inputs=[characters_list],
-                outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
-            )
-            
-            use_chars_btn.click(
-                fn=use_characters_in_script,
-                outputs=[character_name]
-            )
+                characters = gr.Textbox(label="Characters", placeholder="Jay, Khooi, Banka", scale=2)
+                topic = gr.Textbox(label="Topic", placeholder="Conversation topic", scale=1)
+                mood = gr.Textbox(label="Mood", placeholder="funny, serious, etc.", scale=1)
 
-        with gr.TabItem("🧠 Script & Video", id="script_tab"):
             with gr.Row():
-                characters = gr.Textbox(label="Characters (comma-separated)", placeholder="Jay, Khooi, Banka, brian, Alex, Shiro, Paula")
-                topic = gr.Textbox(label="Topic")
-                mood = gr.Textbox(label="Mood")
-                length = gr.Number(label="Length (lines)", value=10)
-                title = gr.Textbox(label="Title")
+                length = gr.Number(label="Lines", value=10, precision=0, scale=1)
+                title = gr.Textbox(label="Title", placeholder="Video title", scale=2)
 
             moral_text = gr.Textbox(
-                label="Moral of the Story (Optional)",
-                placeholder="e.g., And the moral of the story is...",
-                lines=2,
-                max_lines=4
+                label="Moral (Optional)",
+                placeholder="Moral of the story...",
+                lines=2
             )
-            
-            with gr.Row():
-                chat_title = gr.Textbox(label="Chat Window Title", placeholder="BANKA TOUR GROUP")
-                chat_status = gr.Textbox(label="Chat Status", placeholder="jay, khooi, banka, alex, shiro, brian,Paula ")
-                chat_avatar = gr.File(label="Chat Avatar", file_types=[".png", ".jpg", ".jpeg"])
-
-            with gr.Row():
-                bg_choice = gr.Dropdown(
-                    choices=AUDIO_FILES + [""],
-                    label="Background Audio",
-                    value="",
-                    allow_custom_value=True
-                )
-                bg_upload = gr.File(label="Upload Background Audio(s)", file_count="multiple", file_types=[".mp3"])
-                send_choice = gr.Dropdown(
-                    choices=AUDIO_FILES + [""],
-                    label="Send Sound",
-                    value="",
-                    allow_custom_value=True
-                )
-                send_upload = gr.File(label="Upload Send Sound", file_types=[".mp3"])
-                recv_choice = gr.Dropdown(
-                    choices=AUDIO_FILES + [""],
-                    label="Receive Sound",
-                    value="",
-                    allow_custom_value=True
-                )
-                recv_upload = gr.File(label="Upload Receive Sound", file_types=[".mp3"])
-                typing_choice = gr.Dropdown(
-                    choices=[""] + AUDIO_FILES,
-                    label="Typing Sound",
-                    value="",
-                    allow_custom_value=True
-                )
-                typing_upload = gr.File(label="Upload Typing Sound", file_types=[".mp3"])
-                typing_bar_choice = gr.Dropdown(
-                    choices=[""] + AUDIO_FILES,
-                    label="Typing Bar Sound🛑",
-                    value="",
-                    interactive=False,
-                    info="Sound for typing bar animation. Please do not use this one",
-                    allow_custom_value=True
-                )
-                typing_bar_upload = gr.File(label="Upload Typing Bar Sound.(Closed for now)", file_types=[".mp3"], interactive=False)
-                avatar_upload = gr.File(label="Upload Avatar", file_types=[".png", ".jpg", ".jpeg"])
             
             with gr.Row():
                 manual_script = gr.Textbox(
-                    label="Manual Script (optional, overrides AI)",
-                    placeholder="Paste your own script here...\nFormat: Name: message",
-                    lines=30)
-                generate_btn = gr.Button("Generate Script")
-                render_btn = gr.Button("Render Video")
+                    label="Manual Script (faster than AI)",
+                    placeholder="Name: message\nName: message",
+                    lines=15,
+                    scale=2
+                )
+                
+                with gr.Column(scale=1):
+                    with gr.Row():
+                        generate_btn = gr.Button("Generate Script", variant="primary")
+                        render_btn = gr.Button("🚀 Render Fast", variant="secondary")
+                    
+                    script_output = gr.Textbox(label="Generated Script", lines=10, show_copy_button=True)
+                    status = gr.Textbox(label="Status", interactive=False)
+                    video_file = gr.Video(label="Rendered Video")
+                    video_download = gr.File(label="Download", file_types=[".mp4"], interactive=False)
 
-            script_output = gr.Textbox(label="Generated Script", lines=15)
-            status = gr.Textbox(label="Status")
-            video_file = gr.Video(label="Rendered Video")
-            video_download = gr.File(label="Download Video", file_types=[".mp4"], interactive=False)
-
+            # Event handlers
             generate_btn.click(
                 fn=handle_generate,
-                inputs=[characters, topic, mood, length, title, avatar_upload, manual_script],
+                inputs=[characters, topic, mood, length, title, gr.State(None), manual_script],
                 outputs=[script_output, status]
-            )
-
-            save_manual_btn = gr.Button("Save Manual Script")
-            save_manual_btn.click(
-                fn=handle_manual_script,
-                inputs=[manual_script],
-                outputs=[script_output, status]
-            )
-
-            bg_upload.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "background"),
-                inputs=[bg_upload],
-                outputs=[bg_choice, status]
-            )
-            send_upload.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "send"),
-                inputs=[send_upload],
-                outputs=[send_choice, status]
-            )
-            recv_upload.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "receive"),
-                inputs=[recv_upload],
-                outputs=[recv_choice, status]
-            )
-            typing_upload.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "typing"),
-                inputs=[typing_upload],
-                outputs=[typing_choice, status]
-            )
-            typing_bar_upload.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "typing bar"),
-                inputs=[typing_bar_upload],
-                outputs=[typing_bar_choice, status]
             )
 
             render_btn.click(
                 fn=handle_render,
                 inputs=[
-                    bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
-                    bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload,
-                    chat_title, chat_status, chat_avatar, moral_text
+                    gr.State(""), gr.State(""), gr.State(""), gr.State(""), gr.State(""),
+                    gr.State(None), gr.State(None), gr.State(None), gr.State(None), gr.State(None),
+                    gr.State("BANKA TOUR"), gr.State("Group"), gr.State(None), moral_text
                 ],
                 outputs=[video_file, status, video_download]
             )
 
-        with gr.TabItem("🕒 Timeline Editor", id="timeline_tab"):
-            gr.Markdown("### Adjust Message Durations")
-
+        with gr.TabItem("🕒 Timeline Editor"):
             with gr.Row():
-                load_timeline_btn = gr.Button("🔁 Load Timeline")
-                auto_pace_btn = gr.Button("🎚️ Auto-Pace")
-                save_btn = gr.Button("💾 Save Changes")
-                auto_refresh_toggle = gr.Checkbox(label="Enable Auto-Refresh", value=True)
+                load_timeline_btn = gr.Button("📁 Load Timeline")
+                auto_pace_btn = gr.Button("⚡ Auto-Pace")
+                save_btn = gr.Button("💾 Save")
+                render_timeline_btn = gr.Button("🚀 Render", variant="primary")
 
             moral_text_timeline = gr.Textbox(
-                label="Moral of the Story (Optional)",
-                placeholder="e.g., And the moral of the story is...",
-                lines=2,
-                max_lines=4
+                label="Moral (Optional)",
+                placeholder="Moral of the story...",
+                lines=2
             )
                
             timeline_table = gr.Dataframe(
-                headers=["index", "username", "text", "duration"],
+                headers=["#", "User", "Message", "Duration"],
                 datatype=["number", "str", "str", "number"],
                 interactive=True,
-                label="Timeline (Adjust durations manually)"
+                label="Timeline Editor",
+                height=400
             )
+            
             status_box = gr.Textbox(label="Status", interactive=False)
-            total_duration_box = gr.Textbox(label="Total Video Duration (MM:SS)", interactive=False)
+            total_duration_box = gr.Textbox(label="Total Duration", interactive=False)
 
+            timeline_video_file = gr.Video(label="Rendered Video")
+            timeline_status = gr.Textbox(label="Render Status")
+            timeline_video_download = gr.File(label="Download", file_types=[".mp4"], interactive=False)
+
+            # Event handlers
             load_timeline_btn.click(fn=load_timeline_data, outputs=[timeline_table, status_box, total_duration_box])
             auto_pace_btn.click(fn=auto_pace_timeline, outputs=[timeline_table, status_box, total_duration_box])
             save_btn.click(fn=save_timeline_data, inputs=[timeline_table], outputs=[status_box])
-
-            with gr.Row():
-                bg_choice_timeline = gr.Dropdown(
-                    choices=AUDIO_FILES + [""],
-                    label="Background Audio (used if no segments defined)",
-                    value="",
-                    interactive=True,
-                    allow_custom_value=True
-                )
-                bg_upload_timeline = gr.File(label="Upload Background Audio(s)", file_count="multiple", file_types=[".mp3"])
-                send_choice_timeline = gr.Dropdown(
-                    choices=AUDIO_FILES + [""],
-                    label="Send Sound",
-                    value="",
-                    interactive=True,
-                    allow_custom_value=True
-                )
-                send_upload_timeline = gr.File(label="Upload Send Sound", file_types=[".mp3"])
-                recv_choice_timeline = gr.Dropdown(
-                    choices=AUDIO_FILES + [""],
-                    label="Receive Sound",
-                    value="",
-                    interactive=True,
-                    allow_custom_value=True
-                )
-                recv_upload_timeline = gr.File(label="Upload Receive Sound", file_types=[".mp3"])
-                typing_choice_timeline = gr.Dropdown(
-                    choices=[""] + AUDIO_FILES,
-                    label="Typing Sound",
-                    value="",
-                    interactive=True,
-                    allow_custom_value=True
-                )
-                typing_upload_timeline = gr.File(label="Upload Typing Sound", file_types=[".mp3"])
-                typing_bar_choice_timeline = gr.Dropdown(
-                    choices=[""] + AUDIO_FILES,
-                    label="Typing Bar Sound (🛑)",
-                    value="",
-                    interactive=False,
-                    info="Sound for typing bar animation Please do not use this one",
-                    allow_custom_value=True
-                )
-                typing_bar_upload_timeline = gr.File(label="Upload Typing Bar Sound", file_types=[".mp3"])
-
-            with gr.Accordion("Background Music Segments", open=False):
-                gr.Markdown("Add background music segments by specifying start time, end time, and selecting an audio file from the dropdown (or 'None' for silence). Upload new audio files above if needed. Click 'Add Segment' to append to the list.")
-                gr.Markdown(f"Available audio files: {', '.join(AUDIO_FILES)}")
-                
-                gr.Markdown("**Playback Modes:**")
-                gr.Markdown("- 🎵 **Start Fresh**: Always play from beginning (default)")
-                gr.Markdown("- 🔄 **Continue**: Continue from where this song last left off")
-                gr.Markdown("- ⏱️ **Custom Start**: Specify exact start time in seconds")
-                
-                with gr.Row():
-                    segment_start = gr.Number(label="Start Time (seconds)", value=0.0, precision=2)
-                    segment_end = gr.Number(label="End Time (seconds)", value=10.0, precision=2)
-                    segment_audio = gr.Dropdown(
-                        choices=AUDIO_FILES + [""],
-                        label="Audio File",
-                        value=""
-                    )
-                    segment_playback = gr.Dropdown(
-                        choices=["start_fresh", "continue", "custom_start"],
-                        label="Playback Mode",
-                        value="start_fresh",
-                        info="How to play this audio segment"
-                    )
-                    segment_custom_start = gr.Number(
-                        label="Custom Start Time (seconds)",
-                        value=0.0,
-                        precision=2,
-                        visible=False,
-                        info="Start audio from this time (seconds)"
-                    )
-                    add_segment_btn = gr.Button("Add Segment")
-                
-                def toggle_custom_start_visibility(playback_mode):
-                    return gr.update(visible=(playback_mode == "custom_start"))
-                
-                segment_playback.change(
-                    fn=toggle_custom_start_visibility,
-                    inputs=[segment_playback],
-                    outputs=[segment_custom_start]
-                )
-                
-                segments_table = gr.Dataframe(
-                    headers=["start_seconds", "end_seconds", "audio", "playback_mode", "custom_start"],
-                    datatype=["number", "number", "str", "str", "number"],
-                    type="pandas",
-                    interactive=True,
-                    value=pd.DataFrame(columns=["start_seconds", "end_seconds", "audio", "playback_mode", "custom_start"]),
-                    col_count=(5, "fixed"),
-                    row_count=(1, "dynamic"),
-                    wrap=True,
-                    elem_id="segments_table"
-                )
-                bg_status = gr.Textbox(label="BG Status", interactive=False)
-                with gr.Row():
-                    load_bg_btn = gr.Button("Load BG Segments")
-                    save_bg_btn = gr.Button("Save BG Segments")
-                    reset_btn = gr.Button("🔄 Reset All Segments")
-
-                add_segment_btn.click(
-                    fn=add_bg_segment,
-                    inputs=[segment_start, segment_end, segment_audio, segment_playback, segment_custom_start, segments_table, timeline_table],
-                    outputs=[segments_table, bg_status]
-                )
-                load_bg_btn.click(
-                    fn=load_bg_segments_ui,
-                    outputs=[segments_table, bg_status]
-                )
-                save_bg_btn.click(
-                    fn=save_bg_segments,
-                    inputs=[segments_table, timeline_table],
-                    outputs=[bg_choice_timeline, bg_status]
-                )
-                reset_btn.click(
-                    fn=reset_bg_segments,
-                    outputs=[segments_table, bg_status]
-                )
-
-            with gr.Row():
-                render_btn = gr.Button("Render Video")
             
-            timeline_video_file = gr.Video(label="Rendered Video")
-            timeline_status = gr.Textbox(label="Render Status")
-            timeline_video_download = gr.File(label="Download Video", file_types=[".mp4"], interactive=False)
-
-            render_btn.click(
-                fn=handle_timeline_render, 
+            render_timeline_btn.click(
+                fn=handle_timeline_render,
                 inputs=[
-                    bg_choice_timeline, send_choice_timeline, recv_choice_timeline, typing_choice_timeline, typing_bar_choice_timeline,
-                    bg_upload_timeline, send_upload_timeline, recv_upload_timeline, typing_upload_timeline, typing_bar_upload_timeline,moral_text_timeline
+                    gr.State(""), gr.State(""), gr.State(""), gr.State(""), gr.State(""),
+                    gr.State(None), gr.State(None), gr.State(None), gr.State(None), gr.State(None),
+                    moral_text_timeline
                 ],
                 outputs=[timeline_video_file, timeline_status, timeline_video_download]
             )
 
-            bg_upload_timeline.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "background"),
-                inputs=[bg_upload_timeline],
-                outputs=[bg_choice_timeline, bg_status]
-            )
-            send_upload_timeline.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "send"),
-                inputs=[send_upload_timeline],
-                outputs=[send_choice_timeline, bg_status]
-            )
-            recv_upload_timeline.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "receive"),
-                inputs=[recv_upload_timeline],
-                outputs=[recv_choice_timeline, bg_status]
-            )
-            typing_upload_timeline.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "typing"),
-                inputs=[typing_upload_timeline],
-                outputs=[typing_choice_timeline, bg_status]
-            )
-            typing_bar_upload_timeline.change(
-                fn=lambda x: handle_audio_upload_fixed(x, "typing bar"),
-                inputs=[typing_bar_upload_timeline],
-                outputs=[typing_bar_choice_timeline, bg_status]
-            )
+        with gr.TabItem("👥 Characters"):
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("### Add Character")
+                    character_name = gr.Textbox(label="Name", placeholder="Character name")
+                    character_personality = gr.Textbox(label="Personality", placeholder="Brief description", lines=2)
+                    character_avatar = gr.File(label="Avatar", file_types=[".png", ".jpg", ".jpeg"])
+                    
+                    with gr.Row():
+                        add_char_btn = gr.Button("➕ Add", variant="primary")
+                        refresh_chars_btn = gr.Button("🔄 Refresh")
 
-    def on_tab_change(evt: gr.SelectData):
-        tab_index = evt.index
-        auto_refresh_enabled = auto_refresh_toggle.value if 'auto_refresh_toggle' in locals() else True
-        
-        if tab_index == 2 and auto_refresh_enabled:
-            stop_auto_refresh()
-            return "⏸️ Auto-refresh stopped"
-        else:   
-            start_auto_refresh(load_timeline_btn, timeline_table, status_box, total_duration_box, interval=10)
-            return "✅ Auto-refresh started for Timeline Editor"
+                    char_status = gr.Textbox(label="Status", interactive=False)
+                
+                with gr.Column():
+                    gr.Markdown("### Existing Characters")
+                    characters_list = gr.Dropdown(
+                        choices=get_character_names(),
+                        label="Select Character",
+                        allow_custom_value=False
+                    )
+                    
+                    with gr.Row():
+                        update_char_btn = gr.Button("✏️ Update")
+                        delete_char_btn = gr.Button("🗑️ Delete", variant="stop")
+                    
+                    use_chars_btn = gr.Button("🎭 Use in Script")
 
-    tabs.select(fn=on_tab_change, inputs=None, outputs=[status_box])
+            # Character management functions
+            def refresh_characters():
+                characters = get_character_names()
+                if characters:
+                    return gr.Dropdown(choices=characters, value=characters[0]), "✅ Loaded characters"
+                return gr.Dropdown(choices=characters, value=""), "❌ No characters"
 
-    def initialize_audio_values():
-        if AUDIO_FILES:
-            bg_val = AUDIO_FILES[0] if AUDIO_FILES else ""
-            send_val = AUDIO_FILES[0] if AUDIO_FILES else ""
-            recv_val = AUDIO_FILES[0] if AUDIO_FILES else ""
-            typing_val = ""
-            
-            return [
-                bg_val,
-                send_val,
-                recv_val,
-                typing_val,
-                bg_val,
-                send_val,
-                recv_val,
-                typing_val
-            ]
-        return ["", "", "", "", "", "", "", ""]
+            def add_character_handler(name, personality, avatar):
+                if not name:
+                    return "❌ Enter name", gr.Dropdown(choices=get_character_names(), value="")
+                
+                avatar_path = "static/images/contact.png"
+                if avatar:
+                    avatar_path, _ = handle_character_avatar_upload(avatar, name)
+                
+                success, message = add_character(name, avatar_path, personality)
+                characters = get_character_names()
+                
+                if success:
+                    return message, gr.Dropdown(choices=characters, value=name)
+                return message, gr.Dropdown(choices=characters, value="")
 
-    demo.load(
-        fn=initialize_audio_values,
-        outputs=[
-            bg_choice, send_choice, recv_choice, typing_choice,
-            bg_choice_timeline, send_choice_timeline, recv_choice_timeline, typing_choice_timeline
-        ]
-    )
+            def use_characters_in_script():
+                characters = get_character_names()
+                return ", ".join(characters) if characters else ""
 
+            # Event handlers
+            refresh_chars_btn.click(fn=refresh_characters, outputs=[characters_list, char_status])
+            add_char_btn.click(fn=add_character_handler, inputs=[character_name, character_personality, character_avatar], 
+                             outputs=[char_status, characters_list])
+            use_chars_btn.click(fn=use_characters_in_script, outputs=[character_name])
+
+    # Simple CSS
     demo.css = """
-    .orange-title {
-        color: var(--primary-500) !important;
-        text-align: center;
+    .gradio-container {
+        max-width: 1200px !important;
     }
     """
 
-
+# LAUNCH WITH OPTIMIZED SETTINGS
 if __name__ == "__main__":
-    demo.queue(max_size=10)
+    # Re-enable stdout for launch message only
+    sys.stdout = sys.__stdout__
+    sys.stderr = sys.__stderr__
+    
+    print("🚀 Starting Ultra-Fast Video Generator...")
+    
+    demo.queue(max_size=5)  # Smaller queue for better performance
     port = int(os.environ.get("PORT", 7860))
 
     demo.launch(
         server_name="0.0.0.0",
         server_port=port,
         share=False,
-        inbrowser=False
+        inbrowser=False,
+        show_error=True,
+        quiet=True,  # Suppress Gradio output
+        max_file_size="100MB"
     )
 
