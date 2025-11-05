@@ -868,6 +868,63 @@ def create_gradio_interface():
                     inputs=[character_name, character_personality, character_avatar],
                     outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
                 )
+                
+                def update_character_handler(name, personality, avatar):
+                    if not name:
+                        return "❌ Please select a character to update", gr.Dropdown(choices=get_character_names(), value=""), "static/images/contact.png", "", None
+                    
+                    current_details = get_character_details(name)
+                    avatar_path = current_details["avatar"]
+                    
+                    if avatar:
+                        avatar_path, avatar_status = handle_character_avatar_upload(avatar, name)
+                    
+                    success, message = update_character(name, avatar_path, personality)
+                    characters = get_character_names()
+                    
+                    if success:
+                        details = get_character_details(name)
+                        avatar_preview = get_character_avatar_preview(name)
+                        return message, gr.Dropdown(choices=characters, value=name), avatar_preview, details["personality"], None
+                    else:
+                        return message, gr.Dropdown(choices=characters, value=name if name in characters else ""), current_details["avatar"], personality, None
+                
+                update_char_btn.click(
+                    fn=update_character_handler,
+                    inputs=[characters_list, character_personality, character_avatar],
+                    outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
+                )
+                
+                def delete_character_handler(name):
+                    if not name:
+                        return "❌ Please select a character to delete", gr.Dropdown(choices=get_character_names(), value=""), "static/images/contact.png", "", None
+                    
+                    success, message = delete_character(name)
+                    characters = get_character_names()
+                    if success:
+                        new_value = characters[0] if characters else ""
+                        return message, gr.Dropdown(choices=characters, value=new_value), "static/images/contact.png", "", None
+                    else:
+                        return message, gr.Dropdown(choices=characters, value=name if name in characters else ""), "static/images/contact.png", "", None
+                
+                delete_char_btn.click(
+                    fn=delete_character_handler,
+                    inputs=[characters_list],
+                    outputs=[char_status, characters_list, character_preview, character_details, character_avatar]
+                )
+                
+                def use_characters_in_script():
+                    characters = get_character_names()
+                    if characters:
+                        char_string = ", ".join(characters)
+                        return char_string
+                    else:
+                        return ""
+                
+                use_chars_btn.click(
+                    fn=use_characters_in_script,
+                    outputs=[character_name]
+                )
 
             # Script & Video Tab
             with gr.TabItem("🧠 Script & Video"):
