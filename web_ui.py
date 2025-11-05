@@ -183,66 +183,6 @@ def create_default_assets():
 create_default_assets()
 
 # =============================================
-# FIXED AUTO-REFRESH SYSTEM
-# =============================================
-
-def smart_load_timeline_data():
-    """Load timeline data without requiring Gradio context"""
-    timeline_path = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
-    if not os.path.exists(timeline_path):
-        return [], "No timeline file found.", "00:00"
-
-    try:
-        with open(timeline_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        if not data:
-            return [], "No timeline data found.", "00:00"
-
-        data = [[
-            item.get("index", i),
-            item.get("username", ""),
-            item.get("text", ""),
-            item.get("duration", 1.5)
-        ] for i, item in enumerate(data)]
-
-        total_seconds, formatted = calculate_total_runtime(data)
-        return data, f"Loaded timeline ({len(data)} messages) — Total: {total_seconds:.1f}s ({formatted})", formatted
-    except Exception:
-        return [], "Error loading timeline data.", "00:00"
-
-def start_smart_auto_refresh(interval=30):
-    """Optimized auto-refresh that doesn't use Gradio context"""
-    global auto_refresh_running, auto_refresh_thread, rendering_in_progress
-    
-    def refresh_loop():
-        while auto_refresh_running:
-            if rendering_in_progress:
-                time.sleep(2)
-                continue
-            time.sleep(interval)
-            # Just check if timeline file exists and is valid
-            # Don't call Gradio functions in background thread
-            try:
-                timeline_path = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
-                if os.path.exists(timeline_path):
-                    with open(timeline_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    # File is valid, continue
-            except Exception:
-                # File is corrupted or doesn't exist, but don't try to fix it in background
-                pass
-    
-    if not auto_refresh_running:
-        auto_refresh_running = True
-        auto_refresh_thread = threading.Thread(target=refresh_loop, daemon=True)
-        auto_refresh_thread.start()
-
-def stop_smart_auto_refresh():
-    global auto_refresh_running
-    auto_refresh_running = False
-
-# =============================================
 # CHARACTER MANAGEMENT SYSTEM
 # =============================================
 
@@ -738,6 +678,10 @@ def handle_character_avatar_upload(avatar_file, character_name):
     except Exception as e:
         return "static/images/contact.png", f"Error uploading avatar: {str(e)}"
 
+# =============================================
+# FIXED FILE HANDLING FUNCTIONS
+# =============================================
+
 def get_file_path(file_input, choice, default):
     """Safely get file path from Gradio file input (handles lists)"""
     if file_input:
@@ -783,8 +727,48 @@ def calculate_total_runtime(data):
     return total_seconds, formatted
 
 def load_timeline_data():
-    """Load timeline data for UI - use this in Gradio context"""
-    return smart_load_timeline_data()
+    timeline_path = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
+    if not os.path.exists(timeline_path):
+        return [], "No timeline file found.", "00:00"
+
+    with open(timeline_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if not data:
+        return [], "No timeline data found.", "00:00"
+
+    data = [[
+        item.get("index", i),
+        item.get("username", ""),
+        item.get("text", ""),
+        item.get("duration", 1.5)
+    ] for i, item in enumerate(data)]
+
+    total_seconds, formatted = calculate_total_runtime(data)
+    return data, f"Loaded timeline ({len(data)} messages) — Total: {total_seconds:.1f}s ({formatted})", formatted
+
+def start_auto_refresh(load_button, timeline_table, status_box, total_duration_box, interval=10):
+    global auto_refresh_running, auto_refresh_thread, rendering_in_progress
+    
+    def loop():
+        while auto_refresh_running:
+            if rendering_in_progress:
+                time.sleep(2)
+                continue
+            time.sleep(interval)
+            try:
+                load_button.click(fn=load_timeline_data, outputs=[timeline_table, status_box, total_duration_box])
+            except Exception:
+                pass
+    
+    if not auto_refresh_running:
+        auto_refresh_running = True
+        auto_refresh_thread = threading.Thread(target=loop, daemon=True)
+        auto_refresh_thread.start()
+
+def stop_auto_refresh():
+    global auto_refresh_running
+    auto_refresh_running = False
 
 def save_timeline_data(data):
     frames_dir = os.path.join(PROJECT_ROOT, "frames")
@@ -914,14 +898,11 @@ def handle_manual_script(script_text):
         f.write(latest_generated_script + "\n")
     return latest_generated_script, f"Manual script saved to {SCRIPT_FILE}"
 
-# =============================================
-# FIXED RENDER FUNCTIONS - NO NONE INPUTS
-# =============================================
-
+# SAFE WRAPPER FUNCTIONS TO HANDLE MISSING PARAMETERS
 def safe_handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, 
                       bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload,
                       chat_title, chat_status, chat_avatar, moral_text):
-    """Wrapper that ensures no None values are passed to handle_render"""
+    """Wrapper that ensures all parameters have proper default values"""
     # Ensure all required parameters have default values
     bg_choice = bg_choice or ""
     send_choice = send_choice or ""
@@ -932,15 +913,44 @@ def safe_handle_render(bg_choice, send_choice, recv_choice, typing_choice, typin
     chat_status = chat_status or ""
     moral_text = moral_text or ""
     
+    # Handle file uploads - convert None to empty strings
+    bg_upload = bg_upload if bg_upload is not None else ""
+    send_upload = send_upload if send_upload is not None else ""
+    recv_upload = recv_upload if recv_upload is not None else ""
+    typing_upload = typing_upload if typing_upload is not None else ""
+    typing_bar_upload = typing_bar_upload if typing_bar_upload is not None else ""
+    chat_avatar = chat_avatar if chat_avatar is not None else ""
+    
     return handle_render(
         bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
         bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload,
         chat_title, chat_status, chat_avatar, moral_text
     )
 
-def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, 
-                 bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload,
-                 chat_title, chat_status, chat_avatar, moral_text):
+def safe_handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
+                               bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
+    """Wrapper that ensures all parameters have proper default values"""
+    # Ensure all required parameters have default values
+    bg_choice = bg_choice or ""
+    send_choice = send_choice or ""
+    recv_choice = recv_choice or ""
+    typing_choice = typing_choice or ""
+    typing_bar_choice = typing_bar_choice or ""
+    moral_text = moral_text or ""
+    
+    # Handle file uploads - convert None to empty strings
+    bg_upload = bg_upload if bg_upload is not None else ""
+    send_upload = send_upload if send_upload is not None else ""
+    recv_upload = recv_upload if recv_upload is not None else ""
+    typing_upload = typing_upload if typing_upload is not None else ""
+    typing_bar_upload = typing_bar_upload if typing_bar_upload is not None else ""
+    
+    return handle_timeline_render(
+        bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
+        bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text
+    )
+
+def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, chat_title, chat_status, chat_avatar, moral_text):
     global latest_generated_script, rendering_in_progress
     
     reset_typing_sessions()
@@ -1146,24 +1156,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
     finally:
         rendering_in_progress = False
 
-def safe_handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
-                               bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
-    """Wrapper that ensures no None values are passed to handle_timeline_render"""
-    # Ensure all required parameters have default values
-    bg_choice = bg_choice or ""
-    send_choice = send_choice or ""
-    recv_choice = recv_choice or ""
-    typing_choice = typing_choice or ""
-    typing_bar_choice = typing_bar_choice or ""
-    moral_text = moral_text or ""
-    
-    return handle_timeline_render(
-        bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
-        bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text
-    )
-
-def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
-                          bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
+def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
     global rendering_in_progress
     
     rendering_in_progress = True
@@ -1596,11 +1589,18 @@ def create_fallback_avatar(username, size=200):
         return None
 
 # =============================================
-# GRADIO UI - FIXED EVENT HANDLERS
+# GRADIO UI
 # =============================================
 
 with gr.Blocks() as demo:
     gr.Markdown("## Chat Script & Video Generator")
+    
+    # Create placeholder components for the missing typing bar inputs
+    typing_bar_choice_placeholder = gr.Textbox(visible=False, value="")
+    typing_bar_upload_placeholder = gr.File(visible=False, value="")
+    
+    typing_bar_choice_timeline_placeholder = gr.Textbox(visible=False, value="")
+    typing_bar_upload_timeline_placeholder = gr.File(visible=False, value="")
     
     with gr.Tabs() as tabs:
         with gr.TabItem("Character Management"):
@@ -1830,12 +1830,12 @@ with gr.Blocks() as demo:
                 outputs=[typing_choice, status]
             )
 
-            # FIXED: Use safe wrapper functions that handle None values
+            # FIXED: Use safe wrapper and empty strings instead of None
             render_btn.click(
                 fn=safe_handle_render,
                 inputs=[
-                    bg_choice, send_choice, recv_choice, typing_choice, None,
-                    bg_upload, send_upload, recv_upload, typing_upload, None,
+                    bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice_placeholder,
+                    bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload_placeholder,
                     chat_title, chat_status, chat_avatar, moral_text
                 ],
                 outputs=[video_file, status, video_download]
@@ -1960,12 +1960,12 @@ with gr.Blocks() as demo:
             timeline_status = gr.Textbox(label="Render Status")
             timeline_video_download = gr.File(label="Download Video", file_types=[".mp4"], interactive=False)
 
-            # FIXED: Use safe wrapper functions that handle None values
+            # FIXED: Use safe wrapper and empty strings instead of None
             render_btn.click(
                 fn=safe_handle_timeline_render, 
                 inputs=[
-                    bg_choice_timeline, send_choice_timeline, recv_choice_timeline, typing_choice_timeline, None,
-                    bg_upload_timeline, send_upload_timeline, recv_upload_timeline, typing_upload_timeline, None,
+                    bg_choice_timeline, send_choice_timeline, recv_choice_timeline, typing_choice_timeline, typing_bar_choice_timeline_placeholder,
+                    bg_upload_timeline, send_upload_timeline, recv_upload_timeline, typing_upload_timeline, typing_bar_upload_timeline_placeholder,
                     moral_text_timeline
                 ],
                 outputs=[timeline_video_file, timeline_status, timeline_video_download]
@@ -1997,10 +1997,10 @@ with gr.Blocks() as demo:
         auto_refresh_enabled = auto_refresh_toggle.value if 'auto_refresh_toggle' in locals() else True
         
         if tab_index == 2 and auto_refresh_enabled:
-            stop_smart_auto_refresh()
+            stop_auto_refresh()
             return "Auto-refresh stopped"
         else:   
-            start_smart_auto_refresh(interval=30)
+            start_auto_refresh(load_timeline_btn, timeline_table, status_box, total_duration_box, interval=10)
             return "Auto-refresh started for Timeline Editor"
 
     tabs.select(fn=on_tab_change, inputs=None, outputs=[status_box])
