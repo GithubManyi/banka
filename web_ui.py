@@ -1219,29 +1219,29 @@ def load_timeline_data():
     total_seconds, formatted = calculate_total_runtime(data)
     return data, f"✅ Loaded timeline ({len(data)} messages) — ⏱️ Total: {total_seconds:.1f}s ({formatted})", formatted
 
-def start_auto_refresh(load_button, timeline_table, status_box, total_duration_box, interval=10):
-    global auto_refresh_running, auto_refresh_thread, rendering_in_progress
+# def start_auto_refresh(load_button, timeline_table, status_box, total_duration_box, interval=10):
+#     global auto_refresh_running, auto_refresh_thread, rendering_in_progress
     
-    def loop():
-        while auto_refresh_running:
-            if rendering_in_progress:
-                print("⏳ Video rendering in progress, pausing auto-refresh")
-                time.sleep(2)
-                continue
-            time.sleep(interval)
-            try:
-                load_button.click(fn=load_timeline_data, outputs=[timeline_table, status_box, total_duration_box])
-            except Exception as e:
-                print(f"⚠️ Auto-refresh failed: {e}")
+#     def loop():
+#         while auto_refresh_running:
+#             if rendering_in_progress:
+#                 print("⏳ Video rendering in progress, pausing auto-refresh")
+#                 time.sleep(2)
+#                 continue
+#             time.sleep(interval)
+#             try:
+#                 load_button.click(fn=load_timeline_data, outputs=[timeline_table, status_box, total_duration_box])
+#             except Exception as e:
+#                 print(f"⚠️ Auto-refresh failed: {e}")
     
-    if not auto_refresh_running:
-        auto_refresh_running = True
-        auto_refresh_thread = threading.Thread(target=loop, daemon=True)
-        auto_refresh_thread.start()
+#     if not auto_refresh_running:
+#         auto_refresh_running = True
+#         auto_refresh_thread = threading.Thread(target=loop, daemon=True)
+#         auto_refresh_thread.start()
 
-def stop_auto_refresh():
-    global auto_refresh_running
-    auto_refresh_running = False
+# def stop_auto_refresh():
+#     global auto_refresh_running
+#     auto_refresh_running = False
 
 def save_timeline_data(data):
     frames_dir = os.path.join(PROJECT_ROOT, "frames")
