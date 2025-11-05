@@ -2207,8 +2207,8 @@ with gr.Blocks() as demo:
 # =============================================
 
 if __name__ == "__main__":
-    # Set lower concurrency for resource-constrained environments
-    demo.queue(max_size=5, concurrency_count=2)
+    # Set lower concurrency for resource-constrained environments - FIXED QUEUE PARAMETERS
+    demo.queue(max_size=5)
     port = int(os.environ.get("PORT", 7860))
 
     try:
