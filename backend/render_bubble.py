@@ -210,6 +210,11 @@ def encode_meme(path):
     AVATAR_CACHE[cache_key] = res
     return res
 
+def add_still_to_concat(concat_lines, frame_file, duration):
+    """Add a still frame to concat file for video generation"""
+    safe_path = frame_file.replace("\\", "/")
+    concat_lines.append(f"file '{safe_path}'")
+    concat_lines.append(f"duration {float(duration):.3f}")
 
 def name_to_color(username: str) -> str:
     cache_key = f"color_{username.strip().lower()}"
