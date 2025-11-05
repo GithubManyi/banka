@@ -216,6 +216,23 @@ def add_still_to_concat(concat_lines, frame_file, duration):
     concat_lines.append(f"file '{safe_path}'")
     concat_lines.append(f"duration {float(duration):.3f}")
 
+def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
+    """Handle meme image processing for video generation"""
+    if not os.path.exists(meme_path):
+        raise FileNotFoundError(f"Meme not found: {meme_path}")
+    img = Image.open(meme_path)
+    img.thumbnail((W, H))
+    # Create the output directory if it doesn't exist
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    # Save a single frame (not multiple frames)
+    frame_path = output_path if output_path.endswith('.png') else output_path + '.png'
+    img.save(frame_path, "PNG")
+  
+    # Return the single frame path and duration
+    return frame_path, duration
+
 def name_to_color(username: str) -> str:
     cache_key = f"color_{username.strip().lower()}"
     if cache_key in AVATAR_CACHE:
