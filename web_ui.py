@@ -1595,12 +1595,13 @@ def create_fallback_avatar(username, size=200):
 with gr.Blocks() as demo:
     gr.Markdown("## Chat Script & Video Generator")
     
-    # Create placeholder components for the missing typing bar inputs
-    typing_bar_choice_placeholder = gr.Textbox(visible=False, value="")
-    typing_bar_upload_placeholder = gr.File(visible=False, value="")
+    # Create invisible placeholder components for the missing typing bar inputs
+    # Use None instead of empty strings to avoid file path issues
+    typing_bar_choice_placeholder = gr.Textbox(visible=False, value=None)
+    typing_bar_upload_placeholder = gr.File(visible=False, value=None)
     
-    typing_bar_choice_timeline_placeholder = gr.Textbox(visible=False, value="")
-    typing_bar_upload_timeline_placeholder = gr.File(visible=False, value="")
+    typing_bar_choice_timeline_placeholder = gr.Textbox(visible=False, value=None)
+    typing_bar_upload_timeline_placeholder = gr.File(visible=False, value=None)
     
     with gr.Tabs() as tabs:
         with gr.TabItem("Character Management"):
@@ -1830,7 +1831,7 @@ with gr.Blocks() as demo:
                 outputs=[typing_choice, status]
             )
 
-            # FIXED: Use safe wrapper and empty strings instead of None
+            # FIXED: Use safe wrapper and placeholder components with None values
             render_btn.click(
                 fn=safe_handle_render,
                 inputs=[
@@ -1960,7 +1961,7 @@ with gr.Blocks() as demo:
             timeline_status = gr.Textbox(label="Render Status")
             timeline_video_download = gr.File(label="Download Video", file_types=[".mp4"], interactive=False)
 
-            # FIXED: Use safe wrapper and empty strings instead of None
+            # FIXED: Use safe wrapper and placeholder components with None values
             render_btn.click(
                 fn=safe_handle_timeline_render, 
                 inputs=[
