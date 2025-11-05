@@ -14,18 +14,19 @@ import threading
 import math
 import random
 import psutil
+import signal
 
 # =============================================
 # ENHANCED CHROMIUM/CHROME SUPPRESSION
 # =============================================
 
-# More comprehensive Chromium error suppression
-os.environ['DBUS_SESSION_BUS_ADDRESS'] = '/dev/null'
+# Apply the same suppression as in render_bubble.py for consistency
+os.environ['DBUS_SESSION_BUS_ADDRESS'] = ''
+os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = ''
 os.environ['DISABLE_DEV_SHM'] = 'true'
 os.environ['ENABLE_CRASH_REPORTER'] = 'false'
 os.environ['CHROME_HEADLESS'] = 'true'
 os.environ['NO_AT_BRIDGE'] = '1'
-os.environ['CHROMIUM_FLAGS'] = '--no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --no-default-browser-check --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows'
 
 # Disable GPU and other unnecessary features
 os.environ['LIBGL_ALWAYS_SOFTWARE'] = '1'
@@ -40,6 +41,24 @@ os.environ['HOME'] = '/tmp'
 os.environ['GRADIO_ANALYTICS_ENABLED'] = 'False'
 os.environ['BOKEH_Resources'] = 'minified'
 
+# Reduce logging verbosity
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+# =============================================
+# CONTAINER STABILITY FIXES
+# =============================================
+
+def signal_handler(sig, frame):
+    print(f"🚨 Received signal {sig}, but continuing...")
+    # Don't exit on SIGTERM/SIGINT in container
+    if sig in [signal.SIGTERM, signal.SIGINT]:
+        print("🛑 Ignoring termination signal to maintain container stability")
+        return
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+
 # =============================================
 # RESOURCE MANAGEMENT
 # =============================================
@@ -50,10 +69,29 @@ def optimize_system_limits():
         import resource
         # Increase resource limits
         resource.setrlimit(resource.RLIMIT_NOFILE, (4096, 8192))
-    except:
-        pass
+        print("✅ System resource limits optimized")
+    except Exception as e:
+        print(f"⚠️ Could not optimize system limits: {e}")
 
 optimize_system_limits()
+
+def monitor_resources():
+    """Monitor system resources"""
+    try:
+        memory = psutil.virtual_memory()
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        active_threads = threading.active_count()
+        
+        print(f"📊 Resource Monitor - Memory: {memory.percent}% | CPU: {cpu_percent}% | Threads: {active_threads}")
+        
+        # Warn if resources are high
+        if memory.percent > 85:
+            print("🚨 High memory usage detected")
+        if active_threads > 50:
+            print("🚨 High thread count detected")
+            
+    except Exception as e:
+        print(f"⚠️ Resource monitoring failed: {e}")
 
 # =============================================
 # FFMPEG CHECK
@@ -63,6 +101,8 @@ try:
     result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
     if result.returncode != 0:
         print("ffmpeg command failed")
+    else:
+        print("✅ FFmpeg is available")
 except Exception:
     print("ffmpeg check failed")
 
@@ -72,6 +112,7 @@ except Exception:
 
 try:
     import gradio as gr
+    print("✅ Gradio imported successfully")
 except ImportError:
     print("Failed to import gradio")
     sys.exit(1)
@@ -79,17 +120,23 @@ except ImportError:
 # Import custom modules with error handling
 try:
     from backend.generate_script import generate_script_with_groq
-except ImportError:
+    print("✅ Script generation module imported")
+except ImportError as e:
+    print(f"⚠️ Script generation module not available: {e}")
     generate_script_with_groq = None
 
 try:
     from backend.generate_video import build_video_from_timeline
-except ImportError:
+    print("✅ Video generation module imported")
+except ImportError as e:
+    print(f"⚠️ Video generation module not available: {e}")
     build_video_from_timeline = None
 
 try:
     from backend.avatar_handler import save_uploaded_avatar
-except ImportError:
+    print("✅ Avatar handler imported")
+except ImportError as e:
+    print(f"⚠️ Avatar handler not available: {e}")
     save_uploaded_avatar = None
 
 # Enhanced render bubble import with better error handling
@@ -100,9 +147,10 @@ try:
     render_bubble.frame_count = 0
     render_bubble.timeline = []
     render_bubble.renderer = WhatsAppRenderer()
+    print("✅ Render bubble modules imported successfully")
     
 except ImportError as e:
-    print(f"Warning: Could not import render_bubble modules: {e}")
+    print(f"⚠️ Could not import render_bubble modules: {e}")
     # Create enhanced dummy functions
     class WhatsAppRenderer:
         def __init__(self, *args, **kwargs):
@@ -141,15 +189,20 @@ except ImportError as e:
 try:
     from groq import Groq
     groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    print("✅ Groq client initialized")
 except ImportError:
+    print("⚠️ Groq client not available")
     groq_client = None
-except Exception:
+except Exception as e:
+    print(f"⚠️ Groq client initialization failed: {e}")
     groq_client = None
 
 # Static server imports
 try:
     from static_server import get_static_path, get_avatar_path
+    print("✅ Static server modules imported")
 except ImportError:
+    print("⚠️ Static server modules not available, using fallbacks")
     def get_static_path(filename):
         return os.path.join(PROJECT_ROOT, "static", filename)
     
@@ -214,8 +267,9 @@ def create_default_assets():
         full_path = os.path.join(PROJECT_ROOT, dir_path)
         try:
             os.makedirs(full_path, exist_ok=True)
+            print(f"✅ Created directory: {full_path}")
         except Exception as e:
-            print(f"Warning: Could not create directory {full_path}: {e}")
+            print(f"⚠️ Could not create directory {full_path}: {e}")
     
     # Create default contact.png if it doesn't exist
     contact_path = os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
@@ -231,12 +285,13 @@ def create_default_assets():
             draw.ellipse([110, 80, 130, 100], fill='white')
             
             img.save(contact_path, 'PNG')
-            print("Created default contact avatar")
+            print("✅ Created default contact avatar")
         except ImportError:
             # Create empty file as fallback
             open(contact_path, 'a').close()
+            print("⚠️ PIL not available, created placeholder avatar file")
         except Exception as e:
-            print(f"Warning: Could not create default avatar: {e}")
+            print(f"⚠️ Could not create default avatar: {e}")
             open(contact_path, 'a').close()
 
 create_default_assets()
@@ -770,6 +825,9 @@ def get_file_path(file_input, choice, default):
 def safe_render_with_limits(*args, **kwargs):
     """Wrapper for render functions with resource limits"""
     try:
+        # Monitor resources before rendering
+        monitor_resources()
+        
         # Clear any temporary files before rendering
         temp_dir = os.path.join(PROJECT_ROOT, "temp")
         if os.path.exists(temp_dir):
@@ -1703,8 +1761,9 @@ def cleanup_resources():
                     os.remove(os.path.join(temp_dir, file))
                 except:
                     pass
+        print("✅ Cleaned up temporary resources")
     except Exception as e:
-        print(f"Cleanup warning: {e}")
+        print(f"⚠️ Cleanup warning: {e}")
 
 # Create the Gradio interface
 with gr.Blocks() as demo:
@@ -2154,6 +2213,10 @@ if __name__ == "__main__":
 
     try:
         print("Starting application with enhanced resource management...")
+        print("✅ Chromium/Chrome suppression active")
+        print("✅ Resource monitoring active")
+        print("✅ Signal handlers registered")
+        
         demo.launch(
             server_name="0.0.0.0",
             server_port=port,
