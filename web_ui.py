@@ -76,15 +76,24 @@ def optimize_system_limits():
 optimize_system_limits()
 
 def monitor_resources():
-    """Monitor system resources"""
+    """Monitor system resources with reduced logging frequency"""
     try:
+        # Only log every 10th call to reduce console spam
+        if not hasattr(monitor_resources, 'call_count'):
+            monitor_resources.call_count = 0
+        
+        monitor_resources.call_count += 1
+        
+        if monitor_resources.call_count % 10 != 0:
+            return
+            
         memory = psutil.virtual_memory()
         cpu_percent = psutil.cpu_percent(interval=0.1)
         active_threads = threading.active_count()
         
         print(f"📊 Resource Monitor - Memory: {memory.percent}% | CPU: {cpu_percent}% | Threads: {active_threads}")
         
-        # Warn if resources are high
+        # Warn if resources are high (only log warnings every time)
         if memory.percent > 85:
             print("🚨 High memory usage detected")
         if active_threads > 50:
