@@ -263,17 +263,21 @@ def get_groq_client():
 print("⚠️ Groq client set to lazy loading")
 
 # Static server imports
+# Static server imports - use the Flask-free version
 try:
-    from static_server import get_static_path, get_avatar_path
-    print("✅ Static server modules imported")
-except ImportError:
-    print("⚠️ Static server modules not available, using fallbacks")
-    def get_static_path(filename):
-        return os.path.join(PROJECT_ROOT, "static", filename)
+    from static_server import get_static_path, get_avatar_path, ensure_directories
+    print("✅ Static server modules imported (Flask-free)")
+except ImportError as e:
+    print(f"⚠️ Static server modules not available: {e}, using fallbacks")
+    def get_static_path(filename=None):
+        base = os.path.join(PROJECT_ROOT, "static")
+        return os.path.join(base, filename) if filename else base
     
     def get_avatar_path(username):
         return os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
-
+    
+    def ensure_directories():
+        os.makedirs(os.path.join(PROJECT_ROOT, "static", "images"), exist_ok=True)
 # =============================================
 # CONFIGURATION
 # =============================================
