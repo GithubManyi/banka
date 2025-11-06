@@ -80,7 +80,6 @@ class OptimizedCache:
         self.cache = {}
         self.hits = 0
         self.misses = 0
-
         
     def get(self, key):
         if key in self.cache:
@@ -751,19 +750,275 @@ def render_meme(username, meme_path):
     return render_bubble(username, "", meme_path=meme_path)
 
 def render_typing_bubble(username, duration=None, is_sender=None, custom_durations=None):
+    """Render typing bubble with memory management"""
     custom_durations = custom_durations or {}
-    # ... (keep your existing implementation but add memory checks)
-    # Add: check_memory_limit() at the beginning
+    check_memory_limit()
+    
+    if not hasattr(render_bubble, 'renderer'):
+        render_bubble.renderer = WhatsAppRenderer(
+            chat_title="BANKA TOUR GROUP",
+            chat_avatar="static/images/group.png",
+            chat_status="jay, khooi, banka, Paula"
+        )
+        render_bubble.frame_count = 0
+        render_bubble.timeline = []
+    
+    if is_sender is None:
+        is_sender = (username.strip().lower() == MAIN_USER.lower())
+    
+    # Don't show typing bubbles for sender
+    if is_sender:
+        if render_bubble.frame_count % 20 == 0:
+            print(f"⌨️ Skipping typing bubble for sender {username} - using typing bar instead")
+        return render_typing_bar_frame(username, "", duration=1.5)
+    
+    # Use the main renderer, but temporarily add typing message
+    original_history = render_bubble.renderer.message_history.copy()
+    
+    # Add typing indicator to main renderer temporarily
+    render_bubble.renderer.add_message(username, None, typing=True)
+    
+    frame_file = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
+    render_bubble.renderer.render_frame(frame_file, short_wait=True)
+    
+    # Restore original history (remove the typing message)
+    render_bubble.renderer.message_history = original_history
+    
+    # Use custom duration if available, else default to 1.5
+    typing_key = f"typing:{username}"
+    duration = custom_durations.get(typing_key, 1.5) if custom_durations else 1.5
+    if duration <= 0:
+        print(f"⚠️ Invalid duration {duration} for typing indicator '{typing_key}', using 1.5")
+        duration = 1.5
+    
+    entry = {
+        "frame": os.path.abspath(frame_file),
+        "duration": duration,
+        "is_sender": is_sender,
+        "username": username,
+        "text": "",
+        "is_meme": False,
+        "meme_path": None,
+        "typing": True,
+        "typing_sound": False
+    }
+    render_bubble.timeline.append(entry)
+    
+    with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
+        json.dump(render_bubble.timeline, tf, indent=2)
+    
+    render_bubble.frame_count += 1
+    if render_bubble.frame_count % 20 == 0:
+        print(f"⌨️ Typing indicator for {username} (duration: {duration}s)")
+    
+    return frame_file
 
 def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duration=None, is_character_typing=True):
-    # ... (keep your existing implementation but add memory checks)
-    # Add: check_memory_limit() at the beginning
+    """Render typing bar frames with memory management"""
+    check_memory_limit()
+    
+    if not hasattr(render_bubble, 'renderer'):
+        render_bubble.renderer = WhatsAppRenderer(
+            chat_title="BANKA TOUR GROUP",
+            chat_avatar="static/images/group.png",
+            chat_status="jay, khooi, banka, Paula"
+        )
+        render_bubble.frame_count = 0
+        render_bubble.timeline = []
+    
+    if not frame_path:
+        frame_path = os.path.join(FRAMES_DIR, f"frame_{render_bubble.frame_count:04d}.png")
+    
+    # Skip typing bar for non-sender
+    if username.strip().lower() != MAIN_USER.lower():
+        if render_bubble.frame_count % 20 == 0:
+            print(f"⌨️ Non-sender '{username}' - using typing bubble instead of typing bar")
+        return render_typing_bubble(username, custom_durations={})
+    
+    # Save current history
+    original_history = render_bubble.renderer.message_history.copy()
+    
+    # Use short_wait=True for typing frames
+    render_bubble.renderer.render_frame(
+        frame_file=frame_path,
+        show_typing_bar=True,
+        typing_user=username,
+        upcoming_text=upcoming_text,
+        short_wait=True
+    )
+    
+    # Restore original history
+    render_bubble.renderer.message_history = original_history
+    
+    # Simple duration handling
+    if duration is None or duration <= 0:
+        if not is_character_typing or upcoming_text.endswith('|'):
+            frame_duration = 0.8  # Longer for cursor blinks
+        else:
+            frame_duration = 0.4  # Shorter for actual typing
+    else:
+        frame_duration = duration
+    
+    # Simple sound logic
+    should_play_sound = is_character_typing
+    
+    # Check if this is one of the last 3 frames (no cursor, complete text)
+    current_text = upcoming_text.replace("|", "").strip()
+    is_final_frame = (not upcoming_text.endswith('|') and current_text)
+    if is_final_frame:
+        should_play_sound = False  # No sound in final frames
+    
+    # Generate session ID for continuous sound grouping
+    if not hasattr(render_bubble, 'current_typing_session'):
+        render_bubble.current_typing_session = None
+    
+    # Start new session when we begin typing after not typing
+    if is_character_typing and not hasattr(render_bubble, 'prev_typing_text'):
+        render_bubble.prev_typing_text = ""
+    
+    current_text = upcoming_text.replace("|", "").strip()
+    if is_character_typing and not render_bubble.prev_typing_text and current_text:
+        render_bubble.current_typing_session = f"session_{render_bubble.frame_count}"
+    
+    # End session when we stop typing
+    if not is_character_typing and render_bubble.current_typing_session:
+        render_bubble.current_typing_session = None
+    
+    render_bubble.prev_typing_text = current_text
+    
+    # Simple timeline entry
+    entry = {
+        "frame": os.path.abspath(frame_path),
+        "duration": frame_duration,
+        "is_sender": True,
+        "username": username,
+        "text": "",
+        "is_meme": False,
+        "meme_path": None,
+        "typing_bar": True,
+        "upcoming_text": upcoming_text,
+        "sound": should_play_sound,
+        "typing_session_id": render_bubble.current_typing_session if is_character_typing else None
+    }
+    
+    if render_bubble.frame_count % 20 == 0:
+        print(f"🎹 Frame {render_bubble.frame_count}: '{upcoming_text}' - Sound: {should_play_sound}")
+    
+    render_bubble.timeline.append(entry)
+    with open(TIMELINE_FILE, "w", encoding="utf-8") as tf:
+        json.dump(render_bubble.timeline, tf, indent=2)
+    
+    render_bubble.frame_count += 1
+    return frame_path
 
 def generate_beluga_typing_sequence(real_message):
-    # ... (keep your existing implementation)
+    """Generate typing sequence with fake typing and realistic timing"""
+    if not real_message:
+        return []
+    
+    fake_phrases = [
+        "Wait", "Hold on", "Hmm", "Nah", "Actually", "But", "Wait what",
+        "No way", "Umm", "For real", "Bruh", "Lol", "Well", "Okay"
+    ]
+    
+    num_fakes = random.randint(1, 2)
+    selected_fakes = random.sample(fake_phrases, num_fakes)
+    sequence = []
+    SPEED_MULTIPLIER = 0.5
+    
+    def typing_speed_for(char):
+        if char in [".", ",", "!", "?", "…"]:
+            base = random.uniform(0.12, 0.25)
+        elif char == " ":
+            base = random.uniform(0.06, 0.1)
+        elif ord(char) > 127:
+            base = random.uniform(0.15, 0.25)
+        else:
+            base = random.uniform(0.07, 0.17)
+        return base * SPEED_MULTIPLIER
+    
+    def blink_frame(text, blinks=1):
+        """Adds cursor blinks - NO SOUND during blinks"""
+        for _ in range(blinks):
+            sequence.append((text + "|", 0.25, False))  # False = no typing activity (NO SOUND)
+            sequence.append((text, 0.25, False))  # False = no typing activity (NO SOUND)
+    
+    # Controlled fake typing (1-2 times per video, not per message)
+    if not hasattr(render_bubble, 'fake_typing_count'):
+        render_bubble.fake_typing_count = 0
+        render_bubble.max_fakes_per_video = random.randint(1, 2)  # 1-2 fakes total
+    
+    if (render_bubble.fake_typing_count < render_bubble.max_fakes_per_video and
+        random.random() < 0.4):  # 40% chance per message
+        
+        fake = random.choice(fake_phrases)
+        render_bubble.fake_typing_count += 1
+        print(f"🎲 FAKE TYPING {render_bubble.fake_typing_count}/{render_bubble.max_fakes_per_video}: '{fake}'")
+        
+        # Type fake text WITH SOUND (continuous)
+        buf = ""
+        for ch in fake:
+            buf += ch
+            sequence.append((buf + "|", typing_speed_for(ch), True))
+        
+        # Blink cursor - NO SOUND
+        blink_frame(buf, blinks=1)
+        
+        # Delete fake text - NO SOUND
+        for i in range(len(fake) - 1, -1, -1):
+            buf = fake[:i]
+            sequence.append((buf + "|", random.uniform(0.15, 0.25), False))
+        
+        # Pause - NO SOUND
+        sequence.append(("", 0.5, False))
+    else:
+        if random.random() < 0.05:
+            print("🎲 No fake typing this message")
+    
+    # Type actual message WITH SOUND (continuous)
+    buf = ""
+    for i, ch in enumerate(real_message):
+        buf += ch
+        is_active_typing = True
+        
+        # Last 3 characters should have no sound
+        if i >= len(real_message) - 3:
+            is_active_typing = False
+            if random.random() < 0.05:
+                print(f"🎹 LAST 3 CHARS: '{ch}' at position {i} - NO SOUND")
+        
+        sequence.append((buf + "|", typing_speed_for(ch), is_active_typing))
+    
+    # Final cursor blinks and stable frame - NO SOUND
+    blink_frame(real_message, blinks=2)
+    sequence.append((real_message, 0.8, False))
+    
+    print(f"⌨️ Generated {len(sequence)} typing frames for '{real_message[:50]}...'")
+    
+    return sequence
 
 def render_typing_sequence(username, real_message):
-    # ... (keep your existing implementation)
+    """Render the typing sequence frames with sound"""
+    print(f"🎬 Starting typing sequence for '{username}': '{real_message[:50]}...'")
+    
+    sequence = generate_beluga_typing_sequence(real_message)
+    
+    rendered_frames = []
+    for i, (text, duration, has_sound) in enumerate(sequence):
+        if i % 20 == 0:
+            print(f"🎬 Rendering typing frame {i}: '{text}' - duration: {duration}s - sound: {has_sound}")
+        
+        # Actually render the frame with sound information
+        frame_path = render_typing_bar_frame(
+            username=username,
+            upcoming_text=text,
+            duration=duration,
+            is_character_typing=has_sound  # This controls the sound!
+        )
+        rendered_frames.append(frame_path)
+    
+    print(f"🎬 Completed typing sequence: {len(rendered_frames)} frames rendered")
+    return rendered_frames
 
 def reset_typing_sessions():
     """Reset typing session tracking"""
