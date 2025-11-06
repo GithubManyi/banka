@@ -1,3 +1,32 @@
+#!/usr/bin/env python3
+import os
+import gc
+import sys
+
+# EMERGENCY MEMORY OPTIMIZATION
+print("🚨 Applying emergency memory optimization...")
+
+# Set environment variables to reduce memory usage
+os.environ['PYTHONHASHSEED'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['GRADIO_ANALYTICS_ENABLED'] = 'False'
+os.environ['BOKEH_MINIFIED'] = 'true'
+os.environ['BOKEH_RESOURCES'] = 'none'
+
+# Force garbage collection
+for _ in range(3):
+    gc.collect()
+
+# Unload non-essential modules
+preloaded_modules = set(sys.modules.keys())
+essential_modules = {'sys', 'os', 'gc', 'builtins', '__main__'}
+
+for module in list(sys.modules.keys()):
+    if module not in essential_modules and not module.startswith('__'):
+        del sys.modules[module]
+
+gc.collect()
+print("✅ Emergency memory optimization complete")
 import subprocess
 import sys
 import os
