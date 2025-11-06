@@ -506,15 +506,12 @@ class WhatsAppRenderer:
                 return f"CACHED: {cached_frame}"
         
         # Render template
+        # Render template - SIMPLE FIX: Just pass all messages without filtering
         template = self.jinja_env.get_template(TEMPLATE_FILE)
-        filtered_messages = []
-        for msg in self.message_history:
-            if msg['is_sender'] and msg['typing']:
-                continue
-            filtered_messages.append(msg)
         
+        # NO FILTERING AT ALL - let the frontend handle everything
         rendered_html = template.render(
-            messages=filtered_messages,
+            messages=self.message_history,  # ← Just pass everything
             static_path="/app/static",
             chat_title=getattr(self, "chat_title", None),
             chat_avatar=getattr(self, "chat_avatar", None),
