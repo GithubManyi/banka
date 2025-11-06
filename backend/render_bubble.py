@@ -16,6 +16,21 @@ import logging
 from io import BytesIO
 import signal
 import psutil
+import threading
+import resource
+
+# Set thread limit to prevent exhaustion
+threading.stack_size(128 * 1024)  # 128KB instead of default 8MB
+
+# Set memory limits
+def set_memory_limit():
+    try:
+        # 1GB memory limit
+        resource.setrlimit(resource.RLIMIT_AS, (1024 * 1024 * 1024, 1024 * 1024 * 1024))
+    except:
+        pass
+
+set_memory_limit()
 
 # ---------- MEMORY OPTIMIZATION ---------- #
 def get_memory_usage():
@@ -169,63 +184,59 @@ def encode_avatar_for_html(avatar_path):
 # ---------- OPTIMIZED HTML2IMAGE INSTANCE ---------- #
 HTI = None
 HTI_LAST_USED = 0
-HTI_TIMEOUT = 300  # Restart after 5 minutes of inactivity
+HTI_TIMEOUT = 60  # Reduced from 300 to 1 minute
+HTI_CREATION_COUNT = 0
+MAX_HTI_INSTANCES = 10  # Prevent infinite instance creation
 
 def get_html2image():
-    """Get or create HTML2Image instance with optimized settings"""
-    global HTI, HTI_LAST_USED
+    """Get or create HTML2Image instance with aggressive cleanup"""
+    global HTI, HTI_LAST_USED, HTI_CREATION_COUNT
     
     current_time = time.time()
     
-    # Restart if too much time has passed to prevent memory leaks
-    if HTI is not None and (current_time - HTI_LAST_USED) > HTI_TIMEOUT:
-        print("🔄 Restarting HTML2Image instance due to inactivity timeout")
+    # Force restart every 10 creations or 1 minute
+    if (HTI is not None and 
+        ((current_time - HTI_LAST_USED) > HTI_TIMEOUT or 
+         HTI_CREATION_COUNT >= MAX_HTI_INSTANCES)):
+        print("🔄 Force restarting HTML2Image instance")
         HTI = None
         gc.collect()
+        HTI_CREATION_COUNT = 0
     
     if HTI is None:
         try:
-            possible_paths = [
-                '/usr/bin/chromium',
-                '/usr/bin/chromium-browser',
-                '/usr/bin/google-chrome',
-                '/usr/bin/chrome',
-                '/app/.apt/usr/bin/chromium-browser'
+            # SIMPLIFIED browser setup
+            chrome_flags = [
+                '--no-sandbox',
+                '--disable-dev-shm-usage', 
+                '--disable-gpu',
+                '--single-process',  # CRITICAL: Use single process mode
+                '--no-zygote',       # CRITICAL: Disable zygote process
+                '--headless',
+                '--window-size=1920,1080',
+                '--disable-webgl',
+                '--disable-accelerated-2d-canvas',
+                '--max-old-space-size=512',# Reduced memory
+                '--disable-software-rasterizer',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--no-default-browser-check',
+                '--no-first-run',
+                '--disable-default-apps',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection',
+                '--memory-pressure-off' 
             ]
             
-            chromium_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    chromium_path = path
-                    break
+            HTI = html2image.Html2Image(
+                browser='chromium',
+                custom_flags=chrome_flags,
+                size=(1920, 1080)
+            )
+            HTI_CREATION_COUNT += 1
+            print(f"✅ Created HTML2Image instance #{HTI_CREATION_COUNT}")
             
-            if chromium_path:
-                chrome_flags = [
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--disable-software-rasterizer',
-                    '--headless',
-                    '--window-size=1920,1080',
-                    '--disable-webgl',
-                    '--disable-accelerated-2d-canvas',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    '--no-default-browser-check',
-                    '--no-first-run',
-                    '--disable-default-apps',
-                    '--disable-features=TranslateUI',
-                    '--disable-ipc-flooding-protection',
-                    '--memory-pressure-off',
-                    '--max-old-space-size=4096'
-                ]
-                
-                HTI = html2image.Html2Image(
-                    browser='chromium',
-                    browser_executable=chromium_path,
-                    custom_flags=chrome_flags
-                )
         except Exception as e:
             print(f"⚠️ HTML2Image setup failed: {e}")
             HTI = None
@@ -234,13 +245,46 @@ def get_html2image():
     return HTI
 
 def cleanup_resources():
-    """Thorough cleanup of all resources"""
+    """Aggressive cleanup of all resources"""
     global HTI, frame_cache
+    
+    print("🧹 Starting aggressive resource cleanup...")
+    
+    # Force kill HTML2Image
     if HTI:
-        HTI = None
+        try:
+            HTI = None
+        except:
+            pass
+    
+    # Clear cache aggressively
     frame_cache.cache.clear()
-    gc.collect()
-    print("🧹 Cleaned up rendering resources")
+    
+    # Force garbage collection multiple times
+    for _ in range(3):
+        gc.collect()
+    
+    # Clear any lingering threads
+    time.sleep(0.1)
+    
+    print(f"🧹 Cleanup complete. Memory: {get_memory_usage():.1f}MB")
+
+def emergency_fallback_render(messages, output_path):
+    """Ultra-simple fallback rendering when system is unstable"""
+    from PIL import Image, ImageDraw, ImageFont
+    
+    img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
+    draw = ImageDraw.Draw(img)
+    
+    # Simple text rendering only
+    y = 50
+    for msg in messages[-8:]:  # Only last 8 messages
+        color = (0, 255, 0) if msg.get('is_sender') else (255, 255, 255)
+        draw.text((100, y), f"{msg.get('username', '')}: {msg.get('text', '')[:100]}", fill=color)
+        y += 60
+    
+    img.save(output_path, optimize=True, quality=70)
+    return output_path
 
 def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     """Generate a cache key for frame rendering"""
@@ -484,185 +528,193 @@ class WhatsAppRenderer:
         self.message_history.append(message_entry)
 
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
-        """Optimized frame rendering with memory management"""
-        start_time = time.time()
-        self._render_count += 1
+    """Optimized frame rendering with memory management"""
+    start_time = time.time()
+    self._render_count += 1
+
+    # AGGRESSIVE memory check every 5 frames
+    if self._render_count % 5 == 0:  # ← FIXED INDENTATION
+        if check_memory_limit(1500):  # Lowered to 1.5GB
+            print("🧹 Force cleanup due to memory pressure")
+            cleanup_resources()
+    
+    # Check cache first
+    is_typing_frame = show_typing_bar and upcoming_text
+    cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
+    
+    if not is_typing_frame:
+        cached_frame = frame_cache.get(cache_key)
+        if cached_frame and os.path.exists(cached_frame):
+            import shutil
+            shutil.copy2(cached_frame, frame_file)
+            if self._render_count % 50 == 0:
+                print(f"⚡ Using cached frame: {cache_key[:8]}...")
+            return f"CACHED: {cached_frame}"
+    
+    # Render template - SIMPLE FIX: Just pass all messages without filtering
+    template = self.jinja_env.get_template(TEMPLATE_FILE)
+    
+    # NO FILTERING AT ALL - let the frontend handle everything
+    rendered_html = template.render(
+        messages=self.message_history,  # ← Just pass everything
+        static_path="/app/static",
+        chat_title=getattr(self, "chat_title", None),
+        chat_avatar=getattr(self, "chat_avatar", None),
+        chat_status=getattr(self, "chat_status", None),
+        show_typing_bar=show_typing_bar,
+        typing_user=typing_user,
+        upcoming_text=upcoming_text
+    )
+    
+    with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
+        f.write(rendered_html)
+    
+    # Try HTML2Image first
+    try:
+        hti = get_html2image()
+        if hti is None:
+            raise Exception("HTML2Image not available")
         
-        # Memory check
-        if self._render_count % 20 == 0:
-            check_memory_limit()
-        
-        # Check cache first
-        is_typing_frame = show_typing_bar and upcoming_text
-        cache_key = get_frame_cache_key(self.message_history, show_typing_bar, typing_user, upcoming_text)
-        
-        if not is_typing_frame:
-            cached_frame = frame_cache.get(cache_key)
-            if cached_frame and os.path.exists(cached_frame):
-                import shutil
-                shutil.copy2(cached_frame, frame_file)
-                if self._render_count % 50 == 0:
-                    print(f"⚡ Using cached frame: {cache_key[:8]}...")
-                return f"CACHED: {cached_frame}"
-        
-        # Render template
-        # Render template - SIMPLE FIX: Just pass all messages without filtering
-        template = self.jinja_env.get_template(TEMPLATE_FILE)
-        
-        # NO FILTERING AT ALL - let the frontend handle everything
-        rendered_html = template.render(
-            messages=self.message_history,  # ← Just pass everything
-            static_path="/app/static",
-            chat_title=getattr(self, "chat_title", None),
-            chat_avatar=getattr(self, "chat_avatar", None),
-            chat_status=getattr(self, "chat_status", None),
-            show_typing_bar=show_typing_bar,
-            typing_user=typing_user,
-            upcoming_text=upcoming_text
-        )
-        
-        with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
+        temp_html = os.path.join(FRAMES_DIR, f"temp_{self._render_count}.html")
+        with open(temp_html, "w", encoding="utf-8") as f:
             f.write(rendered_html)
         
-        # Try HTML2Image first
+        hti.screenshot(
+            html_file=temp_html,
+            save_as=os.path.basename(frame_file),
+            size=(1920, 1080)
+        )
+        
+        generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
+        if os.path.exists(generated_file):
+            os.rename(generated_file, frame_file)
+            if self._render_count % 50 == 0:
+                print(f"✅ Rendered frame {self._render_count}: {frame_file}")
+        else:
+            raise Exception("HTML2Image didn't generate output file")
+        
+        if os.path.exists(temp_html):
+            os.remove(temp_html)
+            
+    except Exception as e:
+        # PIL fallback
+        if self._render_count % 10 == 0:
+            print(f"❌ HTML2Image failed: {e}")
+            print("🔄 Falling back to PIL rendering...")
+        
+        from PIL import Image, ImageDraw, ImageFont
+        
+        img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
+        draw = ImageDraw.Draw(img)
+        
         try:
-            hti = get_html2image()
-            if hti is None:
-                raise Exception("HTML2Image not available")
+            font_large = None
+            font_medium = None
+            font_small = None
             
-            temp_html = os.path.join(FRAMES_DIR, f"temp_{self._render_count}.html")
-            with open(temp_html, "w", encoding="utf-8") as f:
-                f.write(rendered_html)
-            
-            hti.screenshot(
-                html_file=temp_html,
-                save_as=os.path.basename(frame_file),
-                size=(1920, 1080)
-            )
-            
-            generated_file = os.path.join(os.getcwd(), os.path.basename(frame_file))
-            if os.path.exists(generated_file):
-                os.rename(generated_file, frame_file)
-                if self._render_count % 50 == 0:
-                    print(f"✅ Rendered frame {self._render_count}: {frame_file}")
-            else:
-                raise Exception("HTML2Image didn't generate output file")
-            
-            if os.path.exists(temp_html):
-                os.remove(temp_html)
-                
-        except Exception as e:
-            # PIL fallback
-            if self._render_count % 10 == 0:
-                print(f"❌ HTML2Image failed: {e}")
-                print("🔄 Falling back to PIL rendering...")
-            
-            from PIL import Image, ImageDraw, ImageFont
-            
-            img = Image.new('RGB', (1920, 1080), color=(11, 20, 26))
-            draw = ImageDraw.Draw(img)
-            
-            try:
-                font_large = None
-                font_medium = None
-                font_small = None
-                
-                if self._emoji_fonts:
-                    for font_path in self._emoji_fonts:
-                        try:
-                            font_large = ImageFont.truetype(font_path, 36)
-                            font_medium = ImageFont.truetype(font_path, 30)
-                            font_small = ImageFont.truetype(font_path, 20)
-                            break
-                        except:
-                            continue
-                
-                if font_large is None:
+            if self._emoji_fonts:
+                for font_path in self._emoji_fonts:
                     try:
-                        font_large = ImageFont.truetype("Arial", 36)
-                        font_medium = ImageFont.truetype("Arial", 30)
-                        font_small = ImageFont.truetype("Arial", 20)
-                    except:
-                        font_large = ImageFont.load_default()
-                        font_medium = ImageFont.load_default()
-                        font_small = ImageFont.load_default()
-                
-                # Simplified rendering for speed
-                topbar_height = 130
-                draw.rectangle([0, 0, 1920, topbar_height], fill=(17, 27, 33))
-                
-                avatar_x, avatar_y = 24, 15
-                avatar_size = 100
-                draw.ellipse([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size], 
-                            fill=(42, 57, 66))
-                
-                draw.text((avatar_x + avatar_size + 24, 50), 
-                          f"💬 {self.chat_title}", 
-                          fill=(255, 255, 255), font=font_large)
-                draw.text((avatar_x + avatar_size + 24, 90), 
-                          f"👥 {self.chat_status}", 
-                          fill=(134, 150, 160), font=font_small)
-                
-                chat_bg_top = topbar_height
-                draw.rectangle([0, chat_bg_top, 1920, 1080], fill=(11, 20, 26))
-                
-                # Simple message display
-                y_pos = chat_bg_top + 50
-                for msg in filtered_messages[-10:]:  # Only show last 10 messages for speed
-                    color = (0, 92, 75) if msg['is_sender'] else (32, 44, 51)
-                    draw.rectangle([100, y_pos, 1820, y_pos + 60], fill=color, outline=(255, 255, 255))
-                    draw.text((120, y_pos + 10), f"{msg['username']}: {msg['text'][:50]}", 
-                             fill=(255, 255, 255), font=font_medium)
-                    y_pos += 70
-                    if y_pos > 1000:
+                        font_large = ImageFont.truetype(font_path, 36)
+                        font_medium = ImageFont.truetype(font_path, 30)
+                        font_small = ImageFont.truetype(font_path, 20)
                         break
-                        
-                if show_typing_bar and typing_user:
-                    typing_bar_y = 1080 - 80
-                    draw.rectangle([0, typing_bar_y, 1920, 1080], fill=(17, 27, 33))
-                    bar_width = 1800
-                    bar_x = (1920 - bar_width) // 2
-                    draw.rounded_rectangle([bar_x, typing_bar_y + 10, bar_x + bar_width, typing_bar_y + 70],
-                                          radius=48, fill=(32, 44, 51))
-                    
-                    typing_text = f"⌨️ {typing_user} is typing..."
-                    if upcoming_text:
-                        preview_text = upcoming_text.replace("|", "")[:30]
-                        if len(upcoming_text) > 30:
-                            preview_text += "..."
-                        typing_text = f"⌨️ {typing_user}: {preview_text}"
-                    
-                    draw.text((bar_x + 60, typing_bar_y + 25), 
-                             typing_text, 
-                             fill=(100, 255, 100), font=font_medium)
-                    
-            except Exception as pil_error:
-                draw.text((100, 100), f"Chat Frame - {len(filtered_messages)} messages", fill=(255, 255, 255))
-                if show_typing_bar and typing_user:
-                    draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
+                    except:
+                        continue
             
-            img.save(frame_file, optimize=True, quality=85)  # Optimized save
+            if font_large is None:
+                try:
+                    font_large = ImageFont.truetype("Arial", 36)
+                    font_medium = ImageFont.truetype("Arial", 30)
+                    font_small = ImageFont.truetype("Arial", 20)
+                except:
+                    font_large = ImageFont.load_default()
+                    font_medium = ImageFont.load_default()
+                    font_small = ImageFont.load_default()
+            
+            # Simplified rendering for speed
+            topbar_height = 130
+            draw.rectangle([0, 0, 1920, topbar_height], fill=(17, 27, 33))
+            
+            avatar_x, avatar_y = 24, 15
+            avatar_size = 100
+            draw.ellipse([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size], 
+                        fill=(42, 57, 66))
+            
+            draw.text((avatar_x + avatar_size + 24, 50), 
+                      f"💬 {self.chat_title}", 
+                      fill=(255, 255, 255), font=font_large)
+            draw.text((avatar_x + avatar_size + 24, 90), 
+                      f"👥 {self.chat_status}", 
+                      fill=(134, 150, 160), font=font_small)
+            
+            chat_bg_top = topbar_height
+            draw.rectangle([0, chat_bg_top, 1920, 1080], fill=(11, 20, 26))
+            
+            # Simple message display - FIXED: use self.message_history
+            y_pos = chat_bg_top + 50
+            for msg in self.message_history[-10:]:  # ← FIXED: was filtered_messages
+                color = (0, 92, 75) if msg['is_sender'] else (32, 44, 51)
+                draw.rectangle([100, y_pos, 1820, y_pos + 60], fill=color, outline=(255, 255, 255))
+                draw.text((120, y_pos + 10), f"{msg['username']}: {msg['text'][:50]}", 
+                         fill=(255, 255, 255), font=font_medium)
+                y_pos += 70
+                if y_pos > 1000:
+                    break
+                    
+            if show_typing_bar and typing_user:
+                typing_bar_y = 1080 - 80
+                draw.rectangle([0, typing_bar_y, 1920, 1080], fill=(17, 27, 33))
+                bar_width = 1800
+                bar_x = (1920 - bar_width) // 2
+                draw.rounded_rectangle([bar_x, typing_bar_y + 10, bar_x + bar_width, typing_bar_y + 70],
+                                      radius=48, fill=(32, 44, 51))
+                
+                typing_text = f"⌨️ {typing_user} is typing..."
+                if upcoming_text:
+                    preview_text = upcoming_text.replace("|", "")[:30]
+                    if len(upcoming_text) > 30:
+                        preview_text += "..."
+                    typing_text = f"⌨️ {typing_user}: {preview_text}"
+                
+                draw.text((bar_x + 60, typing_bar_y + 25), 
+                         typing_text, 
+                         fill=(100, 255, 100), font=font_medium)
+                
+        except Exception as pil_error:
+            draw.text((100, 100), f"Chat Frame - {len(self.message_history)} messages", fill=(255, 255, 255))
+            if show_typing_bar and typing_user:
+                draw.text((100, 150), f"{typing_user} typing: {upcoming_text}", fill=(100, 255, 100))
         
-        # Cache non-typing frames
-        if not is_typing_frame:
-            frame_cache.set(cache_key, frame_file)
-        
-        render_time = time.time() - start_time
-        if render_time > 1.0:
-            print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
-        
-        # Print cache stats periodically
-        if self._render_count % 100 == 0:
-            print(frame_cache.stats())
-            print(f"💾 Memory usage: {get_memory_usage():.1f}MB")
-        
-        return rendered_html
+        img.save(frame_file, optimize=True, quality=85)  # Optimized save
+    
+    # Cache non-typing frames
+    if not is_typing_frame:
+        frame_cache.set(cache_key, frame_file)
+    
+    render_time = time.time() - start_time
+    if render_time > 1.0:
+        print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
+    
+    # Print cache stats periodically
+    if self._render_count % 20 == 0:
+        print(frame_cache.stats())
+        print(f"💾 Memory usage: {get_memory_usage():.1f}MB")
+        cleanup_resources()
+
+    return rendered_html
 
 # ---------- OPTIMIZED BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
     """
     Optimized bubble rendering with memory management
     """
+
+    # Emergency memory check
+    if get_memory_usage() > 1800:  # If over 1.8GB
+        print("🚨 EMERGENCY: High memory usage, using fallback render")
+        cleanup_resources()
+        
     if not hasattr(render_bubble, 'renderer'):
         render_bubble.renderer = WhatsAppRenderer(
             chat_title="BANKA TOUR GROUP",
