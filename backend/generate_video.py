@@ -17,11 +17,6 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Add Groq import for AI moral generation
-try:
-    from groq import Groq
-except ImportError:
-    print("⚠️ Groq package not available - AI moral generation will use fallback")
 
 
 # --------------------
