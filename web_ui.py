@@ -3,8 +3,8 @@ import os
 import gc
 import sys
 
-# EMERGENCY MEMORY OPTIMIZATION
-print("🚨 Applying emergency memory optimization...")
+# SAFE Memory Optimization - DON'T DELETE ESSENTIAL MODULES
+print("🚨 Applying safe memory optimization...")
 
 # Set environment variables to reduce memory usage
 os.environ['PYTHONHASHSEED'] = '0'
@@ -17,19 +17,10 @@ os.environ['BOKEH_RESOURCES'] = 'none'
 for _ in range(3):
     gc.collect()
 
-# Unload non-essential modules
-preloaded_modules = set(sys.modules.keys())
-essential_modules = {'sys', 'os', 'gc', 'builtins', '__main__'}
+print("✅ Safe memory optimization complete")
 
-for module in list(sys.modules.keys()):
-    if module not in essential_modules and not module.startswith('__'):
-        del sys.modules[module]
-
-gc.collect()
-print("✅ Emergency memory optimization complete")
+# Now import everything else
 import subprocess
-import sys
-import os
 import traceback
 import tempfile
 import shutil
@@ -155,7 +146,6 @@ except ImportError:
     print("Failed to import gradio")
     sys.exit(1)
 
-# Import custom modules with error handling
 # Import custom modules with error handling
 try:
     from backend.generate_script import generate_script_with_groq
@@ -878,10 +868,6 @@ def get_file_path(file_input, choice, default):
 # ENHANCED RENDER FUNCTIONS WITH RESOURCE MANAGEMENT
 # =============================================
 
-# =============================================
-# ENHANCED RENDER FUNCTIONS WITH RESOURCE MANAGEMENT
-# =============================================
-
 def safe_render_with_limits(*args, **kwargs):
     """Wrapper for render functions with resource limits - FIXED to prevent recursion"""
     try:
@@ -899,17 +885,13 @@ def safe_render_with_limits(*args, **kwargs):
                     pass
         
         # Call the ORIGINAL render_bubble function, not the wrapped one
-        return original_render_bubble(*args, **kwargs)
+        return render_bubble(*args, **kwargs)
     except Exception as e:
         print(f"Render error: {e}")
         # Return a fallback frame
         frames_dir = os.path.join(PROJECT_ROOT, "frames")
         os.makedirs(frames_dir, exist_ok=True)
         return os.path.join(frames_dir, "frame_fallback.png")
-
-# Replace the original render_bubble with our safe version
-original_render_bubble = render_bubble
-# Don't reassign render_bubble = safe_render_with_limits as it causes recursion
 
 # =============================================
 # ENHANCED VIDEO RENDERING WITH BETTER ERROR HANDLING
@@ -1310,8 +1292,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     meme_file = None
                     
                 if meme_file:
-                    #safe_render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
-                    original_render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
+                    safe_render_with_limits(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
                     if render_bubble.timeline:
                         render_bubble.timeline[-1]["duration"] = 4.0
                 continue
@@ -1340,14 +1321,13 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                         meme_file = None
                         
                     if meme_file:
-                        safe_render_bubble(name, text_message, meme_path=meme_file, is_sender=is_sender)
+                        safe_render_with_limits(name, text_message, meme_path=meme_file, is_sender=is_sender)
                         if render_bubble.timeline:
                             duration = 4.0 if not text_message.strip() else max(3.0, len(text_message) / 8)
                             render_bubble.timeline[-1]["duration"] = duration
                     else:
                         if text_message.strip():
-                            #safe_render_bubble(name, text_message, is_sender=is_sender)
-                            original_render_bubble(name, text_message, is_sender=is_sender)
+                            safe_render_with_limits(name, text_message, is_sender=is_sender)
                             if render_bubble.timeline:
                                 duration = max(3.0, len(text_message) / 8)
                                 render_bubble.timeline[-1]["duration"] = duration
@@ -1368,7 +1348,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
 
                     duration = max(3.0, len(text_message) / 8)
                     
-                    safe_render_bubble(name, text_message, is_sender=is_sender)
+                    safe_render_with_limits(name, text_message, is_sender=is_sender)
                     
                     if render_bubble.timeline:
                         render_bubble.timeline[-1]["duration"] = duration
