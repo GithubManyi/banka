@@ -127,6 +127,7 @@ except ImportError:
     sys.exit(1)
 
 # Import custom modules with error handling
+# Import custom modules with error handling
 try:
     from backend.generate_script import generate_script_with_groq
     print("✅ Script generation module imported")
@@ -134,27 +135,13 @@ except ImportError as e:
     print(f"⚠️ Script generation module not available: {e}")
     generate_script_with_groq = None
 
-try:
-    from backend.generate_video import build_video_from_timeline
-    print("✅ Video generation module imported")
-except ImportError as e:
-    print(f"⚠️ Video generation module not available: {e}")
-    build_video_from_timeline = None
-
-try:
-    from backend.avatar_handler import save_uploaded_avatar
-    print("✅ Avatar handler imported")
-except ImportError as e:
-    print(f"⚠️ Avatar handler not available: {e}")
-    save_uploaded_avatar = None
-
-# Enhanced render bubble import with better error handling
+# Import render_bubble FIRST to avoid circular imports
 try:
     from backend.render_bubble import (
         render_bubble, render_typing_bubble, WhatsAppRenderer, 
         render_typing_bar_frame, generate_beluga_typing_sequence, 
         reset_typing_sessions, cleanup_resources as render_cleanup,
-        get_memory_usage, check_memory_limit
+        get_memory_usage, check_memory_limit, add_still_to_concat, handle_meme_image
     )
     
     # Initialize renderer state with resource limits
@@ -203,10 +190,24 @@ except ImportError as e:
     def check_memory_limit():
         return False
     
+    def add_still_to_concat(*args, **kwargs):
+        pass
+        
+    def handle_meme_image(*args, **kwargs):
+        return "meme_fallback.png", 3.0
+    
     # Set up the global variables
     render_bubble.frame_count = 0
     render_bubble.timeline = []
     render_bubble.renderer = WhatsAppRenderer()
+
+# Now import video generation AFTER render_bubble
+try:
+    from backend.generate_video import build_video_from_timeline
+    print("✅ Video generation module imported")
+except ImportError as e:
+    print(f"⚠️ Video generation module not available: {e}")
+    build_video_from_timeline = None
 
 # Groq client
 try:
@@ -848,8 +849,12 @@ def get_file_path(file_input, choice, default):
 # ENHANCED RENDER FUNCTIONS WITH RESOURCE MANAGEMENT
 # =============================================
 
+# =============================================
+# ENHANCED RENDER FUNCTIONS WITH RESOURCE MANAGEMENT
+# =============================================
+
 def safe_render_with_limits(*args, **kwargs):
-    """Wrapper for render functions with resource limits"""
+    """Wrapper for render functions with resource limits - FIXED to prevent recursion"""
     try:
         # Monitor resources before rendering
         monitor_resources()
@@ -864,8 +869,8 @@ def safe_render_with_limits(*args, **kwargs):
                 except:
                     pass
         
-        # Call the actual render function
-        return render_bubble(*args, **kwargs)
+        # Call the ORIGINAL render_bubble function, not the wrapped one
+        return original_render_bubble(*args, **kwargs)
     except Exception as e:
         print(f"Render error: {e}")
         # Return a fallback frame
@@ -875,7 +880,7 @@ def safe_render_with_limits(*args, **kwargs):
 
 # Replace the original render_bubble with our safe version
 original_render_bubble = render_bubble
-render_bubble = safe_render_with_limits
+# Don't reassign render_bubble = safe_render_with_limits as it causes recursion
 
 # =============================================
 # ENHANCED VIDEO RENDERING WITH BETTER ERROR HANDLING
