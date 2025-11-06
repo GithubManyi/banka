@@ -150,7 +150,12 @@ except ImportError as e:
 
 # Enhanced render bubble import with better error handling
 try:
-    from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
+    from backend.render_bubble import (
+        render_bubble, render_typing_bubble, WhatsAppRenderer, 
+        render_typing_bar_frame, generate_beluga_typing_sequence, 
+        reset_typing_sessions, cleanup_resources as render_cleanup,
+        get_memory_usage, check_memory_limit
+    )
     
     # Initialize renderer state with resource limits
     render_bubble.frame_count = 0
@@ -188,6 +193,15 @@ except ImportError as e:
         
     def reset_typing_sessions():
         pass
+    
+    def render_cleanup():
+        pass
+    
+    def get_memory_usage():
+        return 0
+    
+    def check_memory_limit():
+        return False
     
     # Set up the global variables
     render_bubble.frame_count = 0
@@ -578,6 +592,9 @@ def get_or_create_initial_avatar(username):
 def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_read=True):
     """Wrapper around render_bubble with proper error handling for avatars"""
     try:
+        # Monitor memory before rendering
+        check_memory_limit()
+        
         avatar_path = get_character_avatar_path(username)
         
         if avatar_path == "INITIALS":
@@ -836,6 +853,7 @@ def safe_render_with_limits(*args, **kwargs):
     try:
         # Monitor resources before rendering
         monitor_resources()
+        check_memory_limit()
         
         # Clear any temporary files before rendering
         temp_dir = os.path.join(PROJECT_ROOT, "temp")
@@ -868,9 +886,15 @@ def safe_build_video_from_timeline(*args, **kwargs):
     try:
         if build_video_from_timeline:
             print("Starting video rendering process...")
+            print(f"💾 Memory before video render: {get_memory_usage():.1f}MB")
+            
             result = build_video_from_timeline(*args, **kwargs)
             if result and os.path.exists(result):
                 print(f"Video successfully rendered: {result}")
+                print(f"💾 Memory after video render: {get_memory_usage():.1f}MB")
+                
+                # Clean up render resources after video generation
+                render_cleanup()
                 
                 # Optimize the video
                 try:
@@ -1162,6 +1186,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
     global latest_generated_script, rendering_in_progress
     
     print("Starting render process...")
+    print(f"💾 Memory before render: {get_memory_usage():.1f}MB")
     
     reset_typing_sessions()
 
@@ -1339,6 +1364,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
         return None, error_msg, None
     finally:
         rendering_in_progress = False
+        print(f"💾 Memory after render: {get_memory_usage():.1f}MB")
 
 def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
     global rendering_in_progress
@@ -1770,7 +1796,9 @@ def cleanup_resources():
                     os.remove(os.path.join(temp_dir, file))
                 except:
                     pass
-        print("✅ Cleaned up temporary resources")
+        # Also call the render cleanup
+        render_cleanup()
+        print("✅ Cleaned up all temporary resources")
     except Exception as e:
         print(f"⚠️ Cleanup warning: {e}")
 
