@@ -80,6 +80,7 @@ class OptimizedCache:
         self.cache = {}
         self.hits = 0
         self.misses = 0
+
         
     def get(self, key):
         if key in self.cache:
