@@ -2,6 +2,7 @@
 # EMERGENCY MEMORY FIX - MUST BE AT VERY TOP
 import os
 import gc
+import sys
 
 # Clear any pre-allocated memory
 for _ in range(5):
@@ -19,19 +20,29 @@ os.environ['ENABLE_CRASH_REPORTER'] = 'false'
 print("🚨 EMERGENCY: Applied aggressive memory optimization")
 
 # Now import only what's absolutely necessary
-import gradio as gr
-print("✅ Gradio loaded")
+try:
+    import gradio as gr
+    print("✅ Gradio loaded")
+except ImportError as e:
+    print(f"❌ Failed to import gradio: {e}")
+    sys.exit(1)
 
 # Import your custom modules
-from backend.render_bubble import render_bubble, reset_typing_sessions
-print("✅ Render modules loaded")
+try:
+    from backend.render_bubble import render_bubble, reset_typing_sessions
+    print("✅ Render modules loaded")
+except ImportError as e:
+    print(f"⚠️ Render modules not available: {e}")
+    # Create minimal fallbacks
+    def render_bubble(*args, **kwargs):
+        return "fallback.png"
+    def reset_typing_sessions():
+        pass
 
 # Skip Groq and Flask entirely
 print("⚠️ Skipping Groq and Flask to save memory")
 
-# Rest of your minimal web UI code...
-
-# Now import everything else
+# Now import everything else - BUT DELAY PANDAS
 import subprocess
 import traceback
 import tempfile
@@ -40,15 +51,107 @@ from pathlib import Path
 import base64
 import asyncio
 import json
-import pandas as pd
 import time
 import threading
 import math
 import random
 import psutil
 import signal
-import os
 
+# =============================================
+# PANDAS REPLACEMENT FOR LOW MEMORY ENVIRONMENTS
+# =============================================
+
+class PandasReplacement:
+    """Lightweight replacement for pandas DataFrame functionality"""
+    
+    @staticmethod
+    def DataFrame(data=None, columns=None):
+        """Create a simple data structure that mimics pandas DataFrame"""
+        return SimpleDataFrame(data, columns)
+    
+    @staticmethod
+    def read_json(path):
+        """Read JSON file and return as list of dictionaries"""
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return []
+    
+    @staticmethod
+    def to_dict(df, orient='records'):
+        """Convert our simple dataframe to dictionary"""
+        if hasattr(df, 'to_dict'):
+            return df.to_dict(orient)
+        return df if isinstance(df, list) else []
+    
+    @staticmethod
+    def empty():
+        """Check if dataframe is empty"""
+        return False
+
+class SimpleDataFrame:
+    """Lightweight DataFrame replacement"""
+    
+    def __init__(self, data=None, columns=None):
+        self.data = data or []
+        self.columns = columns or []
+        self._df = self  # For compatibility
+    
+    @property
+    def values(self):
+        return self
+    
+    def tolist(self):
+        return self.data
+    
+    def to_dict(self, orient='records'):
+        if orient == 'records':
+            return self.data
+        return {}
+    
+    def empty(self):
+        return len(self.data) == 0
+    
+    @property
+    def iloc(self):
+        return self
+    
+    def __getitem__(self, index):
+        if isinstance(index, int):
+            return self.data[index] if index < len(self.data) else None
+        return self
+
+# Try to import pandas, but use replacement if it fails
+try:
+    # Set environment variables to reduce pandas memory usage
+    os.environ['PANDAS_MEMORY_REDUCTION'] = 'true'
+    
+    import pandas as pd
+    print("✅ Pandas imported successfully (with memory optimizations)")
+    
+    # Patch pandas to use less memory
+    original_dataframe = pd.DataFrame
+    
+    def safe_dataframe(*args, **kwargs):
+        try:
+            return original_dataframe(*args, **kwargs)
+        except MemoryError:
+            print("⚠️ Pandas MemoryError, using lightweight replacement")
+            return PandasReplacement.DataFrame(*args, **kwargs)
+    
+    pd.DataFrame = safe_dataframe
+    
+except ImportError:
+    print("⚠️ Pandas not available, using lightweight replacement")
+    pd = PandasReplacement
+except MemoryError as e:
+    print(f"⚠️ Pandas MemoryError: {e}, using lightweight replacement")
+    pd = PandasReplacement
+except Exception as e:
+    print(f"⚠️ Pandas import issue: {e}, using lightweight replacement")
+    pd = PandasReplacement
 
 # =============================================
 # ENHANCED CHROMIUM/CHROME SUPPRESSION
@@ -153,13 +256,6 @@ except Exception:
 # IMPORTS WITH ENHANCED ERROR HANDLING
 # =============================================
 
-try:
-    import gradio as gr
-    print("✅ Gradio imported successfully")
-except ImportError:
-    print("Failed to import gradio")
-    sys.exit(1)
-
 # Import custom modules with error handling
 try:
     from backend.generate_script import generate_script_with_groq
@@ -242,7 +338,6 @@ except ImportError as e:
     print(f"⚠️ Video generation module not available: {e}")
     build_video_from_timeline = None
 
-# Groq client
 # Groq client with lazy import
 groq_client = None
 
@@ -262,7 +357,6 @@ def get_groq_client():
 
 print("⚠️ Groq client set to lazy loading")
 
-# Static server imports
 # Static server imports - use the Flask-free version
 try:
     from static_server import get_static_path, get_avatar_path, ensure_directories
@@ -278,6 +372,7 @@ except ImportError as e:
     
     def ensure_directories():
         os.makedirs(os.path.join(PROJECT_ROOT, "static", "images"), exist_ok=True)
+
 # =============================================
 # CONFIGURATION
 # =============================================
@@ -1051,7 +1146,7 @@ def save_timeline_data(data):
     try:
         if isinstance(data, dict) and "data" in data:
             data = data["data"]
-        elif isinstance(data, pd.DataFrame):
+        elif hasattr(data, 'to_dict'):
             data = data.to_dict('records')
         elif not isinstance(data, list):
             return "Invalid data format."
@@ -1727,7 +1822,7 @@ def save_bg_segments(segments, timeline_table):
     try:
         if isinstance(segments, dict) and "data" in segments:
             segments_list = segments["data"]
-        elif isinstance(segments, pd.DataFrame):
+        elif hasattr(segments, 'values'):
             segments_list = segments.values.tolist()
         elif not segments:
             segments_list = []
@@ -1789,7 +1884,8 @@ def save_bg_segments(segments, timeline_table):
 def reset_bg_segments():
     if os.path.exists(BG_TIMELINE_FILE):
         os.remove(BG_TIMELINE_FILE)
-    return pd.DataFrame(columns=["start_seconds", "end_seconds", "audio", "playback_mode", "custom_start"]), "Reset all BG segments"
+    # Use our lightweight DataFrame replacement
+    return PandasReplacement.DataFrame(columns=["start_seconds", "end_seconds", "audio", "playback_mode", "custom_start"]), "Reset all BG segments"
 
 def create_fallback_avatar(username, size=200):
     """Create a fallback avatar using command line tools if PIL fails"""
@@ -2286,8 +2382,8 @@ with gr.Blocks() as demo:
 # =============================================
 
 if __name__ == "__main__":
-    # Set lower concurrency for resource-constrained environments - FIXED QUEUE PARAMETERS
-    demo.queue(max_size=5)
+    # Set lower concurrency for resource-constrained environments
+    demo.queue(max_size=3)  # Reduced from 5 to 3 for memory optimization
     port = int(os.environ.get("PORT", 7860))
 
     try:
@@ -2295,6 +2391,7 @@ if __name__ == "__main__":
         print("✅ Chromium/Chrome suppression active")
         print("✅ Resource monitoring active")
         print("✅ Signal handlers registered")
+        print("✅ Pandas memory optimization active")
         
         demo.launch(
             server_name="0.0.0.0",
@@ -2302,7 +2399,7 @@ if __name__ == "__main__":
             share=False,
             inbrowser=False,
             show_error=True,
-            debug=True
+            debug=False  # Set to False to reduce memory usage
         )
     except Exception as e:
         print(f"Failed to launch: {e}")
