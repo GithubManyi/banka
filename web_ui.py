@@ -39,8 +39,8 @@ except ImportError as e:
     def reset_typing_sessions():
         pass
 
-# Skip Groq and Flask entirely
-print("⚠️ Skipping Groq and Flask to save memory")
+# Skip OpenAI and Flask entirely - THIS IS THE KEY FIX
+print("⚠️ Skipping OpenAI and Flask to save memory")
 
 # Now import everything else - BUT DELAY PANDAS
 import subprocess
@@ -154,6 +154,76 @@ except Exception as e:
     pd = PandasReplacement
 
 # =============================================
+# OPENAI REPLACEMENT - LIGHTWEIGHT ALTERNATIVE
+# =============================================
+
+class LightweightAIClient:
+    """Lightweight replacement for OpenAI/Groq clients"""
+    
+    def __init__(self):
+        self.available = False
+        print("⚠️ Using lightweight AI client (no API calls)")
+    
+    def generate_script(self, characters, topic, mood, length, title):
+        """Generate a script using template-based approach"""
+        char_list = [c.strip() for c in characters.split(",") if c.strip()]
+        
+        if not char_list:
+            return "Error: No characters specified"
+        
+        script = f"Title: {title}\nTopic: {topic}\nMood: {mood}\n\n"
+        
+        # Template-based script generation
+        templates = [
+            "Hey everyone, what's up?",
+            "I was thinking about {topic}...",
+            "That's so {mood}!",
+            "No way! Really?",
+            "I totally agree with you",
+            "Wait, are you serious?",
+            "That reminds me of something...",
+            "Haha that's hilarious!",
+            "I'm not so sure about that",
+            "What do you think, {name}?",
+            "Let me tell you about {topic}",
+            "That's amazing!",
+            "I can't believe it",
+            "We should do something about this",
+            "This is getting interesting"
+        ]
+        
+        # Generate script lines
+        lines_generated = 0
+        max_lines = min(int(length), 50)  # Cap at 50 lines
+        
+        while lines_generated < max_lines:
+            char = random.choice(char_list)
+            template = random.choice(templates)
+            
+            # Fill in template variables
+            line = template.format(
+                topic=topic if topic else "this",
+                mood=mood if mood else "interesting", 
+                name=random.choice([c for c in char_list if c != char])
+            )
+            
+            script += f"{char}: {line}\n"
+            lines_generated += 1
+            
+            # Add occasional responses
+            if random.random() < 0.3 and lines_generated < max_lines:
+                responder = random.choice([c for c in char_list if c != char])
+                responses = ["I agree!", "That's true", "Haha nice", "Wait really?", "No way!"]
+                script += f"{responder}: {random.choice(responses)}\n"
+                lines_generated += 1
+        
+        script += "\n[End of conversation]"
+        return script
+
+# Create lightweight AI client
+lightweight_ai = LightweightAIClient()
+
+# =============================================
 # ENHANCED CHROMIUM/CHROME SUPPRESSION
 # =============================================
 
@@ -256,13 +326,8 @@ except Exception:
 # IMPORTS WITH ENHANCED ERROR HANDLING
 # =============================================
 
-# Import custom modules with error handling
-try:
-    from backend.generate_script import generate_script_with_groq
-    print("✅ Script generation module imported")
-except ImportError as e:
-    print(f"⚠️ Script generation module not available: {e}")
-    generate_script_with_groq = None
+# Import custom modules with error handling - USE LIGHTWEIGHT AI CLIENT
+print("✅ Using lightweight AI client for script generation")
 
 # Import render_bubble FIRST to avoid circular imports
 try:
@@ -337,25 +402,6 @@ try:
 except ImportError as e:
     print(f"⚠️ Video generation module not available: {e}")
     build_video_from_timeline = None
-
-# Groq client with lazy import
-groq_client = None
-
-def get_groq_client():
-    """Lazy import Groq only when needed"""
-    global groq_client
-    if groq_client is None:
-        try:
-            from groq import Groq
-            groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-            print("✅ Groq client initialized")
-        except ImportError:
-            print("⚠️ Groq client not available")
-        except Exception as e:
-            print(f"⚠️ Groq client initialization failed: {e}")
-    return groq_client
-
-print("⚠️ Groq client set to lazy loading")
 
 # Static server imports - use the Flask-free version
 try:
@@ -1250,10 +1296,8 @@ def handle_generate(characters, topic, mood, length, title, avatar_upload, manua
         if avatar_upload and char_list:
             avatar_path, avatar_status = handle_character_avatar_upload(avatar_upload, char_list[0])
         
-        if generate_script_with_groq:
-            latest_generated_script = generate_script_with_groq(char_list, topic, mood, length, title)
-        else:
-            latest_generated_script = "AI script generation not available"
+        # Use lightweight AI client instead of OpenAI/Groq
+        latest_generated_script = lightweight_ai.generate_script(characters, topic, mood, length, title)
 
     with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
         f.write(latest_generated_script.strip() + "\n")
@@ -2392,6 +2436,7 @@ if __name__ == "__main__":
         print("✅ Resource monitoring active")
         print("✅ Signal handlers registered")
         print("✅ Pandas memory optimization active")
+        print("✅ Using lightweight AI client (no OpenAI dependencies)")
         
         demo.launch(
             server_name="0.0.0.0",
