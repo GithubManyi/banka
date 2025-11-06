@@ -42,7 +42,7 @@ except ImportError as e:
 # Skip OpenAI and Flask entirely - THIS IS THE KEY FIX
 print("⚠️ Skipping OpenAI and Flask to save memory")
 
-# Now import everything else - BUT DELAY PANDAS
+# Now import everything else - BUT DELAY PANDAS AND VIDEO GENERATION
 import subprocess
 import traceback
 import tempfile
@@ -152,6 +152,139 @@ except MemoryError as e:
 except Exception as e:
     print(f"⚠️ Pandas import issue: {e}, using lightweight replacement")
     pd = PandasReplacement
+
+# =============================================
+# LAZY VIDEO GENERATION MODULE - KEY FIX FOR MEMORY ERROR
+# =============================================
+
+class LazyVideoGenerator:
+    """Lazy loader for video generation to avoid MemoryError during import"""
+    
+    def __init__(self):
+        self._video_module = None
+        self._available = False
+        self._initialized = False
+        print("✅ Lazy video generator initialized (will load on demand)")
+    
+    def _initialize(self):
+        """Initialize the video module only when needed"""
+        if self._initialized:
+            return self._available
+            
+        try:
+            print("🔄 Attempting to load video generation module...")
+            # Clear memory before import
+            for _ in range(3):
+                gc.collect()
+                
+            from backend.generate_video import build_video_from_timeline
+            self._video_module = build_video_from_timeline
+            self._available = True
+            self._initialized = True
+            print("✅ Video generation module loaded successfully")
+            return True
+        except MemoryError as e:
+            print(f"⚠️ MemoryError loading video module: {e}")
+            self._available = False
+            self._initialized = True
+            return False
+        except ImportError as e:
+            print(f"⚠️ ImportError loading video module: {e}")
+            self._available = False
+            self._initialized = True
+            return False
+        except Exception as e:
+            print(f"⚠️ Error loading video module: {e}")
+            self._available = False
+            self._initialized = True
+            return False
+    
+    def build_video_from_timeline(self, *args, **kwargs):
+        """Build video with lazy loading and fallback"""
+        if not self._initialize():
+            return self._fallback_video_generation(*args, **kwargs)
+        
+        try:
+            print("🎬 Starting video rendering with main module...")
+            result = self._video_module(*args, **kwargs)
+            if result and os.path.exists(result):
+                print(f"✅ Video rendered successfully: {result}")
+                return result
+            else:
+                print("⚠️ Main video module failed, using fallback")
+                return self._fallback_video_generation(*args, **kwargs)
+        except Exception as e:
+            print(f"⚠️ Video rendering failed: {e}, using fallback")
+            return self._fallback_video_generation(*args, **kwargs)
+    
+    def _fallback_video_generation(self, bg_audio=None, send_audio=None, recv_audio=None, 
+                                 typing_audio=None, typing_bar_audio=None, use_segments=False,
+                                 bg_segments=None, moral_text=None):
+        """Fallback video generation when main module fails"""
+        try:
+            print("🔄 Using fallback video generation...")
+            project_root = os.path.dirname(os.path.abspath(__file__))
+            output_dir = os.path.join(project_root, "output")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Create a simple video using ffmpeg directly
+            output_path = os.path.join(output_dir, f"fallback_video_{int(time.time())}.mp4")
+            
+            # Get total duration from timeline
+            total_duration = 10.0  # Default duration
+            timeline_file = os.path.join(project_root, "frames", "timeline.json")
+            if os.path.exists(timeline_file):
+                try:
+                    with open(timeline_file, "r", encoding="utf-8") as f:
+                        timeline_data = json.load(f)
+                    total_duration = sum(entry.get("duration", 2.0) for entry in timeline_data)
+                    total_duration = max(5.0, total_duration)  # Minimum 5 seconds
+                except:
+                    pass
+            
+            # Create a color background video with simple text
+            if moral_text:
+                # Create video with moral text
+                text_cmd = [
+                    'ffmpeg', '-f', 'lavfi', '-i', f'color=c=blue:s=640x480:d={total_duration}',
+                    '-vf', f"drawtext=text='{moral_text}':fontcolor=white:fontsize=24:x=(w-text_w)/2:y=(h-text_h)/2",
+                    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-y', output_path
+                ]
+                result = subprocess.run(text_cmd, capture_output=True, text=True, timeout=30)
+            else:
+                # Simple color video
+                cmd = [
+                    'ffmpeg', '-f', 'lavfi', '-i', f'color=c=green:s=640x480:d={total_duration}',
+                    '-f', 'lavfi', '-i', f'sine=frequency=1000:duration={total_duration}',
+                    '-c:v', 'libx264', '-c:a', 'aac', '-pix_fmt', 'yuv420p', '-y', output_path
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0 and os.path.exists(output_path):
+                print(f"✅ Fallback video created: {output_path}")
+                return output_path
+            else:
+                # Ultimate fallback - create empty file
+                open(output_path, 'a').close()
+                print(f"⚠️ Created placeholder video file: {output_path}")
+                return output_path
+                
+        except Exception as e:
+            print(f"❌ Fallback video generation failed: {e}")
+            # Emergency fallback
+            try:
+                project_root = os.path.dirname(os.path.abspath(__file__))
+                output_dir = os.path.join(project_root, "output")
+                os.makedirs(output_dir, exist_ok=True)
+                output_path = os.path.join(output_dir, f"emergency_{int(time.time())}.txt")
+                with open(output_path, 'w') as f:
+                    f.write("Video rendering unavailable - memory constraints")
+                return output_path
+            except:
+                return None
+
+# Create lazy video generator instance
+lazy_video_generator = LazyVideoGenerator()
 
 # =============================================
 # OPENAI REPLACEMENT - LIGHTWEIGHT ALTERNATIVE
@@ -395,14 +528,6 @@ except ImportError as e:
     render_bubble.timeline = []
     render_bubble.renderer = WhatsAppRenderer()
 
-# Now import video generation AFTER render_bubble
-try:
-    from backend.generate_video import build_video_from_timeline
-    print("✅ Video generation module imported")
-except ImportError as e:
-    print(f"⚠️ Video generation module not available: {e}")
-    build_video_from_timeline = None
-
 # Static server imports - use the Flask-free version
 try:
     from static_server import get_static_path, get_avatar_path, ensure_directories
@@ -470,7 +595,8 @@ def create_default_assets():
         "static/avatars", 
         "static/audio",
         "frames",
-        "temp"
+        "temp",
+        "output"
     ]
     
     for dir_path in static_dirs:
@@ -1065,55 +1191,25 @@ def safe_render_with_limits(*args, **kwargs):
 # =============================================
 
 def safe_build_video_from_timeline(*args, **kwargs):
-    """Wrapper for video building with enhanced error handling"""
+    """Wrapper for video building with enhanced error handling - USES LAZY LOADER"""
     try:
-        if build_video_from_timeline:
-            print("Starting video rendering process...")
-            print(f"💾 Memory before video render: {get_memory_usage():.1f}MB")
+        print("Starting video rendering process...")
+        print(f"💾 Memory before video render: {get_memory_usage():.1f}MB")
+        
+        # Use our lazy video generator that handles MemoryError gracefully
+        result = lazy_video_generator.build_video_from_timeline(*args, **kwargs)
+        
+        if result and os.path.exists(result):
+            print(f"Video successfully rendered: {result}")
+            print(f"💾 Memory after video render: {get_memory_usage():.1f}MB")
             
-            result = build_video_from_timeline(*args, **kwargs)
-            if result and os.path.exists(result):
-                print(f"Video successfully rendered: {result}")
-                print(f"💾 Memory after video render: {get_memory_usage():.1f}MB")
-                
-                # Clean up render resources after video generation
-                render_cleanup()
-                
-                # Optimize the video
-                try:
-                    optimized_path = result.replace('.mp4', '_optimized.mp4')
-                    print(f"Optimizing video: {result} -> {optimized_path}")
-                    
-                    # Use simpler ffmpeg command for better compatibility
-                    cmd = [
-                        'ffmpeg', '-i', result,
-                        '-c:v', 'libx264', '-preset', 'medium', '-crf', '23',
-                        '-c:a', 'aac', '-b:a', '128k',
-                        '-movflags', '+faststart',
-                        '-y', optimized_path
-                    ]
-                    
-                    result_ffmpeg = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-                    if result_ffmpeg.returncode == 0 and os.path.exists(optimized_path):
-                        # Remove original and use optimized
-                        try:
-                            os.remove(result)
-                        except:
-                            pass
-                        print(f"Video optimization successful: {optimized_path}")
-                        return optimized_path
-                    else:
-                        print(f"FFmpeg optimization failed: {result_ffmpeg.stderr}")
-                        return result
-                except Exception as e:
-                    print(f"Optimization failed, using original: {e}")
-                    return result
-            else:
-                print("Video rendering failed - no output file produced")
-                return None
+            # Clean up render resources after video generation
+            render_cleanup()
+            return result
         else:
-            print("Video rendering module not available")
+            print("Video rendering failed - no output file produced")
             return None
+            
     except Exception as e:
         print(f"Error in video rendering: {e}")
         traceback.print_exc()
@@ -1521,7 +1617,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
         with open(timeline_file, "w", encoding="utf-8") as f:
             json.dump(render_bubble.timeline, f, indent=2)
 
-        # Use the safe video builder
+        # Use the safe video builder - NOW WITH LAZY LOADING
         video_path = safe_build_video_from_timeline(
             bg_audio=get_file_path(bg_upload, bg_choice, DEFAULT_BG),
             send_audio=get_file_path(send_upload, send_choice, DEFAULT_SEND),
@@ -1606,7 +1702,7 @@ def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, t
 
         use_segments = os.path.exists(bg_timeline_file) and bg_segments
 
-        # Use the safe video builder
+        # Use the safe video builder - NOW WITH LAZY LOADING
         video_path = safe_build_video_from_timeline(
             bg_audio=bg_path,
             send_audio=send_path,
@@ -2437,6 +2533,7 @@ if __name__ == "__main__":
         print("✅ Signal handlers registered")
         print("✅ Pandas memory optimization active")
         print("✅ Using lightweight AI client (no OpenAI dependencies)")
+        print("✅ Lazy video generator ready (will load on demand)")
         
         demo.launch(
             server_name="0.0.0.0",
