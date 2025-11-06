@@ -1,23 +1,35 @@
 #!/usr/bin/env python3
+# EMERGENCY MEMORY FIX - MUST BE AT VERY TOP
 import os
 import gc
-import sys
 
-# SAFE Memory Optimization - DON'T DELETE ESSENTIAL MODULES
-print("🚨 Applying safe memory optimization...")
+# Clear any pre-allocated memory
+for _ in range(5):
+    gc.collect()
 
-# Set environment variables to reduce memory usage
+# Set aggressive memory limits
 os.environ['PYTHONHASHSEED'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['GRADIO_ANALYTICS_ENABLED'] = 'False'
 os.environ['BOKEH_MINIFIED'] = 'true'
 os.environ['BOKEH_RESOURCES'] = 'none'
+os.environ['DISABLE_DEV_SHM'] = 'true'
+os.environ['ENABLE_CRASH_REPORTER'] = 'false'
 
-# Force garbage collection
-for _ in range(3):
-    gc.collect()
+print("🚨 EMERGENCY: Applied aggressive memory optimization")
 
-print("✅ Safe memory optimization complete")
+# Now import only what's absolutely necessary
+import gradio as gr
+print("✅ Gradio loaded")
+
+# Import your custom modules
+from backend.render_bubble import render_bubble, reset_typing_sessions
+print("✅ Render modules loaded")
+
+# Skip Groq and Flask entirely
+print("⚠️ Skipping Groq and Flask to save memory")
+
+# Rest of your minimal web UI code...
 
 # Now import everything else
 import subprocess
@@ -35,6 +47,8 @@ import math
 import random
 import psutil
 import signal
+import os
+
 
 # =============================================
 # ENHANCED CHROMIUM/CHROME SUPPRESSION
@@ -229,16 +243,24 @@ except ImportError as e:
     build_video_from_timeline = None
 
 # Groq client
-try:
-    from groq import Groq
-    groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-    print("✅ Groq client initialized")
-except ImportError:
-    print("⚠️ Groq client not available")
-    groq_client = None
-except Exception as e:
-    print(f"⚠️ Groq client initialization failed: {e}")
-    groq_client = None
+# Groq client with lazy import
+groq_client = None
+
+def get_groq_client():
+    """Lazy import Groq only when needed"""
+    global groq_client
+    if groq_client is None:
+        try:
+            from groq import Groq
+            groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+            print("✅ Groq client initialized")
+        except ImportError:
+            print("⚠️ Groq client not available")
+        except Exception as e:
+            print(f"⚠️ Groq client initialization failed: {e}")
+    return groq_client
+
+print("⚠️ Groq client set to lazy loading")
 
 # Static server imports
 try:
