@@ -1281,7 +1281,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                     meme_file = None
                     
                 if meme_file:
-                    safe_render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
+                    #safe_render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
+                    original_render_bubble(meme_sender, "", meme_path=meme_file, is_sender=is_meme_sender)
                     if render_bubble.timeline:
                         render_bubble.timeline[-1]["duration"] = 4.0
                 continue
@@ -1316,7 +1317,8 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
                             render_bubble.timeline[-1]["duration"] = duration
                     else:
                         if text_message.strip():
-                            safe_render_bubble(name, text_message, is_sender=is_sender)
+                            #safe_render_bubble(name, text_message, is_sender=is_sender)
+                            original_render_bubble(name, text_message, is_sender=is_sender)
                             if render_bubble.timeline:
                                 duration = max(3.0, len(text_message) / 8)
                                 render_bubble.timeline[-1]["duration"] = duration
