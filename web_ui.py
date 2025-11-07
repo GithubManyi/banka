@@ -16,6 +16,9 @@ import random
 import psutil
 import signal
 
+# ========== CRITICAL FIX: Increase recursion limit ==========
+sys.setrecursionlimit(10000)
+
 # =============================================
 # ENHANCED CHROMIUM/CHROME SUPPRESSION
 # =============================================
@@ -75,7 +78,7 @@ def monitor_resources():
         cpu_percent = psutil.cpu_percent(interval=0.1)
         active_threads = threading.active_count()
        
-        print(f"📊 Resource Monitor - Memory: {memory.percent}% | CPU: {cpu_percent}% | Threads: {active_threads}")
+        print(f"📊 Resource Monitor - Memory: {memory.percent:.1f}% | CPU: {cpu_percent:.1f}% | Threads: {active_threads}")
        
         if memory.percent > 85:
             print("🚨 High memory usage detected")
@@ -1050,6 +1053,20 @@ def handle_manual_script(script_text):
     with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
         f.write(latest_generated_script + "\n")
     return latest_generated_script, f"Manual script saved to {SCRIPT_FILE}"
+
+# ========== FIXED: Safe object serialization to prevent recursion ==========
+def safe_object_serialization(obj):
+    """Prevent recursion during object serialization"""
+    if hasattr(obj, '__dict__'):
+        # For objects, only get simple attributes
+        return {k: v for k, v in obj.__dict__.items() 
+                if not k.startswith('_') and not callable(v)}
+    elif isinstance(obj, (list, tuple)):
+        return [safe_object_serialization(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {k: safe_object_serialization(v) for k, v in obj.items()}
+    else:
+        return obj
 
 # SAFE WRAPPER FUNCTIONS TO HANDLE MISSING PARAMETERS
 def safe_handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
