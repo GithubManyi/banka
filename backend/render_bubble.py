@@ -15,27 +15,29 @@ import gc
 import logging
 from io import BytesIO
 import signal
+
 # ---------- CONTAINER STABILITY FIXES ---------- #
 def signal_handler(sig, frame):
     print(f"🚨 Received signal {sig}, but continuing...")
-    # Don't exit on SIGTERM/SIGINT in container
     if sig in [signal.SIGTERM, signal.SIGINT]:
         print("🛑 Ignoring termination signal to maintain container stability")
         return
-# Register signal handlers
+
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
+
 # Reduce logging verbosity
 logging.getLogger('html2image').setLevel(logging.WARNING)
 logging.getLogger('PIL').setLevel(logging.WARNING)
 logging.getLogger('selenium').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
-# Suppress Chrome/Chromium specific warnings
 logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.ERROR)
+
 os.environ['DBUS_SESSION_BUS_ADDRESS'] = ''
 os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = ''
 os.environ['DISABLE_DEV_SHM'] = 'true'
 os.environ['ENABLE_CRASH_REPORTER'] = 'false'
+
 # ---------- CONFIG ---------- #
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "backend", "templates")
@@ -48,6 +50,7 @@ CHARACTERS_FILE = os.path.join(BASE_DIR, "characters.json")
 os.makedirs(FRAMES_DIR, exist_ok=True)
 MAIN_USER = "Banka" # right-side sender
 W, H = 1904, 934 # match video size
+
 # ---------- AVATAR MANAGEMENT SYSTEM ---------- #
 def load_characters():
     """Load characters from JSON file - SELF CONTAINED"""
@@ -60,6 +63,7 @@ def load_characters():
             print(f"❌ Error loading characters: {e}")
             return {}
     return {}
+
 def get_character_avatar_path(username):
     """Get the correct avatar path for a character - SELF CONTAINED"""
     characters = load_characters()
@@ -105,6 +109,7 @@ def get_character_avatar_path(username):
     # 3) No avatar found, return empty string to trigger initial generation
     print(f"⚠️ No avatar found for {username_clean}, will generate initial")
     return ""
+
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display - SELF CONTAINED"""
     if not avatar_path or not os.path.exists(avatar_path):
@@ -124,10 +129,12 @@ def encode_avatar_for_html(avatar_path):
     except Exception as e:
         print(f"⚠️ Failed to encode avatar {avatar_path}: {e}")
         return ""
+
 # Global HTML2Image instance
 HTI = None
 FRAME_CACHE = {}
 CACHE_MAX_SIZE = 100
+
 def get_html2image():
     """Get or create HTML2Image instance with optimized Chrome flags"""
     global HTI
@@ -192,6 +199,7 @@ def get_html2image():
             print(f"⚠️ HTML2Image setup failed: {e}")
             HTI = None
     return HTI
+
 def cleanup_resources():
     """Clean up all resources when done"""
     global HTI
@@ -200,6 +208,7 @@ def cleanup_resources():
     FRAME_CACHE.clear()
     gc.collect()
     print("🧹 Cleaned up rendering resources")
+
 def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
     """Generate a cache key for frame rendering"""
     key_data = {
@@ -210,6 +219,7 @@ def get_frame_cache_key(messages, show_typing_bar, typing_user, upcoming_text):
         'upcoming_text': upcoming_text
     }
     return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
+
 # ---------- HELPERS ---------- #
 def encode_meme(path):
     """Encode meme for HTML display"""
@@ -228,6 +238,7 @@ def encode_meme(path):
         "meme_type": ext, # ".jpg", ".png", ".mp4", etc.
         "mime": mime # "image/png", "image/jpeg", "video/mp4"
     }
+
 def name_to_color(username: str) -> str:
     """Readable deterministic color from username, with better spread."""
     h = hashlib.md5(username.strip().lower().encode("utf-8")).hexdigest()
@@ -237,6 +248,7 @@ def name_to_color(username: str) -> str:
     lightness = 0.55
     r, g, b = colorsys.hls_to_rgb(hue/360, lightness, saturation)
     return f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+
 def calculate_typing_duration(text):
     """Calculate realistic typing duration based on text length"""
     chars = len(text.strip())
@@ -245,6 +257,7 @@ def calculate_typing_duration(text):
  
     typing_time = base_duration + (chars * char_duration)
     return min(typing_time, 4.0) # Cap at 4 seconds max
+
 def debug_timeline_entries():
     """Debug function to check what's in the timeline"""
     if hasattr(render_bubble, 'timeline') and render_bubble.timeline:
@@ -254,12 +267,14 @@ def debug_timeline_entries():
      
         for i, entry in enumerate(typing_entries[-10:]): # Show last 10 entries
             print(f"🔍 Entry {i}: text='{entry.get('upcoming_text')}' sound={entry.get('sound')} duration={entry.get('duration')}")
+
 # ---------- VIDEO HELPERS ---------- #
 def add_still_to_concat(concat_lines, frame_file, duration):
     """Add a still frame to concat file for video generation"""
     safe_path = frame_file.replace("\\", "/")
     concat_lines.append(f"file '{safe_path}'")
     concat_lines.append(f"duration {float(duration):.3f}")
+
 def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
     """Handle meme image processing for video generation"""
     if not os.path.exists(meme_path):
@@ -276,6 +291,7 @@ def handle_meme_image(meme_path, output_path, duration=1.0, fps=25):
  
     # Return the single frame path and duration
     return frame_path, duration
+
 # ---------- EMOJI FONT SUPPORT ---------- #
 def install_emoji_fonts():
     """Try to install or use emoji-supporting fonts"""
@@ -300,21 +316,7 @@ def install_emoji_fonts():
     except Exception as e:
         print(f"⚠️ Error checking emoji fonts: {e}")
         return []
-# ---------- RENDERER ---------- #
-# ---------- AVATAR GENERATION FIXES ---------- #
-def test_avatar_generation():
-    """Test avatar generation without errors"""
-    test_users = ["TestUser", "Emoji😀", "Multi Word"]
-   
-    for user in test_users:
-        try:
-            # This should trigger avatar generation
-            avatar_path = get_character_avatar_path(user)
-            print(f"✅ Avatar test passed for: {user}")
-        except Exception as e:
-            print(f"❌ Avatar test failed for {user}: {e}")
-# Call test after function definition
-test_avatar_generation()
+
 # ---------- RENDERER ---------- #
 class WhatsAppRenderer:
     def __init__(self, chat_title="Default Group", chat_avatar=None, chat_status=None):
@@ -483,6 +485,7 @@ class WhatsAppRenderer:
             message_entry["mime"] = meme_data["mime"]
  
         self.message_history.append(message_entry)
+
     def render_frame(self, frame_file, show_typing_bar=False, typing_user=None, upcoming_text="", short_wait=False):
         """
         Optimized frame rendering with HTML2Image fallback to PIL
@@ -715,7 +718,7 @@ class WhatsAppRenderer:
                     text_y = username_y + 30
                     for line in lines:
                         draw.text((bubble_x + 18, text_y), line,
-                                 fill=(233, 237, 239), font=medium) # --text: #e9edef
+                                 fill=(233, 237, 239), font=font_medium) # --text: #e9edef
                         text_y += 40 # line-height equivalent
                    
                     # Timestamp at bottom
@@ -781,6 +784,7 @@ class WhatsAppRenderer:
             print(f"⏱️ Frame {self._render_count} rendered in {render_time:.2f}s")
      
         return rendered_html
+
 # ---------- BUBBLE RENDERING ---------- #
 def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=False, typing=False):
     """
@@ -894,8 +898,10 @@ def render_bubble(username, message="", meme_path=None, is_sender=None, is_read=
     if render_bubble.frame_count % 20 == 0:
         print(f"✅ Regular frame {render_bubble.frame_count}: {frame_file} ({duration}s)")
     return frame_file
+
 def render_meme(username, meme_path):
     return render_bubble(username, "", meme_path=meme_path)
+
 def render_typing_bubble(username, duration=None, is_sender=None, custom_durations=None):
     custom_durations = custom_durations or {} # ✅ prevents NoneType errors
     """Optimized typing bubble rendering"""
@@ -953,6 +959,7 @@ def render_typing_bubble(username, duration=None, is_sender=None, custom_duratio
     if render_bubble.frame_count % 20 == 0:
         print(f"⌨️ Typing indicator for {username} (duration: {duration}s)")
     return frame_file
+
 def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duration=None, is_character_typing=True):
     """
     SIMPLIFIED: Render typing bar frames with CONTINUOUS sound logic.
@@ -1053,6 +1060,7 @@ def render_typing_bar_frame(username, upcoming_text="", frame_path=None, duratio
         json.dump(render_bubble.timeline, tf, indent=2)
     render_bubble.frame_count += 1
     return frame_path
+
 def generate_beluga_typing_sequence(real_message):
     """
     FIXED: Actually renders typing frames with CONTINUOUS sound control
@@ -1134,6 +1142,7 @@ def generate_beluga_typing_sequence(real_message):
     print(f"⌨️ Generated {len(sequence)} typing frames for '{real_message[:50]}...'")
  
     return sequence
+
 def render_typing_sequence(username, real_message):
     """
     FIXED: Actually renders the typing sequence frames with sound
@@ -1159,6 +1168,7 @@ def render_typing_sequence(username, real_message):
  
     print(f"🎬 Completed typing sequence: {len(rendered_frames)} frames rendered")
     return rendered_frames
+
 def reset_typing_sessions():
     """Reset typing session tracking - call this when starting a new video"""
     if hasattr(render_bubble, 'typing_session_active'):
@@ -1168,6 +1178,7 @@ def reset_typing_sessions():
         render_bubble.prev_typing_text = ""
         render_bubble.fake_typing_count = 0
         print("🔄 Reset typing session tracking")
+
 # ---------- MAIN SCRIPT ---------- #
 if __name__ == "__main__":
     try:
