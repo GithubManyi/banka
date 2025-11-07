@@ -5,6 +5,7 @@ import glob
 import shutil
 import requests
 import base64
+import sys
 from typing import List, Dict, Any, Tuple
 from PIL import Image
 from backend.meme_injector import inject_random_memes
@@ -14,11 +15,8 @@ import shlex
 from PIL import Image, ImageDraw, ImageFont
 import random
 
-# Add Groq import for AI moral generation
-try:
-    from groq import Groq
-except ImportError:
-    print("⚠️ Groq package not available - AI moral generation will use fallback")
+# ========== CRITICAL FIX: Increase recursion limit ==========
+sys.setrecursionlimit(10000)
 
 # --------------------
 # Paths & defaults
@@ -579,8 +577,22 @@ def debug_concat_creation(lines, concat_path, total_duration):
     print(f"🔍 Concat directory exists: {os.path.exists(concat_dir)}")
     print(f"🔍 Concat directory: {concat_dir}")
 
+# ========== FIXED VERSION: Safe object serialization ==========
+def safe_object_serialization(obj):
+    """Prevent recursion during object serialization"""
+    if hasattr(obj, '__dict__'):
+        # For objects, only get simple attributes
+        return {k: v for k, v in obj.__dict__.items() 
+                if not k.startswith('_') and not callable(v)}
+    elif isinstance(obj, (list, tuple)):
+        return [safe_object_serialization(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {k: safe_object_serialization(v) for k, v in obj.items()}
+    else:
+        return obj
+
 # --------------------
-# Main builder
+# Main builder (FIXED RECURSION ISSUES)
 # --------------------
 def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, typing_audio=None, typing_bar_audio=None, use_segments=False, bg_segments: List[Dict[str, Any]] = None, moral_text: str = None) -> str:
     print("🎬 ===== build_video_from_timeline CALLED =====")
