@@ -15,40 +15,37 @@ import math
 import random
 import psutil
 import signal
+
 # =============================================
 # ENHANCED CHROMIUM/CHROME SUPPRESSION
 # =============================================
-# Apply the same suppression as in render_bubble.py for consistency
 os.environ['DBUS_SESSION_BUS_ADDRESS'] = ''
 os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = ''
 os.environ['DISABLE_DEV_SHM'] = 'true'
 os.environ['ENABLE_CRASH_REPORTER'] = 'false'
 os.environ['CHROME_HEADLESS'] = 'true'
 os.environ['NO_AT_BRIDGE'] = '1'
-# Disable GPU and other unnecessary features
 os.environ['LIBGL_ALWAYS_SOFTWARE'] = '1'
 os.environ['GALLIUM_DRIVER'] = 'llvmpipe'
-# Disable various system integrations
 os.environ['XDG_RUNTIME_DIR'] = '/tmp/runtime'
 os.environ['XDG_CACHE_HOME'] = '/tmp/cache'
 os.environ['HOME'] = '/tmp'
-# Resource limits to prevent thread exhaustion
 os.environ['GRADIO_ANALYTICS_ENABLED'] = 'False'
 os.environ['BOKEH_Resources'] = 'minified'
-# Reduce logging verbosity
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 # =============================================
 # CONTAINER STABILITY FIXES
 # =============================================
 def signal_handler(sig, frame):
     print(f"🚨 Received signal {sig}, but continuing...")
-    # Don't exit on SIGTERM/SIGINT in container
     if sig in [signal.SIGTERM, signal.SIGINT]:
         print("🛑 Ignoring termination signal to maintain container stability")
         return
-# Register signal handlers
+
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
+
 # =============================================
 # RESOURCE MANAGEMENT
 # =============================================
@@ -56,16 +53,16 @@ def optimize_system_limits():
     """Optimize system limits to prevent resource exhaustion"""
     try:
         import resource
-        # Increase resource limits
         resource.setrlimit(resource.RLIMIT_NOFILE, (4096, 8192))
         print("✅ System resource limits optimized")
     except Exception as e:
         print(f"⚠️ Could not optimize system limits: {e}")
+
 optimize_system_limits()
+
 def monitor_resources():
     """Monitor system resources with reduced logging frequency"""
     try:
-        # Only log every 10th call to reduce console spam
         if not hasattr(monitor_resources, 'call_count'):
             monitor_resources.call_count = 0
        
@@ -80,7 +77,6 @@ def monitor_resources():
        
         print(f"📊 Resource Monitor - Memory: {memory.percent}% | CPU: {cpu_percent}% | Threads: {active_threads}")
        
-        # Warn if resources are high (only log warnings every time)
         if memory.percent > 85:
             print("🚨 High memory usage detected")
         if active_threads > 50:
@@ -88,6 +84,7 @@ def monitor_resources():
            
     except Exception as e:
         print(f"⚠️ Resource monitoring failed: {e}")
+
 # =============================================
 # FFMPEG CHECK
 # =============================================
@@ -99,6 +96,7 @@ try:
         print("✅ FFmpeg is available")
 except Exception:
     print("ffmpeg check failed")
+
 # =============================================
 # IMPORTS WITH ENHANCED ERROR HANDLING
 # =============================================
@@ -108,6 +106,7 @@ try:
 except ImportError:
     print("Failed to import gradio")
     sys.exit(1)
+
 # Import custom modules with error handling
 try:
     from backend.generate_script import generate_script_with_groq
@@ -115,18 +114,21 @@ try:
 except ImportError as e:
     print(f"⚠️ Script generation module not available: {e}")
     generate_script_with_groq = None
+
 try:
     from backend.generate_video import build_video_from_timeline
     print("✅ Video generation module imported")
 except ImportError as e:
     print(f"⚠️ Video generation module not available: {e}")
     build_video_from_timeline = None
+
 try:
     from backend.avatar_handler import save_uploaded_avatar
     print("✅ Avatar handler imported")
 except ImportError as e:
     print(f"⚠️ Avatar handler not available: {e}")
     save_uploaded_avatar = None
+
 # Enhanced render bubble import with better error handling
 try:
     from backend.render_bubble import render_bubble, render_typing_bubble, WhatsAppRenderer, render_typing_bar_frame, generate_beluga_typing_sequence, reset_typing_sessions
@@ -147,7 +149,6 @@ except ImportError as e:
             self.chat_avatar = None
            
     def render_bubble(*args, **kwargs):
-        # Create frames directory if it doesn't exist
         frames_dir = os.path.join(PROJECT_ROOT, "frames")
         os.makedirs(frames_dir, exist_ok=True)
         return os.path.join(frames_dir, "frame_0000.png")
@@ -172,6 +173,7 @@ except ImportError as e:
     render_bubble.frame_count = 0
     render_bubble.timeline = []
     render_bubble.renderer = WhatsAppRenderer()
+
 # Groq client
 try:
     from groq import Groq
@@ -183,6 +185,7 @@ except ImportError:
 except Exception as e:
     print(f"⚠️ Groq client initialization failed: {e}")
     groq_client = None
+
 # Static server imports
 try:
     from static_server import get_static_path, get_avatar_path
@@ -194,6 +197,7 @@ except ImportError:
    
     def get_avatar_path(username):
         return os.path.join(PROJECT_ROOT, "static", "images", "contact.png")
+
 # =============================================
 # CONFIGURATION
 # =============================================
@@ -201,31 +205,37 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_FILE = os.path.join(PROJECT_ROOT, "script.txt")
 BG_TIMELINE_FILE = os.path.join(PROJECT_ROOT, "frames", "bg_timeline.json")
 CHARACTERS_FILE = os.path.join(PROJECT_ROOT, "characters.json")
+
 # Keep track of the last generated script
 if os.path.exists(SCRIPT_FILE):
     with open(SCRIPT_FILE, "r", encoding="utf-8") as f:
         latest_generated_script = f.read().strip()
 else:
     latest_generated_script = ""
+
 # Default audio
 DEFAULT_BG = os.path.join(PROJECT_ROOT, "static", "audio", "default_bg.mp3")
 DEFAULT_SEND = os.path.join(PROJECT_ROOT, "static", "audio", "send.mp3")
 DEFAULT_RECV = os.path.join(PROJECT_ROOT, "static", "audio", "recv.mp3")
 DEFAULT_TYPING = None
+
 # Collect available audio files
 AUDIO_DIR = os.path.join(PROJECT_ROOT, "static", "audio")
 if os.path.exists(AUDIO_DIR):
     AUDIO_FILES = [f for f in os.listdir(AUDIO_DIR) if f.lower().endswith(".mp3")]
 else:
     AUDIO_FILES = []
+
 # Global flags
 auto_refresh_running = False
 auto_refresh_thread = None
 rendering_in_progress = False
+
 # Prevent Gradio timeouts
 os.environ["GRADIO_QUEUE"] = "True"
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 # =============================================
 # ENHANCED ASSET MANAGEMENT
 # =============================================
@@ -263,13 +273,14 @@ def create_default_assets():
             img.save(contact_path, 'PNG')
             print("✅ Created default contact avatar")
         except ImportError:
-            # Create empty file as fallback
             open(contact_path, 'a').close()
             print("⚠️ PIL not available, created placeholder avatar file")
         except Exception as e:
             print(f"⚠️ Could not create default avatar: {e}")
             open(contact_path, 'a').close()
+
 create_default_assets()
+
 # =============================================
 # CHARACTER MANAGEMENT SYSTEM
 # =============================================
@@ -294,6 +305,7 @@ def load_characters():
         }
         save_characters(default_characters)
         return default_characters
+
 def save_characters(characters):
     """Save characters to JSON file"""
     try:
@@ -302,6 +314,7 @@ def save_characters(characters):
         return True
     except Exception:
         return False
+
 def add_character(name, avatar_path, personality):
     """Add a new character"""
     characters = load_characters()
@@ -318,6 +331,7 @@ def add_character(name, avatar_path, personality):
         return True, f"Character '{name}' added successfully!"
     else:
         return False, f"Failed to save character '{name}'"
+
 def update_character(name, avatar_path, personality):
     """Update an existing character"""
     characters = load_characters()
@@ -334,6 +348,7 @@ def update_character(name, avatar_path, personality):
         return True, f"Character '{name}' updated successfully!"
     else:
         return False, f"Failed to update character '{name}'"
+
 def delete_character(name):
     """Delete a character"""
     characters = load_characters()
@@ -347,10 +362,12 @@ def delete_character(name):
         return True, f"Character '{name}' deleted successfully!"
     else:
         return False, f"Failed to delete character '{name}'"
+
 def get_character_names():
     """Get list of all character names"""
     characters = load_characters()
     return list(characters.keys())
+
 def get_character_details(name):
     """Get details for a specific character"""
     characters = load_characters()
@@ -358,6 +375,7 @@ def get_character_details(name):
         return characters[name]
     else:
         return {"avatar": "static/images/contact.png", "personality": ""}
+
 def get_character_avatar_path(username):
     """Return web path for avatar with better error handling"""
     default_web = "static/images/contact.png"
@@ -385,6 +403,7 @@ def get_character_avatar_path(username):
             return f"static/avatars/{username_clean}{ext}"
   
     return "INITIALS"
+
 def encode_avatar_for_html(avatar_path):
     """Convert avatar image to base64 for HTML display"""
     if not avatar_path or not os.path.exists(avatar_path):
@@ -403,6 +422,7 @@ def encode_avatar_for_html(avatar_path):
         return f"data:{mime_type};base64,{avatar_data}"
     except Exception:
         return None
+
 # =============================================
 # AVATAR GENERATION SYSTEM
 # =============================================
@@ -497,6 +517,7 @@ def generate_avatar_with_initials(username, size=200):
         return create_fallback_avatar(username, size)
     except Exception:
         return create_fallback_avatar(username, size)
+
 def get_or_create_initial_avatar(username):
     """Get or create an avatar with initials for a username"""
     avatars_dir = os.path.join(PROJECT_ROOT, "static", "avatars")
@@ -527,6 +548,7 @@ def get_or_create_initial_avatar(username):
             return "static/images/contact.png"
     else:
         return "static/images/contact.png"
+
 def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_read=True):
     """Wrapper around render_bubble with proper error handling for avatars"""
     try:
@@ -547,6 +569,7 @@ def safe_render_bubble(username, message, meme_path=None, is_sender=False, is_re
         return render_bubble(username, message, meme_path=meme_path, is_sender=is_sender, is_read=is_read)
     except Exception as e:
         raise
+
 def get_character_avatar_preview(character_name):
     """Get avatar preview for character management"""
     if not character_name:
@@ -563,6 +586,7 @@ def get_character_avatar_preview(character_name):
         return avatar_path
    
     return "static/images/contact.png"
+
 def load_character_details(name):
     """Load character details when selected from dropdown"""
     if not name:
@@ -572,6 +596,7 @@ def load_character_details(name):
     avatar_preview = get_character_avatar_preview(name)
    
     return avatar_preview, details["personality"], None
+
 def refresh_characters():
     """Refresh the character list and clear the form"""
     characters = get_character_names()
@@ -582,6 +607,7 @@ def refresh_characters():
         return gr.Dropdown(choices=characters, value=first_char), "", avatar_preview, details["personality"], None
     else:
         return gr.Dropdown(choices=characters, value=""), "", "static/images/contact.png", "", None
+
 # =============================================
 # FILE UPLOAD FUNCTIONS
 # =============================================
@@ -591,7 +617,9 @@ def optimize_upload_settings():
     os.environ["GRADIO_TEMP_DIR"] = "/tmp"
     os.environ["GRADIO_QUEUE_TIMEOUT"] = "300"
     os.environ["GRADIO_QUEUE_DEFAULT_CONCURRENCY"] = "1"
+
 optimize_upload_settings()
+
 def check_file_size(file_path, max_size_mb=50):
     """Check if file size is within limits"""
     try:
@@ -602,6 +630,7 @@ def check_file_size(file_path, max_size_mb=50):
         return True, f"File size OK: {file_size_mb:.2f}MB"
     except Exception as e:
         return False, f"Error checking file size: {e}"
+
 def handle_audio_upload_fixed(audio_file, audio_type):
     """Handle audio uploads with better error handling"""
     if not audio_file:
@@ -697,6 +726,7 @@ def handle_audio_upload_fixed(audio_file, audio_type):
            
     except Exception as e:
         return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"Error uploading {audio_type} audio: {str(e)}"
+
 def handle_character_avatar_upload(avatar_file, character_name):
     """Handle avatar uploads for specific characters"""
     if not avatar_file or not character_name:
@@ -743,6 +773,7 @@ def handle_character_avatar_upload(avatar_file, character_name):
            
     except Exception as e:
         return "static/images/contact.png", f"Error uploading avatar: {str(e)}"
+
 # =============================================
 # FIXED FILE HANDLING FUNCTIONS
 # =============================================
@@ -767,6 +798,7 @@ def get_file_path(file_input, choice, default):
         return full_path if os.path.exists(full_path) else default
     else:
         return default
+
 # =============================================
 # ENHANCED RENDER FUNCTIONS WITH RESOURCE MANAGEMENT
 # =============================================
@@ -793,9 +825,11 @@ def safe_render_with_limits(*args, **kwargs):
         frames_dir = os.path.join(PROJECT_ROOT, "frames")
         os.makedirs(frames_dir, exist_ok=True)
         return os.path.join(frames_dir, "frame_fallback.png")
+
 # Replace the original render_bubble with our safe version
 original_render_bubble = render_bubble
 render_bubble = safe_render_with_limits
+
 # =============================================
 # ENHANCED VIDEO RENDERING WITH BETTER ERROR HANDLING
 # =============================================
@@ -847,6 +881,7 @@ def safe_build_video_from_timeline(*args, **kwargs):
         print(f"Error in video rendering: {e}")
         traceback.print_exc()
         return None
+
 # =============================================
 # CORE APPLICATION FUNCTIONS
 # =============================================
@@ -864,6 +899,7 @@ def calculate_total_runtime(data):
     seconds = int(total_seconds % 60)
     formatted = f"{minutes:02d}:{seconds:02d}"
     return total_seconds, formatted
+
 def load_timeline_data():
     timeline_path = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
     if not os.path.exists(timeline_path):
@@ -880,6 +916,7 @@ def load_timeline_data():
     ] for i, item in enumerate(data)]
     total_seconds, formatted = calculate_total_runtime(data)
     return data, f"Loaded timeline ({len(data)} messages) — Total: {total_seconds:.1f}s ({formatted})", formatted
+
 def start_auto_refresh(load_button, timeline_table, status_box, total_duration_box, interval=10):
     global auto_refresh_running, auto_refresh_thread, rendering_in_progress
    
@@ -898,9 +935,11 @@ def start_auto_refresh(load_button, timeline_table, status_box, total_duration_b
         auto_refresh_running = True
         auto_refresh_thread = threading.Thread(target=loop, daemon=True)
         auto_refresh_thread.start()
+
 def stop_auto_refresh():
     global auto_refresh_running
     auto_refresh_running = False
+
 def save_timeline_data(data):
     frames_dir = os.path.join(PROJECT_ROOT, "frames")
     timeline_file = os.path.join(frames_dir, "timeline.json")
@@ -944,6 +983,7 @@ def save_timeline_data(data):
         return f"Saved {len(new_data)} timeline entries."
     except Exception as e:
         return f"Error saving timeline: {e}"
+
 def auto_pace_timeline():
     timeline_file = os.path.join(PROJECT_ROOT, "frames", "timeline.json")
     if not os.path.exists(timeline_file):
@@ -969,6 +1009,7 @@ def auto_pace_timeline():
         rows.append([i, item.get("username", ""), item.get("text", ""), item.get("duration", 0)])
     total, formatted = calculate_total_runtime(rows)
     return rows, f"Auto-paced timeline! Total: {round(total, 2)}s (≈{formatted})", formatted
+
 def emergency_fix_assets():
     """Emergency function to fix missing assets"""
     try:
@@ -985,6 +1026,7 @@ def emergency_fix_assets():
         return "Emergency asset fix completed"
     except Exception as e:
         return f"Emergency fix failed: {e}"
+
 def handle_generate(characters, topic, mood, length, title, avatar_upload, manual_script):
     global latest_generated_script
     if manual_script and manual_script.strip():
@@ -1001,12 +1043,14 @@ def handle_generate(characters, topic, mood, length, title, avatar_upload, manua
     with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
         f.write(latest_generated_script.strip() + "\n")
     return latest_generated_script, f"Script ready & saved to {SCRIPT_FILE}"
+
 def handle_manual_script(script_text):
     global latest_generated_script
     latest_generated_script = script_text.strip()
     with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
         f.write(latest_generated_script + "\n")
     return latest_generated_script, f"Manual script saved to {SCRIPT_FILE}"
+
 # SAFE WRAPPER FUNCTIONS TO HANDLE MISSING PARAMETERS
 def safe_handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
                       bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload,
@@ -1035,6 +1079,7 @@ def safe_handle_render(bg_choice, send_choice, recv_choice, typing_choice, typin
         bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload,
         chat_title, chat_status, chat_avatar, moral_text
     )
+
 def safe_handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
                                bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
     """Wrapper that ensures all parameters have proper default values"""
@@ -1057,6 +1102,7 @@ def safe_handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choi
         bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice,
         bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text
     )
+
 def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, chat_title, chat_status, chat_avatar, moral_text):
     global latest_generated_script, rendering_in_progress
    
@@ -1222,6 +1268,7 @@ def handle_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar
         return None, error_msg, None
     finally:
         rendering_in_progress = False
+
 def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, typing_bar_choice, bg_upload, send_upload, recv_upload, typing_upload, typing_bar_upload, moral_text):
     global rendering_in_progress
    
@@ -1308,6 +1355,7 @@ def handle_timeline_render(bg_choice, send_choice, recv_choice, typing_choice, t
         return None, f"Error: {str(e)}", None
     finally:
         rendering_in_progress = False
+
 # =============================================
 # BACKGROUND MUSIC SEGMENT FUNCTIONS
 # =============================================
@@ -1379,6 +1427,7 @@ def load_bg_segments(file_path=None):
         except Exception:
             pass
     return repaired
+
 def load_bg_segments_ui():
     """Wrapper for UI that loads segments and returns them in UI format"""
     segments = load_bg_segments()
@@ -1391,6 +1440,7 @@ def load_bg_segments_ui():
         ui_segments.append([seg["start"], seg["end"], audio_filename, playback_mode, custom_start])
    
     return ui_segments, f"Loaded {len(ui_segments)} BG segments"
+
 def add_bg_segment(start, end, audio, playback_mode, custom_start, current_segments, timeline_table):
     try:
         if start is None or end is None:
@@ -1506,6 +1556,7 @@ def add_bg_segment(start, end, audio, playback_mode, custom_start, current_segme
    
     except Exception as e:
         return current_segments, f"Error adding segment: {e}"
+
 def save_bg_segments(segments, timeline_table):
     try:
         if isinstance(segments, dict) and "data" in segments:
@@ -1565,10 +1616,12 @@ def save_bg_segments(segments, timeline_table):
        
     except Exception as e:
         return gr.Dropdown(choices=AUDIO_FILES + [""], value=""), f"Error saving BG segments: {str(e)}"
+
 def reset_bg_segments():
     if os.path.exists(BG_TIMELINE_FILE):
         os.remove(BG_TIMELINE_FILE)
     return pd.DataFrame(columns=["start_seconds", "end_seconds", "audio", "playback_mode", "custom_start"]), "Reset all BG segments"
+
 def create_fallback_avatar(username, size=200):
     """Create a fallback avatar using command line tools if PIL fails"""
     try:
@@ -1601,6 +1654,7 @@ def create_fallback_avatar(username, size=200):
        
     except Exception:
         return None
+
 # =============================================
 # ENHANCED GRADIO UI WITH RESOURCE MANAGEMENT
 # =============================================
@@ -1617,6 +1671,7 @@ def cleanup_resources():
         print("✅ Cleaned up temporary resources")
     except Exception as e:
         print(f"⚠️ Cleanup warning: {e}")
+
 # Create the Gradio interface
 with gr.Blocks() as demo:
     gr.Markdown("## Chat Script & Video Generator")
