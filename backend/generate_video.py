@@ -13,11 +13,13 @@ import subprocess
 import shlex
 from PIL import Image, ImageDraw, ImageFont
 import random
+
 # Add Groq import for AI moral generation
 try:
     from groq import Groq
 except ImportError:
     print("⚠️ Groq package not available - AI moral generation will use fallback")
+
 # --------------------
 # Paths & defaults
 # --------------------
@@ -33,6 +35,7 @@ DEFAULT_BG = os.path.join(STATIC_AUDIO, "default_bg.mp3")
 DEFAULT_SEND = os.path.join(STATIC_AUDIO, "send.mp3")
 DEFAULT_RECV = os.path.join(STATIC_AUDIO, "recv.mp3")
 FPS = 25 # Target frame rate
+
 # --------------------
 # Helper Functions
 # --------------------
@@ -58,6 +61,7 @@ def debug_audio_generation(delayed_bg_files, delayed_files, final_audio):
     print(f"🔊 Total existing audio files: {len(existing_files)}")
    
     return len(existing_files) > 0
+
 def create_silent_audio(duration, output_path):
     """Create a silent audio file of specified duration"""
     try:
@@ -66,6 +70,7 @@ def create_silent_audio(duration, output_path):
     except Exception as e:
         print(f"❌ Failed to create silent audio: {e}")
         return False
+
 def debug_typing_timeline_entries(timeline):
     """Debug function to check typing entries in timeline"""
     print("🔍 ===== TYPING TIMELINE ENTRIES DEBUG =====")
@@ -101,6 +106,7 @@ def debug_typing_timeline_entries(timeline):
         for idx, entry in typing_entries:
             if entry.get('sound') and idx < 20:
                 print(f"🔍 Frame {idx}: '{entry.get('upcoming_text')}'")
+
 def build_typing_audio_sessions(timeline, typing_sound_master_path, tmp_dir):
     """
     Creates perfectly trimmed typing audio sessions
@@ -192,14 +198,18 @@ def build_typing_audio_sessions(timeline, typing_sound_master_path, tmp_dir):
    
     print(f"🎵 Successfully created {len(trimmed_map)} typing audio sessions")
     return trimmed_map
+
 def timeline_time_at_index(timeline, idx):
     """Calculate cumulative time up to a specific index in the timeline"""
     return sum(float(t.get("duration", 0)) for t in timeline[:idx])
+
 def _run(cmd: str):
     print("RUN:", cmd)
     subprocess.check_call(cmd, shell=True)
+
 def _safe(path: str) -> str:
     return path.replace("\\", "/")
+
 def ensure_local(path_or_url: str) -> str:
     """
     If given a URL, download to TMP_DIR and return local path.
@@ -220,6 +230,7 @@ def ensure_local(path_or_url: str) -> str:
     if os.path.isabs(path_or_url):
         return path_or_url
     return os.path.join(BASE_DIR, path_or_url)
+
 def _decode_meme_b64(item: Dict[str, Any], index: int) -> str:
     """
     If item contains meme_b64, decode it into TMP_DIR and return file path.
@@ -238,6 +249,7 @@ def _decode_meme_b64(item: Dict[str, Any], index: int) -> str:
     except Exception as e:
         print(f"⚠️ Failed to decode meme_b64 for item {index}: {e}")
         return None
+
 def _is_valid_image(path: str) -> bool:
     try:
         with Image.open(path) as im:
@@ -245,6 +257,7 @@ def _is_valid_image(path: str) -> bool:
         return True
     except Exception:
         return False
+
 def create_concat_file_from_frames_only(frames_dir: str, concat_path: str, fps: int = FPS) -> Tuple[float, List[str]]:
     frames = sorted(glob.glob(os.path.join(frames_dir, "*.png")))
     frames = [f for f in frames if _is_valid_image(f)]
@@ -261,6 +274,7 @@ def create_concat_file_from_frames_only(frames_dir: str, concat_path: str, fps: 
         f.write("\n".join(lines) + "\n")
     print(f"✅ concat.txt (fallback) with {len(frames)} frames @ {fps}fps")
     return total_duration, frames
+
 def _prepare_meme_clip(src_path: str, out_path: str, hold_seconds: float, video_w: int, video_h: int):
     # Ensure proper scaling + enforce even dimensions
     vf = (
@@ -273,6 +287,7 @@ def _prepare_meme_clip(src_path: str, out_path: str, hold_seconds: float, video_
         f'-c:v libx264 -preset veryfast -crf 18 "{out_path}"'
     )
     _run(cmd)
+
 def _process_meme_item(item, index, video_w, video_h, tmp_dir):
     # Check if file exists and is valid
     if "file" not in item or not item["file"]:
@@ -332,6 +347,7 @@ def _process_meme_item(item, index, video_w, video_h, tmp_dir):
     else:
         print(f"⚠️ Meme {index}: unsupported extension {ext}, skipping.")
         return None
+
 def create_moral_screen(moral_text, duration=4.0, output_path=None):
     """Create a moral of the lesson screen with black background and red text"""
     print(f"🎬 DEBUG create_moral_screen called with: '{moral_text}'")
@@ -404,6 +420,7 @@ def create_moral_screen(moral_text, duration=4.0, output_path=None):
     print(f"✅ Moral screen size: {os.path.getsize(output_path)} bytes")
    
     return output_path, duration
+
 def generate_moral_from_conversation(timeline):
     """Generate an intelligent moral based on the conversation content"""
     try:
@@ -460,6 +477,7 @@ Moral of the story:"""
     except Exception as e:
         print(f"⚠️ AI moral generation failed: {e}")
         return get_fallback_moral()
+
 def get_fallback_moral():
     """Return a random fallback moral if none provided"""
     fallback_morals = [
@@ -471,6 +489,7 @@ def get_fallback_moral():
         "Moral: Better conversations lead to better relationships"
     ]
     return random.choice(fallback_morals)
+
 def _infer_canvas_size_from_first_frame(timeline: List[Dict[str, Any]], default_w=1904, default_h=934) -> Tuple[int, int]:
     for item in timeline:
         if not item.get("is_meme"):
@@ -484,6 +503,7 @@ def _infer_canvas_size_from_first_frame(timeline: List[Dict[str, Any]], default_
                     except Exception:
                         pass
     return default_w, default_h
+
 def debug_timeline_loading():
     """Debug timeline loading and frame paths"""
     print("🔍 ===== TIMELINE DEBUG =====")
@@ -509,6 +529,7 @@ def debug_timeline_loading():
     else:
         print("🔍 No timeline file found!")
         return [], 0
+
 def debug_concat_file(concat_path):
     """Debug the concat file content"""
     print("🔍 ===== CONCAT FILE DEBUG =====")
@@ -535,6 +556,7 @@ def debug_concat_file(concat_path):
             print(f"🔍 {line}")
     else:
         print("❌ Concat file doesn't exist!")
+
 def debug_concat_creation(lines, concat_path, total_duration):
     """Debug why concat file isn't being created"""
     print("🔍 ===== CONCAT CREATION DEBUG =====")
@@ -556,6 +578,7 @@ def debug_concat_creation(lines, concat_path, total_duration):
     concat_dir = os.path.dirname(concat_path)
     print(f"🔍 Concat directory exists: {os.path.exists(concat_dir)}")
     print(f"🔍 Concat directory: {concat_dir}")
+
 # --------------------
 # Main builder
 # --------------------
@@ -573,9 +596,11 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
     print(f"🎬 moral_text type: {type(moral_text)}")
     print(f"🎬 moral_text is None: {moral_text is None}")
     print(f"🎬 moral_text is empty string: {moral_text == ''}")
+   
     # Initialize audio lists
     delayed_files: List[str] = [] # Sound effects
     delayed_bg_files: List[str] = [] # Background music ONLY
+   
     # Debug timeline and frames
     print("🔍 Debugging timeline and frames...")
     debug_timeline, expected_duration = debug_timeline_loading()
@@ -585,21 +610,26 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
     # Check frames directory
     frames_in_dir = glob.glob(os.path.join(FRAMES_DIR, "*.png"))
     print(f"🔍 Frames in {FRAMES_DIR}: {len(frames_in_dir)}")
+   
     # Clean up temp directory
     if os.path.exists(TMP_DIR):
         shutil.rmtree(TMP_DIR)
     os.makedirs(TMP_DIR, exist_ok=True)
+   
     if os.path.exists(OUTPUT_VIDEO):
         os.remove(OUTPUT_VIDEO)
+   
     concat_txt = os.path.join(TMP_DIR, "concat.txt")
     total_duration = 0.0
     timeline: List[Dict[str, Any]] = []
     all_segment_paths: List[str] = []
+   
     # ------------------ LOAD TIMELINE ------------------
     if os.path.exists(TIMELINE_FILE):
         with open(TIMELINE_FILE, "r", encoding="utf-8") as f:
             timeline = json.load(f)
         print(f"🎬 Loaded {len(timeline)} timeline entries from file")
+       
         # Small delay between text & meme of same user
         for i, item in enumerate(timeline):
             if item.get("is_meme") and i > 0:
@@ -607,10 +637,12 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                 if prev.get("text") and prev.get("username") == item.get("username") and not prev.get("is_meme"):
                     item["duration"] = item.get("duration", 2.0) + 0.5
                     print(f"⏱️ Added 0.5s delay between text & meme for {item['username']}")
+       
         # Decode any base64 memes
         for i, item in enumerate(timeline):
             if item.get("meme_b64"):
                 _decode_meme_b64(item, i)
+       
         # Filter invalid entries
         valid_timeline = []
         for item in timeline:
@@ -624,13 +656,17 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                 print(f"⚠️ Skipping frame missing path: {item}")
                 continue
             valid_timeline.append(item)
+       
         print(f"🎬 After filtering: {len(valid_timeline)} valid entries")
+       
         # Inject random memes (if applicable)
         timeline = inject_random_memes(valid_timeline, chance=0.25, max_per_video=3)
+       
         if timeline:
             video_w, video_h = _infer_canvas_size_from_first_frame(timeline)
             lines = ["ffconcat version 1.0"]
             meme_segments = []
+           
             # ------------------ MAIN LOOP ------------------
             for i, item in enumerate(timeline):
                 # --- Typing bubbles ---
@@ -645,6 +681,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                     else:
                         print(f"⚠️ Typing frame {i}: missing or invalid {item.get('frame')}")
                     continue
+               
                 # --- Typing BAR (new) ---
                 if item.get("typing_bar"):
                     frame_path = os.path.join(BASE_DIR, item["frame"]) if not os.path.isabs(item["frame"]) else item["frame"]
@@ -657,6 +694,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                     else:
                         print(f"⚠️ Typing BAR frame {i}: missing or invalid {item.get('frame')}")
                     continue
+               
                 # --- Regular chat frames ---
                 if not item.get("is_meme"):
                     frame_path = os.path.join(BASE_DIR, item["frame"]) if not os.path.isabs(item["frame"]) else item["frame"]
@@ -670,6 +708,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                     else:
                         print(f"⚠️ Frame {i}: missing or invalid {item.get('frame')}")
                         continue
+               
                 # --- Meme chat frame priority ---
                 if item.get("is_meme") and item.get("frame"):
                     frame_path = os.path.join(BASE_DIR, item["frame"]) if not os.path.isabs(item["frame"]) else item["frame"]
@@ -682,10 +721,12 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                         continue
                     else:
                         print(f"⚠️ Meme {i}: frame missing or invalid, fallback to meme asset")
+               
                 # --- Fallback: process raw meme asset ---
                 if "file" not in item or not item["file"]:
                     print(f"⚠️ Meme {i}: No file specified, skipping.")
                     continue
+               
                 meme_result = _process_meme_item(item, i, video_w, video_h, TMP_DIR)
                 if meme_result and os.path.exists(meme_result["path"]):
                     if meme_result["type"] == "image":
@@ -700,6 +741,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                         print(f"✅ Meme {i} processed as video: {meme_result['path']} ({meme_result['duration']}s)")
                 else:
                     print(f"⚠️ Meme {i}: Processing failed, skipping.")
+           
             # ------------------ ADD MORAL SCREEN AT END ------------------
             if moral_text and moral_text.strip():
                 print(f"🎬 Adding moral screen: '{moral_text}'")
@@ -740,6 +782,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                
                 total_duration += moral_duration
                 print(f"✅ Added fallback moral screen ({moral_duration}s)")
+           
             # ------------------ WRITE CONCAT FILE ------------------
             debug_concat_creation(lines, concat_txt, total_duration)
             try:
@@ -751,6 +794,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                     print(f"✅ File size: {os.path.getsize(concat_txt)} bytes")
             except Exception as e:
                 print(f"❌ Failed to write concat file: {e}")
+           
             debug_concat_file(concat_txt)
             print(f"🎬 Created concat file with {len(lines)} entries, total duration: {total_duration}s")
            
@@ -760,6 +804,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
     else:
         print("🎬 No timeline file found, falling back to frames directory")
         total_duration, _ = create_concat_file_from_frames_only(FRAMES_DIR, concat_txt)
+   
     # ------------------ RENDER VIDEO ------------------
     print(f"🎬 Rendering video with total duration: {total_duration}s")
     temp_video = os.path.join(TMP_DIR, "temp_video.mp4")
@@ -780,6 +825,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
         f'-c:v libx264 -preset ultrafast -crf 23 '
         f'-threads 2 -movflags +faststart "{temp_video}"'
     )
+   
     # Check if temp video was created and get its actual duration
     if os.path.exists(temp_video):
         try:
@@ -795,10 +841,13 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
             print(f"⚠️ Could not get temp video duration: {e}")
     else:
         print("❌ Temp video not created!")
+   
     final_audio = os.path.join(TMP_DIR, "final_audio.aac")
     delayed_bg_files: List[str] = []
+   
     # ------------------ BACKGROUND AUDIO ------------------
     print(f"🎵 BG Segments parameter received: {bg_segments}")
+   
     # Use passed segments if available, otherwise load from file
     if use_segments:
         if bg_segments is not None and len(bg_segments) > 0:
@@ -817,8 +866,10 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
     else:
         bg_segments = []
         print("🎵 Not using segments (use_segments=False)")
+   
     # Track song positions for "continue" mode
     song_positions: Dict[str, float] = {}
+   
     # Debug: print all segments being processed with their playback modes
     print("🎵 ===== SEGMENTS TO PROCESS =====")
     for i, seg in enumerate(bg_segments):
@@ -834,8 +885,10 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
         }
         print(f"🎵 Segment {i}: {seg['start']}s - {seg['end']}s ({duration}s) -> {audio_file} [{exists}] - {mode_display.get(playback_mode, '🆕 Start Fresh')}")
     print("🎵 ===============================")
+   
     # Check if user has defined any segments (opted in)
     has_user_defined_segments = len(bg_segments) > 0
+   
     if has_user_defined_segments:
         print("🎵 User has defined BG segments - using segment-based audio (with silence for gaps)")
        
@@ -981,10 +1034,12 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
     if 'delayed_files' not in locals():
         delayed_files = []
     print(f"🎵 Initial delayed_files count: {len(delayed_files)}")
+   
     # ========== CONTINUOUS TYPING SOUND SOLUTION ==========
     print("🎹 ===== DEBUG TYPING SOUND GENERATION =====")
     # First, debug what's in the timeline
     debug_typing_timeline_entries(timeline)
+   
     # ADD THE FIXED CHECK HERE:
     if typing_audio and os.path.exists(ensure_local(typing_audio)) and timeline:
         print("🎹 Starting typing sound generation...")
@@ -1126,6 +1181,7 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
             print(f"🎹 ❌ typing_audio file not found: {typing_audio}")
         if not timeline:
             print("🎹 ❌ timeline is empty")
+   
     # Process message sounds (send/recv)
     current_time = 0.0
     sound_idx = len(delayed_files)
@@ -1151,15 +1207,19 @@ def build_video_from_timeline(bg_audio=None, send_audio=None, recv_audio=None, t
                 sound_idx += 1
                 print(f"🎵 ✅ Message sound at {sound_delay:.2f}s")
         current_time += dur
+   
     print(f"🎵 ===== SOUND EFFECTS DEBUG END =====")
     print(f"🎵 Total sound effects generated: {len(delayed_files)}")
     for i, sound_file in enumerate(delayed_files):
         exists = "✅" if os.path.exists(sound_file) else "❌"
         print(f"🎵 {i}: {exists} {os.path.basename(sound_file)}")
+   
     # ------------------ FINAL AUDIO MIX (FIXED VERSION) ------------------
     print(f"🎵 Mixing {len(delayed_bg_files)} background files + {len(delayed_files)} sound effects")
+   
     # Debug audio files first
     has_audio = debug_audio_generation(delayed_bg_files, delayed_files, final_audio)
+   
     if not has_audio:
         print("🎵 No audio files available - creating video without audio")
         final_video = OUTPUT_VIDEO
